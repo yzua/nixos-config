@@ -400,10 +400,13 @@ ORDER BY vuln_count DESC;
 
 The `findings-web` command provides a wrapper around the SQLite database with structured subcommands. All commands operate on `~/Documents/<target>/findings.db`.
 
+The wrapper currently uses positional arguments, not flag-style arguments. Use
+raw `query` for fields the wrapper does not expose directly.
+
 ### Initialization
 
 ```bash
-findings-web init [target]
+findings-web init ~/Documents/<target>
 ```
 
 Creates a fresh `findings.db` at `~/Documents/<target>/findings.db` with all six tables. Safe to run on an existing database (no-op if tables exist).
@@ -411,39 +414,39 @@ Creates a fresh `findings.db` at `~/Documents/<target>/findings.db` with all six
 ### Adding Records
 
 ```bash
-findings-web add-host --ip <ip> --hostname <name> --os <os> --notes <notes>
-findings-web add-service --host-id <id> --url <url> --port <port> --protocol <proto> --service <svc> --version <ver> --banner <banner>
-findings-web add-vuln --host-id <id> --service-id <id> --endpoint <path> --finding-id <FIND-NNN> --title <title> --severity <Critical|High|Medium|Low|Info> --owasp <A01-A10> --description <desc> [--evidence-path <path>] [--repro-steps <steps>]
-findings-web add-cred --host-id <id> [--service-id <id>] --username <user> --hash-type <type> --hash-value <hash> --cleartext <plain> --source <source>
-findings-web add-chain --name <name> --description <desc> --steps <json_array> --reach <1-5> --reliability <1-5> --stealth <1-5> --speed <1-5> --impact <1-5>
+findings-web add-host ~/Documents/<target> <ip> <hostname> [os]
+findings-web add-service ~/Documents/<target> <host_id> <port> <protocol> <service> [version]
+findings-web add-vuln ~/Documents/<target> <FIND-NNN> "<title>" <Critical|High|Medium|Low|Info> <A01-A10> [status]
+findings-web add-cred ~/Documents/<target> <host_id> <username> <hash_type> <hash_value> [source]
+findings-web add-chain ~/Documents/<target> "<name>" "<description>" '<json_array_of_finding_ids>'
 ```
 
 ### Listing Records
 
 ```bash
-findings-web list-hosts
-findings-web list-vulns [--severity Critical,High] [--status open,in_progress] [--owasp A03] [--endpoint /api/v1]
-findings-web list-chains [--min-score 3.0]
+findings-web list-hosts ~/Documents/<target>
+findings-web list-vulns ~/Documents/<target> [--severity High] [--status open]
+findings-web list-chains ~/Documents/<target>
 ```
 
 ### Updating Records
 
 ```bash
-findings-web update-vuln --finding-id <FIND-NNN> [--status exploited] [--confidence 0.9] [--detection-yara <rule>] [--detection-sigma <rule>] [--detection-network <json>] [--detection-siem <query>] [--evidence-path <path>] [--repro-steps <steps>] [--remediation <fix>]
+findings-web update-vuln ~/Documents/<target> <FIND-NNN> [--status exploited] [--confidence 0.9] [--evidence <path>]
 ```
 
 ### Session Logging
 
 ```bash
-findings-web log-session --goals <json_array> --findings <json_array> --strategies-tried <json_array> --strategies-succeeded <json_array> --strategies-failed <json_array> --blocked <json_array> --next-steps <json_array> --duration <minutes> --knowledge-added <n> --knowledge-updated <n>
+findings-web log-session ~/Documents/<target> '<goals_json>' '<findings_json>' '<next_steps_json>'
 ```
 
 ### Raw Queries
 
 ```bash
-findings-web query "SELECT finding_id, title, endpoint, severity FROM vulns WHERE status = 'exploited' ORDER BY confidence DESC"
-findings-web query "SELECT url, service, version FROM services ORDER BY url"
-findings-web query "SELECT * FROM chains WHERE total_score >= 4.0"
+findings-web query ~/Documents/<target> "SELECT finding_id, title, endpoint, severity FROM vulns WHERE status = 'exploited' ORDER BY confidence DESC"
+findings-web query ~/Documents/<target> "SELECT url, service, version FROM services ORDER BY url"
+findings-web query ~/Documents/<target> "SELECT * FROM chains WHERE total_score >= 4.0"
 ```
 
 ## Integration with Other Prompt Files

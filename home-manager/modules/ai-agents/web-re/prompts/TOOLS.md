@@ -1,6 +1,6 @@
 # Web RE Tools
 
-## MCP Analysis Tool
+## MCP Analysis Tools
 
 The chrome-devtools MCP loads exclusively for this agent and is the PRIMARY tool
 for all browser-based testing.
@@ -33,6 +33,13 @@ primary analysis and interaction interface for all browser-based tasks. Fall bac
 to CLI tools (`curl`, `httpie`, `nuclei`, etc.) when MCP tools do not cover the
 need or when you need speed for bulk operations.
 
+Shared MCP servers also available to this agent:
+
+- **semgrep MCP** — structured Semgrep scans and rule/schema lookup through
+  `semgrep mcp`
+- **GitHub MCP** — repository, issue, PR, Actions, Dependabot, and code
+  security context through the official `github-mcp-server`
+
 ## Installed On This Machine
 
 ### Browser and proxy
@@ -57,6 +64,9 @@ need or when you need speed for bulk operations.
   software, JavaScript libraries, and other technologies from HTTP responses
 - `katana` — web crawler/spider: discover URLs, endpoints, JavaScript files,
   and API paths from web applications with JavaScript rendering support
+- `hakrawler` — fast endpoint crawler for URLs, links, scripts, and forms
+- `gau` — fetch known URLs from AlienVault, Wayback, Common Crawl, and URLScan
+- `waybackurls` — fetch historical URLs known to the Wayback Machine
 - `rustscan` — fast port scanner: rapid discovery of open ports on target
   infrastructure (10x faster than nmap for initial sweep); pipe results to
   nmap for service fingerprinting
@@ -88,12 +98,15 @@ need or when you need speed for bulk operations.
   web queries.
 - `commix` — command injection scanner: automated detection and exploitation
   of OS command injection vulnerabilities in web applications
+- `jaeles` — automated web testing/signature scanner for target-specific checks
 
 ### Fuzzing
 
 - `ffuf` — fast web fuzzer: brute-force directories, files, parameters,
   virtual hosts, and API endpoints; supports recursive and recursive-domain
   fuzzing
+- `kiterunner` — API route and content discovery with contextual wordlists,
+  useful for REST and JSON API surface expansion
 - `arjun` — HTTP parameter discovery: find hidden query parameters, POST
   body fields, and headers that the server accepts; useful for mapping API
   attack surface
@@ -132,12 +145,18 @@ need or when you need speed for bulk operations.
 - `trivy` — vulnerability and secret scanner: scan container images, file
   systems, git repositories, and Kubernetes clusters for CVEs, misconfigs,
   and embedded secrets
+- `osv-scanner` — OSV-backed dependency vulnerability scanning for source trees
+  and lockfiles
+- `syft` — generate SBOMs from source trees, containers, and filesystems
+- `grype` — scan SBOMs, containers, and filesystems for known vulnerabilities
 
 ### Historical analysis
 
 - `waybackpy` (Python) — Wayback Machine API client: retrieve archived
   versions of target URLs, discover historical endpoints and URL patterns,
   analyze how the target changed over time
+- `gau` / `waybackurls` — fast historical URL collection for endpoint and
+  parameter discovery
 
 ### HTTP clients
 
@@ -159,6 +178,9 @@ need or when you need speed for bulk operations.
 - `cyberchef` — universal data transformation tool: encode/decode/hash/
   encrypt/compress data, convert between formats, analyze base64/hex/JWT
   tokens captured during testing
+- `jwt-cli` — decode, verify, and craft JWTs during auth and session testing
+- `step-cli` — inspect X.509 certificates, OAuth/OIDC metadata, JWTs, and
+  trust-chain material
 - `jq` — JSON processor: parse, filter, transform, and extract data from
   JSON API responses and log files
 - `linkfinder` — JavaScript endpoint discovery (install with `pip install linkfinder`):
@@ -176,14 +198,15 @@ Use the smallest tool that gives a reliable answer:
 
 - **Need technology fingerprint?** Use `whatweb`, `httpx`
 - **Need subdomains or infrastructure?** Use `subfinder`, `amass`
-- **Need URLs and endpoints?** Use `katana`, `ffuf`
+- **Need URLs and endpoints?** Use `katana`, `hakrawler`, `gau`,
+  `waybackurls`, `ffuf`
 - **Need to interact with a page?** Use chrome-devtools MCP
 - **Need to capture/inspect traffic?** Use `mitmdump` via tmux
 - **Need to scan for known vulnerabilities?** Use `nuclei`
 - **Need to test for XSS?** Use `dalfox` + chrome-devtools
 - **Need to test for SQL injection?** Use `sqlmap`
 - **Need to find hidden parameters?** Use `arjun`
-- **Need to fuzz endpoints?** Use `ffuf`
+- **Need to fuzz endpoints?** Use `ffuf`, `kiterunner`
 - **Need to send crafted HTTP requests?** Use `curl`, `httpie`
 - **Need to brute-force auth?** Use `hydra`
 - **Need repeated proof?** Write a Bash/Python/Node/Bun script
@@ -195,8 +218,9 @@ Use the smallest tool that gives a reliable answer:
 - **Need blind vuln detection?** Use `interactsh`
 - **Need command injection testing?** Use `commix`
 - **Need to find JS endpoints?** Use `linkfinder`
-- **Need historical URL analysis?** Use `waybackpy` (Python)
-- **Need supply chain CVE scanning?** Use `trivy`
+- **Need historical URL analysis?** Use `gau`, `waybackurls`, `waybackpy`
+- **Need supply chain CVE scanning?** Use `trivy`, `osv-scanner`, `syft`,
+  `grype`
 
 ## Fast Vulnerability Playbooks
 

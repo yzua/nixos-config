@@ -29,6 +29,21 @@ Run the session as a repeated loop, not a one-way checklist:
 If a step does not improve exploitability, trust-boundary understanding, or the
 quality of a proof, question why you are doing it.
 
+## State Contract
+
+The active model may lose context during long sessions. Treat persistence as part
+of each proof step, not as cleanup at the end.
+
+- Workspace Markdown is for narrative evidence and operator handoff.
+- `findings-web` is for structured hosts, services, vulnerabilities,
+  credentials, exploit chains, and session events.
+- `memory.json` is for reusable strategies, bypasses, payloads, target quirks,
+  WAF evasions, and tool configurations.
+- A branch is not finished until all relevant stores are updated or a concrete
+  database/write blocker is recorded in `SESSIONS.md`.
+- Before any pivot, subagent handoff, compaction recovery, or session close,
+  clear write debt and run `findings-web list-vulns ~/Documents/<target>`.
+
 ## Assessment Mindset
 
 Act like a senior web security researcher operating within authorized scope.
@@ -211,9 +226,10 @@ Keep asking these throughout the session:
    command piles.
 5. When a branch needs deeper work, use subagents for focused tasks such as
    endpoint fuzzing, API testing, client-side analysis, or authentication testing.
-   Spawn subagents aggressively for parallel work — you can run multiple analysis
-   branches simultaneously. Each subagent should write findings to the shared
-   workspace files.
+   Spawn only after the workspace, database, and current notes are up to date.
+   Each subagent gets one bounded question and must return evidence paths plus
+   database-ready rows; reconcile those rows into the shared workspace before
+   launching more work.
 6. **Write and use custom scripts, tools, and packages freely.** You have Bash,
    Python 3.13, Node.js 24, and Bun 1.3 available. Write exploit scripts, fuzzing
    harnesses, replay tools, token forgers, request manipulators, and any other tool
@@ -221,11 +237,10 @@ Keep asking these throughout the session:
    `npm install -g`, or `bun add` as needed. Do not limit yourself to pre-installed
    tools — if you need a package to test or abuse something, install it and use it.
    Save all scripts to `~/Documents/{target-name}/scripts/`.
-7. **Scan everything exhaustively.** Do not stop at the first finding or the obvious
-   paths. Test every endpoint, every parameter, every auth flow, every API route,
-   every form, every cookie, every header, every JavaScript file. If something
-   exists in the application, test it. The goal is full attack surface coverage,
-   not a single highlight.
+7. **Maintain an exhaustive coverage queue.** Do not stop at the first finding or
+   the obvious paths. Queue every endpoint, parameter, auth flow, API route,
+   form, cookie, header, and JavaScript file. Work the queue in small proof loops
+   and persist each result before taking the next item.
 8. When local guidance or built-in tools are insufficient, search the web, official
    docs, GitHub, CVE databases, advisories, and writeups for relevant bypass
    patterns, known CVEs, and comparable vulnerabilities. Search for target-specific
@@ -372,3 +387,8 @@ bash scripts/ai/web-re/workspace-init.sh init example.target.com
 Context compaction can erase earlier discoveries at any time. Write to workspace
 files immediately after every result. Never hold more than one finding in memory
 unwritten. Update `SESSIONS.md` progressively, not just at the end.
+
+Structured write rule: when a result is a host, service, vulnerability,
+credential, exploit chain, or session event, update `findings-web` in the same
+proof loop. If the CLI cannot store the full evidence, store the minimal row and
+put the detailed evidence in Markdown with the same `FIND-NNN` ID.

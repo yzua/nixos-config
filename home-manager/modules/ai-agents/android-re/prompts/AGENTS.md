@@ -24,10 +24,26 @@ Run the session as a repeated loop, not a one-way checklist:
 1. form the smallest useful hypothesis
 2. choose the cheapest proof step that can confirm or kill it
 3. capture the result with exact evidence
-4. decide the next pivot based on impact, not curiosity alone
+4. write the result to the workspace and findings database immediately
+5. decide the next pivot based on impact, not curiosity alone
 
 If a step does not improve exploitability, trust-boundary understanding, or the
 quality of a proof, question why you are doing it.
+
+## State Contract
+
+The active model may lose context during long sessions. Treat persistence as part
+of each proof step, not as cleanup at the end.
+
+- Workspace Markdown is for narrative evidence and operator handoff.
+- `findings-android` is for structured hosts, services, vulnerabilities,
+  credentials, exploit chains, and session events.
+- `memory.json` is for reusable strategies, bypasses, payloads, target quirks,
+  crash patterns, and tool configurations.
+- A branch is not finished until all relevant stores are updated or a concrete
+  database/write blocker is recorded in `SESSIONS.md`.
+- Before any pivot, subagent handoff, compaction recovery, or session close,
+  clear write debt and run `findings-android list-vulns ~/Documents/<target>`.
 
 ## Assessment Mindset
 
@@ -226,11 +242,12 @@ Keep asking these throughout the session:
     If a built-in hook almost does what you need, copy it and modify for the target.
 13. When a branch needs deeper work, use subagents for focused tasks such as
     static codebase mining, protocol mapping, native-library triage, or targeted
-    review of anti-analysis logic. Spawn subagents aggressively for parallel
-    work — you can run multiple analysis branches simultaneously. Each subagent
-    should write findings to the shared workspace files. Good subagent splits:
-    one for static code/class analysis, one for network protocol mapping, one
-    for native library triage, one for endpoint fuzzing.
+    review of anti-analysis logic. Spawn only after the workspace, database,
+    and current notes are up to date. Each subagent gets one bounded question
+    and must return evidence paths plus database-ready rows; reconcile those
+    rows into the shared workspace before launching more work. Good subagent
+    splits: one for static code/class analysis, one for network protocol
+    mapping, one for native library triage, one for endpoint fuzzing.
 14. **Write and use custom scripts, tools, and packages freely.** You have Bash,
     Python 3.13, Node.js 24, and Bun 1.3 available. Write exploit scripts, fuzzing
     harnesses, replay tools, brute-force scripts, token forgers, request
@@ -239,12 +256,11 @@ Keep asking these throughout the session:
     limit yourself to pre-installed tools — if you need a package to test or abuse
     something, install it and use it. Save all scripts to
     `~/Documents/{app-name}/scripts/`.
-15. **Scan everything exhaustively.** Do not stop at the first finding or the
-    obvious paths. Test every exported component, every deep link, every content
-    provider, every WebView, every shared pref, every SQLite database, every
-    endpoint, every auth flow, every feature screen, every settings toggle. If
-    something exists in the app, test it. The goal is full attack surface coverage,
-    not a single highlight.
+15. **Maintain an exhaustive coverage queue.** Do not stop at the first finding
+    or the obvious paths. Queue every exported component, deep link, content
+    provider, WebView, shared pref, SQLite database, endpoint, auth flow,
+    feature screen, and settings toggle. Work the queue in small proof loops and
+    persist each result before taking the next item.
 
 ## Evidence Output Template
 
@@ -396,6 +412,11 @@ bash scripts/ai/android-re/workspace-init.sh init com.example.target [/path/to/a
 Context compaction can erase earlier discoveries at any time. Write to workspace
 files immediately after every result. Never hold more than one finding in memory
 unwritten. Update `SESSIONS.md` progressively, not just at the end.
+
+Structured write rule: when a result is a host, service, vulnerability,
+credential, exploit chain, or session event, update `findings-android` in the
+same proof loop. If the CLI cannot store the full evidence, store the minimal
+row and put the detailed evidence in Markdown with the same `FIND-NNN` ID.
 
 When the target is part of an app ecosystem, check `android:sharedUserId`,
 correlate split APKs, and look for companion apps and shared SDKs.

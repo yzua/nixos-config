@@ -9,6 +9,13 @@ Two MCP servers load exclusively for this agent:
 - **apktool-mcp-server** — APK decode/rebuild, smali and resource
   read/modify, project management
 
+Shared MCP servers also available to this agent:
+
+- **semgrep MCP** — structured Semgrep scans and rule/schema lookup through
+  `semgrep mcp`
+- **GitHub MCP** — repository, issue, PR, Actions, Dependabot, and code
+  security context through the official `github-mcp-server`
+
 MCP tools are discovered automatically at runtime. Use them as the primary
 analysis interface whenever they cover the task. Fall back to bash `jadx` and
 `apktool` CLI when MCP tools are unavailable or don't cover the need.
@@ -78,10 +85,14 @@ analysis interface whenever they cover the task. Fall back to bash `jadx` and
 
 - `jadx` (includes `jadx-gui`) — Dex-to-Java decompiler: convert DEX bytecode
   to readable Java source, inspect AndroidManifest, search classes/methods/strings
+- `apkid` — identify APK packers, protectors, compilers, and obfuscators before
+  choosing a decompilation strategy
 - `apktool` — APK decode and rebuild: extract smali bytecode, resources, and
   manifest; modify and repackage APKs (patching, resource editing, smali changes)
 - `radare2` — CLI reverse engineering framework: disassemble, analyze, and
   debug native binaries; inspect ELF headers, sections, symbols, and cross-refs
+- `rizin` — modern reverse engineering framework for disassembly, analysis,
+  binary metadata, and scripted native inspection
 - `cutter` — GUI frontend for radare2: visual disassembly, graphs, hex editor,
   decompilation view for native binary analysis
 - `ghidra-bin` — NSA reverse engineering suite: `analyzeHeadless` for scripted
@@ -158,6 +169,9 @@ analysis interface whenever they cover the task. Fall back to bash `jadx` and
 - `cyberchef` — universal data transformation tool (via `cyberchef` CLI or
   browser): encode/decode/hash/encrypt/compress data, convert between formats,
   analyze base64/hex/JWT tokens captured during testing
+- `jwt-cli` — decode, verify, and craft JWTs during auth and session testing
+- `step-cli` — inspect X.509 certificates, OAuth/OIDC metadata, JWTs, and
+  trust-chain material
 
 ### Device UI automation
 
@@ -181,6 +195,11 @@ analysis interface whenever they cover the task. Fall back to bash `jadx` and
 
 - `trivy` — vulnerability and secret scanner: scan APKs, native libraries,
   and container images for known CVEs, misconfigurations, and embedded secrets
+- `osv-scanner` — OSV-backed dependency vulnerability scanning for extracted
+  projects, lockfiles, and source trees
+- `syft` — generate SBOMs from extracted source trees, containers, and
+  filesystems
+- `grype` — scan SBOMs, containers, and filesystems for known vulnerabilities
 
 ### Code coverage
 
@@ -195,6 +214,7 @@ Use the smallest tool that gives a reliable answer:
 - **Need package identity / version / paths / ABI?** Use `adb` and `dumpsys`
 - **Need exported components or suspicious strings?** Use `re-static.sh`, `jadx`,
   `apktool`
+- **Need packer/protector clues?** Use `apkid` before deep decompilation
 - **Need to confirm live traffic?** Use `mitmdump` via the tmux `mitm` pane
 - **Need runtime values or bypasses?** Use Frida attach or spawn
 - **Need to click through the app reliably?** Use `agent-device`
@@ -208,7 +228,8 @@ Use the smallest tool that gives a reliable answer:
 - **Need to check TLS configuration?** Use `testssl`
 - **Need to analyze binary security properties?** Use `checksec`, `readelf`
 - **Need to match patterns in binary data?** Use `yara`
-- **Need to scan for CVEs in dependencies?** Use `trivy`
+- **Need to scan for CVEs in dependencies?** Use `trivy`, `osv-scanner`,
+  `syft`, `grype`
 - **Need to check fuzzing code coverage?** Use `gcovr`
 
 ## Fast Vulnerability Playbooks

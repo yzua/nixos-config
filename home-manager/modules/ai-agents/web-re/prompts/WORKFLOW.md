@@ -24,8 +24,8 @@ Inside every phase, repeat this loop:
 1. state the current hypothesis
 2. run the smallest proof step that could falsify it
 3. capture exact evidence
-4. **write the result to the workspace file immediately** — do not hold it in
-   memory for later
+4. **write the result to the workspace and findings database immediately** —
+   do not hold it in memory for later
 5. either escalate, pivot, or kill the branch
 
 Do not advance phases just because a tool succeeded. Advance because a question
@@ -76,6 +76,11 @@ If the workspace has a findings database, check its state:
 findings-web list-vulns ~/Documents/<target> --status open
 findings-web list-chains ~/Documents/<target>
 ```
+
+Before every phase pivot, confirm there is no write debt: new endpoints are in
+`ENDPOINTS.md`, suspected or confirmed vulns have at least a minimal
+`findings-web add-vuln` row, reusable lessons are in `memory.json`, and the
+current step is summarized in `SESSIONS.md`.
 
 The workspace is a git repository. Create checkpoint commits at major milestones:
 

@@ -355,10 +355,13 @@ ORDER BY v.created DESC;
 
 The `findings-android` command provides a wrapper around the SQLite database with structured subcommands. All commands operate on `~/Documents/<target>/findings.db`.
 
+The wrapper currently uses positional arguments, not flag-style arguments. Use
+raw `query` for fields the wrapper does not expose directly.
+
 ### Initialization
 
 ```bash
-findings-android init [target]
+findings-android init ~/Documents/<target>
 ```
 
 Creates a fresh `findings.db` at `~/Documents/<target>/findings.db` with all six tables. Safe to run on an existing database (no-op if tables exist).
@@ -366,38 +369,38 @@ Creates a fresh `findings.db` at `~/Documents/<target>/findings.db` with all six
 ### Adding Records
 
 ```bash
-findings-android add-host --ip <ip> --hostname <name> --os <os> --notes <notes>
-findings-android add-service --host-id <id> --port <port> --protocol <proto> --service <svc> --version <ver> --banner <banner>
-findings-android add-vuln --host-id <id> --service-id <id> --finding-id <FIND-NNN> --title <title> --severity <Critical|High|Medium|Low|Info> --owasp <M1-M10> --description <desc> [--evidence-path <path>] [--repro-steps <steps>]
-findings-android add-cred --host-id <id> [--service-id <id>] --username <user> --hash-type <type> --hash-value <hash> --cleartext <plain> --source <source>
-findings-android add-chain --name <name> --description <desc> --steps <json_array> --reach <1-5> --reliability <1-5> --stealth <1-5> --speed <1-5> --impact <1-5>
+findings-android add-host ~/Documents/<target> <ip> <hostname> [os]
+findings-android add-service ~/Documents/<target> <host_id> <port> <protocol> <service> [version]
+findings-android add-vuln ~/Documents/<target> <FIND-NNN> "<title>" <Critical|High|Medium|Low|Info> <M1-M10> [status]
+findings-android add-cred ~/Documents/<target> <host_id> <username> <hash_type> <hash_value> [source]
+findings-android add-chain ~/Documents/<target> "<name>" "<description>" '<json_array_of_finding_ids>'
 ```
 
 ### Listing Records
 
 ```bash
-findings-android list-hosts
-findings-android list-vulns [--severity Critical,High] [--status open,in_progress] [--owasp M5]
-findings-android list-chains [--min-score 3.0]
+findings-android list-hosts ~/Documents/<target>
+findings-android list-vulns ~/Documents/<target> [--severity High] [--status open]
+findings-android list-chains ~/Documents/<target>
 ```
 
 ### Updating Records
 
 ```bash
-findings-android update-vuln --finding-id <FIND-NNN> [--status exploited] [--confidence 0.9] [--detection-yara <rule>] [--detection-sigma <rule>] [--detection-network <json>] [--detection-siem <query>] [--evidence-path <path>] [--repro-steps <steps>] [--remediation <fix>]
+findings-android update-vuln ~/Documents/<target> <FIND-NNN> [--status exploited] [--confidence 0.9] [--evidence <path>]
 ```
 
 ### Session Logging
 
 ```bash
-findings-android log-session --goals <json_array> --findings <json_array> --strategies-tried <json_array> --strategies-succeeded <json_array> --strategies-failed <json_array> --blocked <json_array> --next-steps <json_array> --duration <minutes> --knowledge-added <n> --knowledge-updated <n>
+findings-android log-session ~/Documents/<target> '<goals_json>' '<findings_json>' '<next_steps_json>'
 ```
 
 ### Raw Queries
 
 ```bash
-findings-android query "SELECT finding_id, title, severity FROM vulns WHERE status = 'exploited' ORDER BY confidence DESC"
-findings-android query "SELECT * FROM chains WHERE total_score >= 4.0"
+findings-android query ~/Documents/<target> "SELECT finding_id, title, severity FROM vulns WHERE status = 'exploited' ORDER BY confidence DESC"
+findings-android query ~/Documents/<target> "SELECT * FROM chains WHERE total_score >= 4.0"
 ```
 
 ## Integration with Other Prompt Files
