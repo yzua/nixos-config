@@ -21,6 +21,14 @@
 - Prefer existing repo scripts and wrappers over ad-hoc commands.
 - Preserve momentum: if you can unblock yourself with local inspection or narrow validation, do that before asking the user.
 
+## Context and state discipline
+
+- Treat the context window as lossy. For long tasks, keep a small active ledger of goal, current hypothesis, evidence, blockers, and next step.
+- Write durable state immediately after each evidence-producing step. Do not rely on end-of-session summaries for discoveries, decisions, test results, or blockers.
+- When the repo provides a structured store, updating that store is part of the work. If the store update fails, record the failure and the exact command needed to retry.
+- Before any pivot, compaction recovery, subagent handoff, or session close, clear write debt: current findings, notes, session state, and structured records must be updated or explicitly marked blocked.
+- Keep prompts and plans scoped to the next proof loop. Load large guides progressively when the task needs them instead of trying to keep every detail active at once.
+
 ## Evidence-driven workflow
 
 - Verify assumptions from source code, docs, or tool output before acting.

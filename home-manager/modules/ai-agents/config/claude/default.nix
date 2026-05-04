@@ -28,6 +28,7 @@ in
         skipDangerousModePermissionPrompt = true;
         alwaysThinkingEnabled = true;
         autoMemoryEnabled = true;
+        enableAllProjectMcpServers = true;
         includeGitInstructions = false;
         autoUpdatesChannel = "latest";
         attribution = {

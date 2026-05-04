@@ -67,9 +67,13 @@ let
     compaction = {
       auto = true;
       prune = true;
-      reserved = 10000;
-      tail_turns = 3;
-      preserve_recent_tokens = 8000;
+      reserved = 12000;
+      tail_turns = 4;
+      preserve_recent_tokens = 12000;
+    };
+    tool_output = {
+      max_bytes = 50000;
+      max_lines = 2000;
     };
     watcher.ignore = [
       "node_modules/**"
