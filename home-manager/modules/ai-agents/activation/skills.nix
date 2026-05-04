@@ -12,43 +12,62 @@
 
 let
   normalizedSkills = lib.unique cfg.skills;
+  repoLevelSkills = builtins.filter builtins.isString normalizedSkills;
+  individualSkills = builtins.filter (s: !(builtins.isString s)) normalizedSkills;
+  individualSkillsByRepo = builtins.foldl' (
+    acc: s:
+    acc
+    // {
+      ${s.repo} = (acc.${s.repo} or [ ]) ++ [ s.skill ];
+    }
+  ) { } individualSkills;
   desiredSkillStateJson = toJSON normalizedSkills;
   # Pre-generate install commands at Nix eval time
-  skillCommands = map (
-    s:
-    if builtins.isString s then
-      # Repo-level: skills add "owner/repo" --global --yes
-      ''
-        processed_entries=$((processed_entries + 1))
-        echo "  [$processed_entries/$configured_entries] ${s}"
-        echo "  → ${s}"
-        echo "  [AI] starting install for ${s} at $(date +'%F %T')"
-        total_attempts=$((total_attempts + 1))
-        if ! attempt_cmd "install ${s}" "$SKILLS_BIN" add "${s}" --global --yes; then
-          echo "❌ Failed to install ${s}"
-          failed_installs=$((failed_installs + 1))
-        else
-          echo "✔ Installed ${s}"
-          successful_installs=$((successful_installs + 1))
-        fi
-      ''
-    else
-      # Individual: skills add https://github.com/owner/repo --skill name --global --yes
-      ''
-        processed_entries=$((processed_entries + 1))
-        echo "  [$processed_entries/$configured_entries] ${s.repo}#${s.skill}"
-        echo "  → ${s.repo}#${s.skill}"
-        echo "  [AI] starting install for ${s.repo}#${s.skill} at $(date +'%F %T')"
-        total_attempts=$((total_attempts + 1))
-        if ! attempt_cmd "install ${s.repo}#${s.skill}" "$SKILLS_BIN" add "https://github.com/${s.repo}" --skill "${s.skill}" --global --yes; then
-          echo "❌ Failed to install ${s.repo}#${s.skill}"
-          failed_installs=$((failed_installs + 1))
-        else
-          echo "✔ Installed ${s.repo}#${s.skill}"
-          successful_installs=$((successful_installs + 1))
-        fi
-      ''
-  ) normalizedSkills;
+  repoLevelSkillCommands = map (
+    repo:
+    # Repo-level: skills add "owner/repo" --global --yes
+    ''
+      processed_groups=$((processed_groups + 1))
+      echo "  [$processed_groups/$configured_groups] ${repo}"
+      echo "  → ${repo}"
+      echo "  [AI] starting install for ${repo} at $(date +'%F %T')"
+      total_attempts=$((total_attempts + 1))
+      if ! attempt_cmd "install ${repo}" "$SKILLS_BIN" add "${repo}" --global --yes; then
+        echo "❌ Failed to install ${repo}"
+        failed_installs=$((failed_installs + 1))
+      else
+        echo "✔ Installed ${repo}"
+        successful_installs=$((successful_installs + 1))
+      fi
+    '') repoLevelSkills;
+  individualSkillCommands = lib.mapAttrsToList (
+    repo: skills:
+    let
+      uniqueSkills = lib.unique skills;
+      skillFlags = lib.concatMapStringsSep " " (
+        skill: "--skill ${lib.escapeShellArg skill}"
+      ) uniqueSkills;
+      skillList = lib.concatStringsSep ", " uniqueSkills;
+    in
+    # Batched: skills add https://github.com/owner/repo --skill one --skill two --global --yes
+    ''
+      processed_groups=$((processed_groups + 1))
+      echo "  [$processed_groups/$configured_groups] ${repo} (${toString (builtins.length uniqueSkills)} skill(s))"
+      echo "  → ${repo}: ${skillList}"
+      echo "  [AI] starting batched install for ${repo} at $(date +'%F %T')"
+      total_attempts=$((total_attempts + 1))
+      if ! attempt_cmd "install ${repo} (${skillList})" "$SKILLS_BIN" add "https://github.com/${repo}" ${skillFlags} --global --yes; then
+        echo "❌ Failed to install ${repo}: ${skillList}"
+        failed_installs=$((failed_installs + 1))
+      else
+        echo "✔ Installed ${repo}: ${skillList}"
+        successful_installs=$((successful_installs + 1))
+      fi
+    ''
+  ) individualSkillsByRepo;
+  skillCommands = repoLevelSkillCommands ++ individualSkillCommands;
+  installGroupCount =
+    builtins.length repoLevelSkillCommands + builtins.length individualSkillCommands;
 in
 lib.mkIf (cfg.skills != [ ]) (
   lib.hm.dag.entryAfter [ "writeBoundary" "createJSWorkspace" ] ''
@@ -85,7 +104,7 @@ lib.mkIf (cfg.skills != [ ]) (
 
     desired_skill_state_json=${lib.escapeShellArg desiredSkillStateJson}
     # Include a version marker so cache invalidates when install flags change
-    desired_skill_state_hash=$(printf '%s:v3' "$desired_skill_state_json" | ${pkgs.coreutils}/bin/sha256sum | cut -d' ' -f1)
+    desired_skill_state_hash=$(printf '%s:v4' "$desired_skill_state_json" | ${pkgs.coreutils}/bin/sha256sum | cut -d' ' -f1)
     skill_state_cache_dir="$HOME/.cache/ai-agents"
     skill_state_cache_file="$skill_state_cache_dir/skills-state.sha256"
     skill_lock_file="$HOME/.agents/.skill-lock.json"
@@ -102,7 +121,7 @@ lib.mkIf (cfg.skills != [ ]) (
     if [[ "$skip_skill_install" -eq 0 ]]; then
       # Remove all existing global skills before reinstall to prevent stale accumulation
       echo "🧹 Removing all existing global skills before reinstall..."
-      "$SKILLS_BIN" remove --global --yes 2>/dev/null || true
+      "$SKILLS_BIN" remove --global --all --yes 2>/dev/null || true
       # Clean all skill storage locations (skills.sh stores in ~/.agents/skills/,
       # symlinks into ~/.claude/skills/; OpenCode reads from both)
       rm -rf "$HOME/.agents/skills"/* 2>/dev/null || true
@@ -128,16 +147,17 @@ lib.mkIf (cfg.skills != [ ]) (
       successful_installs=0
       skipped_installs=0
       total_attempts=0
-      processed_entries=0
+      processed_groups=0
       configured_entries=${toString (builtins.length normalizedSkills)}
+      configured_groups=${toString installGroupCount}
       install_started_epoch=$(date +%s)
-      echo "📦 Installing agent skills from skills.sh (${toString (builtins.length normalizedSkills)} configured entries)..."
-      echo "ℹ Running installs sequentially to avoid skills lock contention in global state"
+      echo "📦 Installing agent skills from skills.sh ($configured_entries configured entries, $configured_groups repo batch(es))..."
+      echo "ℹ Running repo batches sequentially to avoid skills lock contention in global state"
       ${lib.concatStringsSep "" skillCommands}
 
       install_duration_seconds=$(( $(date +%s) - install_started_epoch ))
 
-      echo "🧠 Skills summary: configured=$configured_entries processed=$processed_entries attempted=$total_attempts success=$successful_installs skipped=$skipped_installs failures=$failed_installs duration=''${install_duration_seconds}s"
+      echo "🧠 Skills summary: configured=$configured_entries batches=$processed_groups attempted=$total_attempts success=$successful_installs skipped=$skipped_installs failures=$failed_installs duration=''${install_duration_seconds}s"
 
       if [[ "$failed_installs" -gt 0 ]]; then
         echo "⚠ Skills installation finished with $failed_installs failures"

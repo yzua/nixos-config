@@ -108,5 +108,21 @@
       repo = "TerminalSkills/skills";
       skill = "security-audit";
     }
+
+    # Reverse engineering
+    {
+      repo = "wshobson/agents";
+      skill = "protocol-reverse-engineering";
+    }
+
+    # Documentation discipline
+    {
+      repo = "github/awesome-copilot";
+      skill = "documentation-writer";
+    }
+    {
+      repo = "addyosmani/agent-skills";
+      skill = "documentation-and-adrs";
+    }
   ];
 }
