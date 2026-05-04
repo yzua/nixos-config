@@ -131,6 +131,14 @@ SUPPORTED_TOOLS=(claude opencode codex gemini omp)
 
 # --- Supported base aliases ---
 
+# shellcheck disable=SC2034 # Used by agent-launcher.sh.
+LAUNCHER_SIMPLE_ALIASES=(
+  cl ocl hcl clglm
+  oc ocglm ocgem ocgpt ocor ocs oczen
+  cx lcx mcx hcx xcx
+  gem
+)
+
 is_supported_base_alias() {
   [[ -v AGENT_REGISTRY[$1] ]]
 }

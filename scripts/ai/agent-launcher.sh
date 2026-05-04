@@ -132,11 +132,7 @@ pick_ocgpt_effort_alias() {
 run_simple_mode() {
 	local agent_alias claude_mode
 
-	agent_alias="$(pick "Simple Mode: Select Agent Prefix" \
-		cl ocl hcl clglm \
-		oc ocglm ocgem ocgpt ocor ocs oczen \
-		cx lcx mcx hcx xcx \
-		gem)"
+	agent_alias="$(pick "Simple Mode: Select Agent Prefix" "${LAUNCHER_SIMPLE_ALIASES[@]}")"
 	if [[ -z "${agent_alias:-}" ]]; then
 		return 1
 	fi

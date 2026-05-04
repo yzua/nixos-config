@@ -26,4 +26,8 @@ assert_eq "${none_suffix}" "none" "none label maps back to none suffix"
 runtime_perf_suffix="$(workflow_suffix_from_selection "runtime performance (rp) — Measures real code-path bottlenecks, applies low-risk optimizations, and verifies before-and-after latency, throughput, or memory gains." 2>&1)"
 assert_eq "${runtime_perf_suffix}" "rp" "workflow label maps back to rp suffix"
 
+for alias_name in "${LAUNCHER_SIMPLE_ALIASES[@]}"; do
+	assert_true "simple picker alias is registered: ${alias_name}" is_supported_base_alias "${alias_name}"
+done
+
 echo "All agent launcher tests passed."

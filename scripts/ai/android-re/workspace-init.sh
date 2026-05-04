@@ -12,6 +12,8 @@ DOCS_ROOT="${DOCS_ROOT:-${HOME}/Documents}"
 
 # shellcheck source=scripts/ai/android-re/_helpers.sh
 source "${SCRIPT_DIR}/_helpers.sh"
+# shellcheck source=scripts/ai/_workspace-init-common.sh
+source "${REPO_ROOT}/scripts/ai/_workspace-init-common.sh"
 
 usage() {
 	cat <<'EOF'
@@ -20,17 +22,6 @@ Usage: workspace-init.sh <command> [args]
 Commands:
   init PACKAGE_NAME [APK_PATH]   Create target workspace at ~/Documents/<name>
 EOF
-}
-
-write_template() {
-	local path="$1"
-	shift
-	if [[ -f "${path}" ]]; then
-		log_info "already exists: $(basename "${path}")"
-		return 0
-	fi
-	cat >"${path}" "$@"
-	log_info "created $(basename "${path}")"
 }
 
 init_workspace() {
@@ -313,119 +304,14 @@ TEMPLATE
 TEMPLATE
 
 
-		# Findings database (SQLite)
-		if [[ -f "${workspace}/findings.db" ]]; then
-			log_info "findings database already exists: findings.db"
-		else
-			sqlite3 "${workspace}/findings.db" <<'SQL'
-CREATE TABLE IF NOT EXISTS hosts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    ip TEXT NOT NULL,
-    hostname TEXT,
-    os TEXT,
-    notes TEXT,
-    first_seen TEXT DEFAULT (datetime('now')),
-    last_seen TEXT DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS services (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    host_id INTEGER REFERENCES hosts(id),
-    port INTEGER NOT NULL,
-    protocol TEXT DEFAULT 'tcp',
-    service TEXT,
-    version TEXT,
-    banner TEXT,
-    first_seen TEXT DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS vulns (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    host_id INTEGER REFERENCES hosts(id),
-    service_id INTEGER REFERENCES services(id),
-    finding_id TEXT UNIQUE NOT NULL,
-    title TEXT NOT NULL,
-    severity TEXT CHECK(severity IN ('Critical','High','Medium','Low','Info')) NOT NULL,
-    owasp TEXT,
-    status TEXT CHECK(status IN ('open','in_progress','confirmed','exploited','false_positive','remediated')) DEFAULT 'open',
-    description TEXT,
-    evidence_path TEXT,
-    repro_steps TEXT,
-    remediation TEXT,
-    detection_yara TEXT,
-    detection_sigma TEXT,
-    detection_network TEXT,
-    detection_siem TEXT,
-    confidence REAL DEFAULT 0.0,
-    created TEXT DEFAULT (datetime('now')),
-    updated TEXT DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS credentials (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    host_id INTEGER REFERENCES hosts(id),
-    service_id INTEGER REFERENCES services(id),
-    username TEXT,
-    hash_type TEXT,
-    hash_value TEXT,
-    cleartext TEXT,
-    source TEXT,
-    first_seen TEXT DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS chains (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    description TEXT,
-    steps_json TEXT,
-    score_reach REAL DEFAULT 0.0,
-    score_reliability REAL DEFAULT 0.0,
-    score_stealth REAL DEFAULT 0.0,
-    score_speed REAL DEFAULT 0.0,
-    score_impact REAL DEFAULT 0.0,
-    total_score REAL DEFAULT 0.0,
-    severity TEXT,
-    status TEXT DEFAULT 'identified',
-    created TEXT DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS session_log (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    session_date TEXT NOT NULL,
-    goals_json TEXT,
-    findings_json TEXT,
-    strategies_tried_json TEXT,
-    strategies_succeeded_json TEXT,
-    strategies_failed_json TEXT,
-    blocked_json TEXT,
-    next_steps_json TEXT,
-    duration_minutes INTEGER,
-    knowledge_added INTEGER DEFAULT 0,
-    knowledge_updated INTEGER DEFAULT 0
-);
-CREATE INDEX IF NOT EXISTS idx_vulns_severity ON vulns(severity);
-CREATE INDEX IF NOT EXISTS idx_vulns_status ON vulns(status);
-CREATE INDEX IF NOT EXISTS idx_vulns_finding_id ON vulns(finding_id);
-SQL
-			log_info "created findings.db"
-		fi
+	# Findings database (SQLite)
+	init_findings_database "${workspace}" android
 
-		# Exploitation queue
-		write_template "${workspace}/exploitation_queue.json" <<'QUEUE'
-{"queue":[],"metadata":{"target":"","created":"","last_updated":""}}
-QUEUE
+	# Exploitation queue
+	init_exploitation_queue "${workspace}"
 
-		# Git repository for checkpointing
-		if [[ -d "${workspace}/.git" ]]; then
-			log_info "git repository already initialized"
-		else
-			git init "${workspace}" >/dev/null 2>&1
-			write_template "${workspace}/.gitignore" <<'GITIGNORE'
-evidence/screenshots/
-evidence/pcaps/
-*.pcap
-*.pcapng
-*.har
-GITIGNORE
-			git -C "${workspace}" add -A >/dev/null 2>&1
-			git -C "${workspace}" commit -m "workspace init" --quiet >/dev/null 2>&1 || true
-			log_info "git repository initialized with checkpoint"
-		fi
+	# Git repository for checkpointing
+	init_workspace_git "${workspace}"
 
 	# Record metadata if APK provided
 	if [[ -n "${apk_path}" && -f "${apk_path}" ]]; then

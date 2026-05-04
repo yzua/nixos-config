@@ -9,7 +9,7 @@ Repository Bash scripts across `ai/`, `apps/`, `build/`, `hardware/`, `sops/`, `
 ```
 scripts/
 ├── ai/
-│   ├── _agent-registry.sh   # Shared agent registry: aliases, command mappings, workflow suffixes
+│   ├── _agent-registry.sh   # Shared agent registry: aliases, launcher choices, command mappings, workflow suffixes
 │   ├── agent-launcher.sh    # Interactive multi-provider AI agent launcher
 │   ├── agent-launcher-test.sh # Unit tests for agent-launcher.sh
 │   ├── agent-log-wrapper.sh # Agent command logging wrapper with error split
@@ -24,6 +24,9 @@ scripts/
 │   ├── agent-iter.sh        # Run an AI agent command N times (iterative loop)
 │   ├── agent-iter-test.sh   # Unit tests for agent-iter.sh
 │   ├── agent-registry-drift-test.sh # Unit tests for agent registry drift detection
+│   ├── _findings-schema.sh  # Shared SQLite schema renderer for RE findings databases
+│   ├── _findings-common.sh  # Shared SQLite findings CLI implementation for RE adapters
+│   ├── _workspace-init-common.sh # Shared workspace scaffold helpers for RE adapters
 │   └── android-re/
 │       ├── re-avd.sh        # Android emulator management (AVD create/start/snapshot)
 │       ├── re-avd-test.sh   # Unit tests for re-avd.sh
@@ -52,6 +55,7 @@ scripts/
 │   └── web-re/
 │       ├── web-re.sh          # Web RE workflow launcher
 │       ├── opencode-web-re.sh # OpenCode Web RE workspace launcher
+│       ├── findings.sh        # Web RE findings CLI adapter
 │       ├── _chrome.sh         # Chrome DevTools helper functions
 │       ├── _helpers.sh        # Shared helpers for web RE workflows
 │       ├── _mitm.sh           # mitmproxy helper functions

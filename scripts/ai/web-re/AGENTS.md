@@ -13,6 +13,7 @@ Parent: `scripts/ai/AGENTS.md`
 | `web-re.sh`          | Main orchestrator: Chrome + mitmproxy + tmux session management                  |
 | `workspace-init.sh`  | Target workspace scaffolding with OWASP Web Top 10 2021 templates                |
 | `opencode-web-re.sh` | OpenCode session launcher for web RE agent                                       |
+| `findings.sh`        | Web schema adapter for the shared SQLite findings CLI                            |
 | `_helpers.sh`        | Shared helpers: `chrome_running`, `port_in_use`, `resolve_niri_web_re_workspace` |
 | `_chrome.sh`         | Chrome browser management: start/stop/status with remote debugging               |
 | `_mitm.sh`           | mitmproxy helper functions (sourced library)                                     |
@@ -35,6 +36,7 @@ Parent: `scripts/ai/AGENTS.md`
 - `opencode-web-re.sh` reads `WEB_RE_OPENCODE_PROFILE` env var (set by Nix wrapper).
 - Niri window rule matches title `^web-re` -- do not change the Ghostty title without updating niri config.
 - Runtime tools required: `google-chrome-stable` or `chromium`, `mitmdump`, `nuclei`, `sqlmap`, `nmap`, `curl`, `jq`.
+- `findings.sh` keeps the Web-specific `services.url` and `vulns.endpoint` columns; shared command behavior lives in `../_findings-common.sh`.
 
 ---
 

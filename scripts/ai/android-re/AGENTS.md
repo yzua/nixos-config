@@ -14,6 +14,7 @@ Parent: `scripts/ai/AGENTS.md`
 | `re-avd-test.sh`                     | Unit tests for re-avd.sh                                                                                 |
 | `re-static.sh`                       | Static analysis: `prepare` (apktool+jadx), `hashes`, `inventory`                                         |
 | `opencode-android-re.sh`             | OpenCode session launcher (called by `oc*are` wrappers)                                                  |
+| `findings.sh`                        | Android schema adapter for the shared SQLite findings CLI                                                |
 | `_helpers.sh`                        | Shared helpers: `adb_prop`, `emulator_online`, `resolve_niri_android_workspace`                          |
 | `_spoof-table.sh`                    | Declarative Pixel 7 spoof: 40+ system properties, 8 files to hide, 6 services to stop                    |
 | `_emulator.sh`                       | Emulator management helpers (sourced library)                                                            |
@@ -53,6 +54,7 @@ Parent: `scripts/ai/AGENTS.md`
 - `re-avd.sh start` kills ALL running emulators on start — be careful if other AVDs are running.
 - Frida server deployed to `/data/local/tmp/` on the emulator (configurable via `FRIDA_BIN`).
 - `opencode-android-re.sh` reads `ANDROID_RE_OPENCODE_PROFILE` env var (set by Nix wrapper).
+- `findings.sh` defines the Android schema/projection; shared command behavior lives in `../_findings-common.sh`.
 - Niri window rule matches title `^android-re` — do not change the Ghostty title without updating niri config.
 - Runtime tools required: `adb`, `emulator`, `frida`/`frida-ps`, `mitmdump`, `apktool`, `jadx`.
 
