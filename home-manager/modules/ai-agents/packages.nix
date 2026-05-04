@@ -101,6 +101,7 @@ in
       aiAgentLauncher
       aiAgentInventory
       pkgs.bubblewrap
+      pkgs.github-mcp-server
       findingsAndroid
       findingsWeb
       generateTotp

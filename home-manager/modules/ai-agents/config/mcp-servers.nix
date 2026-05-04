@@ -38,13 +38,22 @@ in
 
       github = {
         enable = true;
-        command = "bunx";
+        command = "github-mcp-server";
         args = [
-          "@modelcontextprotocol/server-github@2025.4.8"
+          "stdio"
+          "--toolsets=default,actions,code_security,dependabot,secret_protection"
         ];
         env = {
           GITHUB_PERSONAL_ACCESS_TOKEN = "__GITHUB_TOKEN_PLACEHOLDER__"; # patched at activation via gh auth token
         };
+      };
+
+      semgrep = {
+        enable = true;
+        command = "semgrep";
+        args = [
+          "mcp"
+        ];
       };
 
       chrome-devtools = {

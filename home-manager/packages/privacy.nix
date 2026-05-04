@@ -34,6 +34,9 @@ in
     ++ (with pkgs; [
       # Supply-chain and vulnerability scanning
       gitleaks # Pre-commit/pre-push secret scanning
+      grype # Vulnerability scanner for SBOMs, containers, and filesystems
+      osv-scanner # OSV-backed dependency vulnerability scanner
+      syft # Generate SBOMs from source trees, containers, and filesystems
       trivy # Vulnerability, misconfiguration, and secret scanning
       vulnix # Nix closure CVE checker
     ]);
