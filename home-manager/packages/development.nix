@@ -126,7 +126,11 @@ in
     latest
     ++ stable
     ++ [
+      pkgs.apkid
       pkgs.objection
       pkgs.cyberchef
+      pkgs.jwt-cli
+      pkgs.rizin
+      pkgs.step-cli
     ];
 }

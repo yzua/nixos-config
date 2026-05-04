@@ -25,6 +25,9 @@
       # === Web reconnaissance ===
       httpx # Fast HTTP prober (live hosts, titles, tech stack, TLS)
       katana # Web crawler/spider with JS parsing and endpoint extraction
+      hakrawler # Fast passive/active endpoint crawler
+      gau # Fetch known URLs from AlienVault, Wayback, Common Crawl, and URLScan
+      waybackurls # Fetch historical URLs from the Wayback Machine
       ffuf # Fast web fuzzer (directories, vhosts, parameters)
       arjun # HTTP parameter discovery
       whatweb # Website technology fingerprinter
@@ -40,11 +43,13 @@
       testssl # TLS cipher and protocol testing against web servers
 
       # === Directory and endpoint fuzzing ===
+      kiterunner # API route/content discovery with contextual wordlists
       gobuster # Directory/file/DNS/VHost brute-forcing tool
       feroxbuster # Recursive content discovery with heuristic filter
 
       # === Injection testing ===
       commix # Automated command injection detection and exploitation
+      jaeles # Automated web application testing/signature scanner
 
       # === Port scanning ===
       rustscan # Fast port scanner (nmap wrapper for rapid discovery)

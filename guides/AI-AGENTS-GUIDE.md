@@ -189,11 +189,12 @@ Valid Gemini discovery endpoints as of 2026-04-08:
 
 ### MCP Server Docs
 
-| Server        | Docs                                                                   | Source                                            |
-| ------------- | ---------------------------------------------------------------------- | ------------------------------------------------- |
-| context7      | <https://context7.com>                                                 | <https://github.com/upstash/context7>             |
-| github MCP    | <https://github.com/modelcontextprotocol/servers/tree/main/src/github> | <https://github.com/modelcontextprotocol/servers> |
-| Z.AI API docs | <https://docs.z.ai>                                                    | <https://www.z.ai>                                |
+| Server        | Docs                                                       | Source                                |
+| ------------- | ---------------------------------------------------------- | ------------------------------------- |
+| context7      | <https://context7.com>                                     | <https://github.com/upstash/context7> |
+| github MCP    | <https://github.com/github/github-mcp-server#readme>       | <https://github.com/github/github-mcp-server> |
+| semgrep MCP   | <https://semgrep.dev/docs/mcp>                             | Built into the `semgrep` CLI          |
+| Z.AI API docs | <https://docs.z.ai>                                        | <https://www.z.ai>                    |
 
 ### Skills Ecosystem Docs
 
@@ -208,7 +209,7 @@ Valid Gemini discovery endpoints as of 2026-04-08:
 
 ### Skill Installation (Individual Installs, All Agents)
 
-Skills are installed individually (no full repo syncs) via `skills.sh` with `--global --all`, which installs to all detected agents (Claude Code, Codex, OpenCode, Gemini, Pi, etc.). After installation, skills are symlinked from `~/.claude/skills/` into all OpenCode profile directories.
+Skills are installed via `skills.sh` with repo-level batching: multiple selected skills from the same repository are installed in one `skills add <repo> --skill ... --global --yes` invocation. This reduces repeated clones/fetches while keeping installs sequential to avoid global skills lock contention. After installation, skills are symlinked from `~/.claude/skills/` into all OpenCode profile directories.
 
 Source config: `home-manager/modules/ai-agents/config/_skills.nix`
 Activation: `home-manager/modules/ai-agents/activation/skills.nix`
@@ -222,7 +223,9 @@ Current skill categories:
 | Domain rules        | `vercel-react-best-practices`, `find-skills`, `web-design-guidelines`, `frontend-design`                                                  |
 | Coding methodology  | `debug-council`, `parallel-builder`                                                                                                       |
 | Practical dev tools | `gh-fix-ci`, `find-docs`                                                                                                                  |
-| Security            | `security-audit`                                                                                                                          |
+| Security            | `security-audit`, `mcp-security-audit`                                                                                                    |
+| Reverse engineering | `protocol-reverse-engineering`                                                                                                            |
+| Documentation       | `documentation-writer`, `documentation-and-adrs`                                                                                          |
 
 Maintenance workflow:
 
@@ -674,6 +677,7 @@ Defined in `home-manager/modules/ai-agents/config/mcp-servers.nix`, then transfo
 | ---------------- | ------------------------------------- | ---------------------------------------------- |
 | context7         | Library documentation context         | Enabled (all agents)                           |
 | github           | GitHub API (issues, PRs, code search) | Enabled (all agents)                           |
+| semgrep          | Structured static analysis scans      | Enabled (all agents)                           |
 | web-search-prime | Web search via Z.AI                   | Remote MCP, auth headers patched at activation |
 | web-reader       | Read web pages via Z.AI               | Remote MCP, auth headers patched at activation |
 | zread            | Document/issue reader via Z.AI        | Remote MCP, auth headers patched at activation |
