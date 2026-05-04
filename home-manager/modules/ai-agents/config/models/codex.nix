@@ -5,13 +5,11 @@
   ...
 }:
 
-let
-  models = import ../../helpers/_models.nix;
-in
 {
   programs.aiAgents.codex = {
     enable = true;
-    model = models.gpt-default;
+    # Bare model name required — ChatGPT OAuth rejects the "openai/" provider prefix.
+    model = "gpt-5.5";
     sandboxMode = "workspace-write";
     enableSearch = false;
     personality = "pragmatic";
