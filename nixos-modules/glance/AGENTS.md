@@ -8,20 +8,22 @@ Self-hosted dashboard at `localhost:8082` with Gruvbox theme. Aggregates feeds, 
 
 ## Structure
 
-| File                    | Purpose                                                    |
-| ----------------------- | ---------------------------------------------------------- |
-| `default.nix`           | Main module with `services.glance.settings`                |
-| `_bookmarks.nix`        | Bookmark groups (AI, Dev, Social, Accounts)                |
-| `_search-bangs.nix`     | DuckDuckGo bang shortcuts (!gh, !nix, !yt, !crate, !npm)   |
-| `_service-sites.nix`    | Health check endpoints (Netdata, Grafana, etc.)            |
-| `_youtube-channels.nix` | YouTube subscriptions feed                                 |
-| `_github-releases.nix`  | GitHub release tracker (rust, niri, neovim, glance)        |
-| `_github-trending.nix`  | Trending repos widget (OSSInsight API, no auth)            |
-| `_github-activity.nix`  | GitHub notifications + personal repos (needs GITHUB_TOKEN) |
-| `_reddit.nix`           | Reddit subreddit feeds (unixporn, nixos, linux)            |
-| `_markets.nix`          | Market indices widget data                                 |
-| `_color-helpers.nix`    | Shared color utility functions                             |
-| `_server-stats.nix`     | Server stats widget (disk mountpoints)                     |
+| File                          | Purpose                                                    |
+| ----------------------------- | ---------------------------------------------------------- |
+| `default.nix`                 | Main module option and service wiring                      |
+| `_settings.nix`               | Glance dashboard settings tree                             |
+| `_github-token-service.nix`   | systemd token bootstrap for authenticated GitHub widgets   |
+| `_bookmarks.nix`              | Bookmark groups (AI, Dev, Social, Accounts)                |
+| `_search-bangs.nix`           | DuckDuckGo bang shortcuts (!gh, !nix, !yt, !crate, !npm)   |
+| `_service-sites.nix`          | Health check endpoints (Netdata, Grafana, etc.)            |
+| `_youtube-channels.nix`       | YouTube subscriptions feed                                 |
+| `_github-releases.nix`        | GitHub release tracker (rust, niri, neovim, glance)        |
+| `_github-trending.nix`        | Trending repos widget (OSSInsight API, no auth)            |
+| `_github-activity.nix`        | GitHub notifications + personal repos (needs GITHUB_TOKEN) |
+| `_reddit.nix`                 | Reddit subreddit feeds (unixporn, nixos, linux)            |
+| `_markets.nix`                | Market indices widget data                                 |
+| `_color-helpers.nix`          | Shared color utility functions                             |
+| `_server-stats.nix`           | Server stats widget (disk mountpoints)                     |
 
 Helper files (prefixed `_`) are imported via `import ./_file.nix` — not listed in any `default.nix`.
 
