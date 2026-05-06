@@ -124,10 +124,36 @@ home:
     @echo -e "\n➤ Switching Home-Manager…"
     home-manager switch --flake path:.#yz@desktop -b backup
 
+# Build Home-Manager generation without switching
+home-build:
+    @echo -e "\n➤ Building Home-Manager generation…"
+    nix build 'path:.#homeConfigurations."yz@desktop".activationPackage' -o result-home
+
+# Build NixOS generation without switching
+nixos-build:
+    @echo -e "\n➤ Building NixOS generation…"
+    nix build path:.#nixosConfigurations.desktop.config.system.build.toplevel -o result-nixos
+
 # Switch NixOS generation
 nixos:
     @echo -e "\n➤ Rebuilding NixOS…"
     nh os switch 'path:.' --hostname desktop
+
+# Build pending generations and show package/service drift before switching
+deploy-preview:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    {{JUST}} nixos-build
+    {{JUST}} home-build
+    echo -e "\n➤ Pending NixOS diff"
+    nvd diff /run/current-system ./result-nixos
+    echo -e "\n➤ Pending Home-Manager diff"
+    current_home="/nix/var/nix/profiles/per-user/yz/home-manager"
+    if [ -e "$current_home" ]; then
+        nvd diff "$current_home" ./result-home
+    else
+        echo "⚠ Current Home Manager profile not found: $current_home"
+    fi
 
 # All of the above, in order (fast checks parallel, then build steps)
 all:
@@ -155,6 +181,7 @@ all:
     $JUST format
     $JUST test
     $JUST check
+    $JUST deploy-preview
     $JUST nixos
     $JUST home
     echo -e "✔ All done!"
@@ -225,7 +252,18 @@ security-audit:
     @systemd-analyze security --no-pager 2>/dev/null | grep -E "EXPOSED|UNSAFE" || echo "✔ No EXPOSED/UNSAFE units found"
     @echo -e "\n➤ Running vulnix on system closure…"
     @if command -v vulnix >/dev/null 2>&1; then \
-        vulnix --system 2>/dev/null || echo "⚠ vulnix found advisories (non-zero exit)"; \
+        mkdir -p /tmp/system-security-audit; \
+        if timeout 90s vulnix --system > /tmp/system-security-audit/vulnix.log 2>&1; then \
+          cat /tmp/system-security-audit/vulnix.log; \
+        else \
+          status=$?; \
+          cat /tmp/system-security-audit/vulnix.log; \
+          if [ $status -eq 124 ]; then \
+            echo "⚠ vulnix timed out after 90s; partial log: /tmp/system-security-audit/vulnix.log"; \
+          else \
+            echo "⚠ vulnix found advisories or failed (exit $status); log: /tmp/system-security-audit/vulnix.log"; \
+          fi; \
+        fi; \
       else \
         echo "⚠ vulnix not available (run 'just home' first)"; \
       fi
