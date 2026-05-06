@@ -4,6 +4,7 @@
   config,
   constants,
   inputs,
+  lib,
   user,
   ...
 }:
@@ -41,11 +42,13 @@ in
             "gemini_api_key"
           ]
       ))
-      // {
+      // lib.optionalAttrs config.mySystem.observability.enable {
         grafana_admin_password = {
           owner = "grafana";
           mode = "0400";
         };
+      }
+      // {
         ntfy_topic = {
           mode = "0444"; # DynamicUser service — no persistent user/group to grant access
         };
