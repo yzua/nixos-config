@@ -45,6 +45,32 @@ of each proof step, not as cleanup at the end.
 - Before any pivot, subagent handoff, compaction recovery, or session close,
   clear write debt and run `findings-android list-vulns ~/Documents/<target>`.
 
+### NO STUB FINDINGS — Mandatory Field Completion
+
+A finding row with empty description, evidence, or repro_steps is **write debt**,
+not a completed result. Every `add-vuln` or batch of findings MUST include all
+available data at write time:
+
+1. **`description`** — what the vulnerability is, which component, which file/line,
+   what the code does wrong. Minimum 2-3 sentences with specifics.
+2. **`repro_steps`** — exact steps, Frida command, API call, or code path.
+   Copy-paste reproducible. Not "see analysis" — the actual steps.
+3. **`evidence_path`** — path to screenshot, captured output, Frida log, or script.
+4. **`confidence`** — a real score (0.0-1.0), never leave at 0.0 default.
+5. **FINDINGS.md narrative** — a markdown section with code references,
+   dataflow analysis, and remediation. Not a one-liner.
+
+**Anti-pattern (DO NOT DO THIS):** Running static analysis or dynamic testing,
+finding a batch of issues, stuffing them into the DB with `confidence=0.0` and
+empty description/evidence fields, then moving on. This is the same as not
+writing them at all — context will be lost and the next session starts from
+scratch.
+
+**Correct pattern:** For each finding, write the full DB row WITH description
+and confidence, then immediately write the FINDINGS.md entry with code snippets
+and analysis. If you found enough detail to classify the vulnerability, you have
+enough detail to write it down. Do not defer documentation to "later."
+
 ## Assessment Mindset
 
 Act like a senior mobile security researcher operating within authorized scope.
