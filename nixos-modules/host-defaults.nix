@@ -61,7 +61,10 @@ in
       firewall.enable = mkDefaultTrue; # Network firewall and hostname leak prevention
       opsec.enable = mkDefaultTrue; # Session lock, zram swap, Chrony NTS
       securityServices.enable = mkDefaultTrue; # dbus-broker and journald hardening
-      vnc.enable = mkDefaultFalse; # On-demand remote access
+      vnc = {
+        enable = mkDefaultFalse; # Remote-access service posture; keep disabled unless explicitly needed.
+        tools.enable = mkDefaultFalse; # Localhost-only manual launcher.
+      };
       android.enable = mkDefaultTrue; # Android Studio, emulator, ADB, Fastboot
       browserDeps.enable = mkDefaultTrue; # Chromium, Puppeteer headless browser deps
       webRe.enable = mkDefaultTrue; # Web reverse engineering tools

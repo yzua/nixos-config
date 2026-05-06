@@ -11,17 +11,42 @@
   ...
 }:
 
+let
+  cfg = config.mySystem.vnc;
+
+  vncSecureStartup = pkgsStable.writeShellScriptBin "vnc-secure-startup" ''
+    set -euo pipefail
+
+    password_file="$HOME/.vnc/passwd"
+    if [[ ! -f "$password_file" ]]; then
+      echo "Missing VNC password: $password_file" >&2
+      echo "Create one with: x11vnc -storepasswd $password_file" >&2
+      exit 1
+    fi
+
+    exec ${pkgsStable.x11vnc}/bin/x11vnc \
+      -display "''${DISPLAY:-:0}" \
+      -localhost \
+      -rfbport ${toString constants.ports.vnc} \
+      -rfbauth "$password_file" \
+      -xkb \
+      -forever \
+      -shared
+  '';
+in
 {
   options.mySystem.vnc = {
     enable = lib.mkEnableOption "VNC remote access with x11vnc, noVNC, and websockify";
+    tools.enable = lib.mkEnableOption "localhost-only VNC launcher without enabling remote access by default";
   };
 
-  config = lib.mkIf config.mySystem.vnc.enable {
+  config = lib.mkIf (cfg.enable || cfg.tools.enable) {
     environment.systemPackages = with pkgsStable; [
       x11vnc
       novnc
       python3Packages.websockify
       xclip # X11 clipboard access (useful for VNC sessions)
+      vncSecureStartup
     ];
 
     # Security wrapper: VNC only accessible via SSH tunnel
@@ -35,7 +60,7 @@
            x11vnc -storepasswd ~/.vnc/passwd
 
         2. Start x11vnc on this host (localhost only):
-           x11vnc -display :0 -localhost -rfbport ${toString constants.ports.vnc} -rfbauth ~/.vnc/passwd -xkb
+           vnc-secure-startup
 
         3. From remote machine, create SSH tunnel:
            ssh -L ${toString constants.ports.vnc}:localhost:${toString constants.ports.vnc} ${user}@<this-host-ip>
@@ -50,7 +75,7 @@
     '';
 
     # Firewall: Block VNC ports from external access (SSH tunnel only)
-    networking.firewall.extraCommands = ''
+    networking.firewall.extraCommands = lib.mkIf cfg.enable ''
       # Block external VNC access — must use SSH tunnel
       iptables -A INPUT -p tcp --dport ${toString constants.ports.vnc} -s ${constants.localhost} -j ACCEPT
       iptables -A INPUT -p tcp --dport ${toString constants.ports.vnc} -j DROP

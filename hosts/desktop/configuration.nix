@@ -17,7 +17,10 @@
     opensnitch.enable = false;
     i2pd.enable = true;
     yggdrasil.enable = true;
-    vnc.enable = true;
+    vnc = {
+      enable = false;
+      tools.enable = true;
+    };
     webRe.enable = true;
   };
 
