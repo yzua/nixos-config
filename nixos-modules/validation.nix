@@ -1,6 +1,20 @@
 # Cross-module conflict assertions and dependency validation.
 
-{ config, lib, ... }:
+{
+  config,
+  constants,
+  lib,
+  ...
+}:
+
+let
+  inherit (constants) localhost;
+  secretFile = ../secrets/secrets.yaml;
+  secretFileText = lib.optionalString (builtins.pathExists secretFile) (
+    "\n" + builtins.readFile secretFile
+  );
+  hasSecret = name: lib.hasInfix "\n${name}:" secretFileText;
+in
 
 {
   assertions = [
@@ -70,6 +84,93 @@
     {
       assertion = !config.mySystem.observability.enable || config.mySystem.loki.enable;
       message = "Observability stack requires Loki (mySystem.loki.enable = true) for log aggregation. Grafana provisions a Loki datasource that would be unreachable without it.";
+    }
+
+    # === Local Dashboard Bindings ===
+    {
+      assertion =
+        !config.mySystem.glance.enable || config.services.glance.settings.server.host == localhost;
+      message = "Glance must bind to localhost. Set services.glance.settings.server.host = constants.localhost.";
+    }
+
+    {
+      assertion =
+        !config.mySystem.netdata.enable || config.services.netdata.config.global."bind to" == localhost;
+      message = "Netdata must bind to localhost. Set services.netdata.config.global.\"bind to\" = constants.localhost.";
+    }
+
+    {
+      assertion =
+        !config.mySystem.scrutiny.enable || config.services.scrutiny.settings.web.listen.host == localhost;
+      message = "Scrutiny must bind to localhost. Set services.scrutiny.settings.web.listen.host = constants.localhost.";
+    }
+
+    {
+      assertion =
+        !config.mySystem.scrutiny.enable
+        ||
+          config.services.influxdb2.settings.http-bind-address
+          == "${localhost}:${toString constants.ports.influxdb}";
+      message = "Scrutiny's InfluxDB must bind to localhost. Set services.influxdb2.settings.http-bind-address to constants.localhost.";
+    }
+
+    {
+      assertion =
+        !config.mySystem.loki.enable
+        || config.services.loki.configuration.server.http_listen_address == localhost;
+      message = "Loki HTTP must bind to localhost. Set services.loki.configuration.server.http_listen_address = constants.localhost.";
+    }
+
+    {
+      assertion =
+        !config.mySystem.loki.enable
+        || config.services.loki.configuration.server.grpc_listen_address == localhost;
+      message = "Loki gRPC must bind to localhost. Set services.loki.configuration.server.grpc_listen_address = constants.localhost.";
+    }
+
+    {
+      assertion =
+        !config.mySystem.observability.enable || config.services.prometheus.listenAddress == localhost;
+      message = "Prometheus must bind to localhost. Set services.prometheus.listenAddress = constants.localhost.";
+    }
+
+    {
+      assertion =
+        !config.mySystem.observability.enable
+        || config.services.prometheus.alertmanager.listenAddress == localhost;
+      message = "Alertmanager must bind to localhost. Set services.prometheus.alertmanager.listenAddress = constants.localhost.";
+    }
+
+    {
+      assertion =
+        !config.mySystem.observability.enable
+        || config.services.grafana.settings.server.http_addr == localhost;
+      message = "Grafana must bind to localhost. Set services.grafana.settings.server.http_addr = constants.localhost.";
+    }
+
+    # === Enabled Feature Secret Inventory ===
+    {
+      assertion = !config.mySystem.observability.enable || hasSecret "grafana_admin_password";
+      message = "mySystem.observability.enable requires grafana_admin_password in secrets/secrets.yaml.";
+    }
+
+    {
+      assertion = !config.mySystem.ntfy.enable || hasSecret "ntfy_topic";
+      message = "mySystem.ntfy.enable requires ntfy_topic in secrets/secrets.yaml.";
+    }
+
+    {
+      assertion = !config.mySystem.systemReport.enable || hasSecret "noctalia_location";
+      message = "Noctalia/system-report integration expects noctalia_location in secrets/secrets.yaml.";
+    }
+
+    {
+      assertion =
+        hasSecret "zai_api_key"
+        && hasSecret "openrouter_api_key"
+        && hasSecret "context7_api_key"
+        && hasSecret "gemini_api_key";
+      message = "AI agent configuration requires zai_api_key, openrouter_api_key, context7_api_key, and gemini_api_key in secrets/secrets.yaml.";
     }
   ];
 
