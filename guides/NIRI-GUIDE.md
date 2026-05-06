@@ -113,6 +113,7 @@ Learn these first. Everything else can wait.
 | `Super+Ctrl+Right` | Grow column width by 10%                     |
 | `Super+Ctrl+Up`    | Shrink window height by 10%                  |
 | `Super+Ctrl+Down`  | Grow window height by 10%                    |
+| `Super+Ctrl+F`     | Expand column to available width             |
 | `Super+Ctrl+R`     | Reset window height to default               |
 | `Super+R`          | Cycle preset column widths (1/3 → 1/2 → 2/3) |
 | `Super+Shift+F5`   | Cycle preset window heights                  |
@@ -189,6 +190,7 @@ Niri's unique feature: columns can hold multiple windows stacked vertically, and
 
 | Key               | What It Does               |
 | ----------------- | -------------------------- |
+| `Super+Alt+Tab`   | Focus next monitor         |
 | `Super+Alt+Left`  | Focus monitor to the left  |
 | `Super+Alt+Right` | Focus monitor to the right |
 | `Super+Alt+Up`    | Focus monitor above        |
@@ -198,6 +200,7 @@ Niri's unique feature: columns can hold multiple windows stacked vertically, and
 
 | Key                     | What It Does                 |
 | ----------------------- | ---------------------------- |
+| `Super+Alt+Space`       | Move column to next monitor  |
 | `Super+Alt+Shift+Left`  | Move column to left monitor  |
 | `Super+Alt+Shift+Right` | Move column to right monitor |
 | `Super+Alt+Shift+Up`    | Move column to upper monitor |
@@ -207,6 +210,7 @@ Niri's unique feature: columns can hold multiple windows stacked vertically, and
 
 | Key                         | What It Does                    |
 | --------------------------- | ------------------------------- |
+| `Super+Alt+Shift+Space`     | Move workspace to next monitor  |
 | `Super+Alt+Shift+Page_Up`   | Move workspace to upper monitor |
 | `Super+Alt+Shift+Page_Down` | Move workspace to lower monitor |
 
@@ -510,7 +514,7 @@ Press `Super+Shift+Print`. It captures the focused window and saves to `~/Screen
 
 9. **Two emoji pickers.** `Super+E` opens bemoji (terminal-based, fast). `Super+Period` opens the Noctalia launcher emoji picker (visual, searchable).
 
-10. **Monitor management.** For multi-monitor setups, `Super+Alt+Arrow` navigates monitors, `Super+Alt+Shift+Arrow` moves columns between monitors. Entire workspaces can move between monitors with `Super+Alt+Shift+Page_Up/Down`.
+10. **Monitor management.** For multi-monitor setups, `Super+Alt+Arrow` navigates monitors, `Super+Alt+Shift+Arrow` moves columns between monitors. Use `Super+Alt+Tab` and `Super+Alt+Space` when you just want the next monitor without thinking about direction. Entire workspaces can move between monitors with `Super+Alt+Shift+Space` or `Super+Alt+Shift+Page_Up/Down`.
 
 ---
 
@@ -573,6 +577,7 @@ Press `Super+Shift+Print`. It captures the focused window and saves to `~/Screen
 | ----------------------- | ------------------- |
 | `Super+Ctrl+Left/Right` | Column width ±10%   |
 | `Super+Ctrl+Up/Down`    | Window height ±10%  |
+| `Super+Ctrl+F`          | Expand column width |
 | `Super+Ctrl+R`          | Reset window height |
 
 ### Workspaces
@@ -596,8 +601,11 @@ Press `Super+Shift+Print`. It captures the focused window and saves to `~/Screen
 
 | Key                            | Action                                |
 | ------------------------------ | ------------------------------------- |
+| `Super+Alt+Tab`                | Focus next monitor                    |
 | `Super+Alt+Arrow`              | Focus monitor in direction            |
+| `Super+Alt+Space`              | Move column to next monitor           |
 | `Super+Alt+Shift+Arrow`        | Move column to monitor in direction   |
+| `Super+Alt+Shift+Space`        | Move workspace to next monitor        |
 | `Super+Alt+Shift+Page_Up/Down` | Move workspace to monitor above/below |
 
 ### Screenshots and Utilities
