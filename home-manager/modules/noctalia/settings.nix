@@ -38,6 +38,7 @@ in
     };
 
     notifications = {
+      monitors = [ "HDMI-A-1" ];
       location = "top_right";
       backgroundOpacity = 0.96;
       respectExpireTimeout = true;
@@ -165,6 +166,7 @@ in
 
     osd = {
       enabled = true;
+      monitors = [ "HDMI-A-1" ];
       location = "top_right";
       autoHideMs = 2000;
     };
