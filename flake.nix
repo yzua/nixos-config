@@ -62,7 +62,10 @@
       activeHosts = builtins.filter (host: host.enabled) hosts;
 
       forEachHost =
-        buildEntry: nixpkgs.lib.foldl' (configs: host: configs // buildEntry host) { } activeHosts;
+        hostList: buildEntry: nixpkgs.lib.foldl' (configs: host: configs // buildEntry host) { } hostList;
+
+      forEachActiveHost = forEachHost activeHosts;
+      forEachInventoryHost = forEachHost hosts;
 
       # Single source of truth for all nixpkgs instances
       pkgConfig = {
@@ -109,14 +112,10 @@
           };
           modules = [ ./hosts/${hostname}/configuration.nix ];
         };
-    in
-    {
-      nixosConfigurations = forEachHost (host: {
-        "${host.hostname}" = makeSystem { inherit (host) hostname stateVersion; };
-      });
 
-      homeConfigurations = forEachHost (host: {
-        "${user}@${host.hostname}" = home-manager.lib.homeManagerConfiguration {
+      makeHome =
+        host:
+        home-manager.lib.homeManagerConfiguration {
           inherit pkgs;
           extraSpecialArgs = sharedArgs // {
             inherit homeStateVersion secretLoader hmSystemdHelpers;
@@ -127,6 +126,20 @@
             inputs.nix-index-database.homeModules.nix-index
           ];
         };
+    in
+    {
+      nixosConfigurations = forEachActiveHost (host: {
+        "${host.hostname}" = makeSystem { inherit (host) hostname stateVersion; };
+      });
+
+      homeConfigurations = forEachActiveHost (host: {
+        "${user}@${host.hostname}" = makeHome host;
+      });
+
+      checks.${system} = forEachInventoryHost (host: {
+        "nixos-${host.hostname}" =
+          (makeSystem { inherit (host) hostname stateVersion; }).config.system.build.toplevel;
+        "home-${user}-${host.hostname}" = (makeHome host).activationPackage;
       });
 
       devShells.${system}.default = pkgs.mkShell {
