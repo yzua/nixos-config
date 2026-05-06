@@ -5,6 +5,7 @@
   constants,
   lib,
   pkgs,
+  pkgsStable,
   systemdHelpers,
   user,
   ...
@@ -29,6 +30,7 @@ let
     HAS_SCRUTINY = lib.boolToString config.mySystem.scrutiny.enable;
     HAS_OPENSNITCH = lib.boolToString config.mySystem.opensnitch.enable;
     HAS_FAIL2BAN = lib.boolToString config.mySystem.fail2ban.enable;
+    HAS_SECURE_BOOT = lib.boolToString config.mySystem.secureBoot.enable;
     SYSTEM_REPORT_DIR = cfg.outputDir;
     REPORT_USER = user;
     SYSTEM_REPORT_HELPERS = "${reportScriptsDir}/bin/report-helpers.sh";
@@ -87,7 +89,11 @@ let
         gnugrep
       ]
       ++ lib.optionals config.services.vnstat.enable [ pkgs.vnstat ]
-      ++ lib.optionals config.mySystem.fail2ban.enable [ pkgs.fail2ban ];
+      ++ lib.optionals config.mySystem.fail2ban.enable [ pkgs.fail2ban ]
+      ++ lib.optionals config.mySystem.secureBoot.enable [
+        pkgsStable.mokutil
+        pkgsStable.sbctl
+      ];
     text = featureFlagExports + "\n" + builtins.readFile ../../scripts/system/report/system-report.sh;
   };
 

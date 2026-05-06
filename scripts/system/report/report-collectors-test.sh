@@ -74,9 +74,12 @@ assert_contains "$failed_services_output" "- \`beta.socket\`" "systemd errors li
 HAS_FAIL2BAN="false"
 # shellcheck disable=SC2034
 HAS_OPENSNITCH="false"
+# shellcheck disable=SC2034
+HAS_SECURE_BOOT="false"
 security_output="$(collect_security)"
 assert_contains "$security_output" "- fail2ban: [unavailable]" "security collector reports fail2ban unavailable"
 assert_contains "$security_output" "- OpenSnitch: [unavailable]" "security collector reports OpenSnitch unavailable"
+assert_contains "$security_output" "- Secure Boot: [unavailable]" "security collector reports Secure Boot unavailable"
 
 # shellcheck disable=SC2034
 HAS_LOKI="false"

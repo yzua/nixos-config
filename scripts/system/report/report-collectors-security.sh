@@ -72,5 +72,21 @@ collect_security() {
 		items+=("- systemd unit hardening: ${exposed} units rated EXPOSED/UNSAFE")
 	fi
 
+	if [[ "$HAS_SECURE_BOOT" == "true" ]] && command -v mokutil &>/dev/null && command -v sbctl &>/dev/null; then
+		local sb_state sb_status unsigned_count
+		sb_state=$(safe_cmd mokutil --sb-state 2>/dev/null)
+		sb_status=$(safe_cmd sbctl status 2>/dev/null)
+		unsigned_count=$(safe_cmd sbctl verify 2>/dev/null | awk '/failed|unsigned/ {count++} END {print count+0}')
+		if echo "$sb_state" | grep -qi 'SecureBoot enabled'; then
+			items+=("- Secure Boot: enabled, ${unsigned_count:-0} unsigned or failed sbctl entries")
+		else
+			local setup_mode
+			setup_mode=$(echo "$sb_status" | awk -F: '/Setup Mode:/ {gsub(/^[[:space:]]+/, "", $2); print $2}' | head -1)
+			items+=("- Secure Boot: not enabled (${setup_mode:-firmware state unknown})")
+		fi
+	else
+		items+=("- Secure Boot: [unavailable]")
+	fi
+
 	printf '%s\n' "${items[@]}"
 }
