@@ -137,7 +137,7 @@ nixos-build:
 # Switch NixOS generation
 nixos:
     @echo -e "\n➤ Rebuilding NixOS…"
-    nh os switch 'path:.' --hostname desktop
+    sudo nixos-rebuild switch --flake 'path:.#desktop'
 
 # Build pending generations and show package/service drift before switching
 deploy-preview:
