@@ -27,7 +27,10 @@
   # LUKS unlock for root only — swap disabled (use zram only).
   # Swapping to encrypted disk caused freezes under heavy I/O (same disk as root).
   # Laptop already uses swapDevices = []; — matching that config.
-  boot.initrd.luks.devices."luks-5e77e20c-28e2-4012-bc2a-c4c02acf3aab".allowDiscards = true;
+  boot.initrd.luks.devices."luks-5e77e20c-28e2-4012-bc2a-c4c02acf3aab" = {
+    allowDiscards = true;
+    crypttabExtraOpts = [ "tries=0" ];
+  };
 
   services.avahi.allowInterfaces = [ "eno1" ];
 }
