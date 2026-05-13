@@ -33,16 +33,5 @@ _:
     audit.enable = false;
   };
 
-  # /proc hardening — hide other users' processes
-  fileSystems."/proc" = {
-    device = "proc";
-    fsType = "proc";
-    options = [
-      "defaults"
-      "hidepid=2"
-    ];
-    neededForBoot = true;
-  };
-
   systemd.coredump.enable = false;
 }
