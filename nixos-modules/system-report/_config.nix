@@ -56,10 +56,16 @@ let
   reportScriptsDir =
     let
       mkScript = name: path: pkgs.writeScriptBin name (builtins.readFile path);
+      reportLib = pkgs.runCommand "system-report-lib" { } ''
+        mkdir -p $out/lib
+        cp ${../../scripts/lib/error-patterns.sh} $out/lib/error-patterns.sh
+        cp ${../../scripts/lib/log-dirs.sh} $out/lib/log-dirs.sh
+      '';
     in
     pkgs.symlinkJoin {
       name = "system-report-scripts";
       paths = [
+        reportLib
         (mkScript "report-helpers.sh" ../../scripts/system/report/report-helpers.sh)
         (mkScript "report-collectors.sh" ../../scripts/system/report/report-collectors.sh)
         (mkScript "report-collectors-core.sh" ../../scripts/system/report/report-collectors-core.sh)
