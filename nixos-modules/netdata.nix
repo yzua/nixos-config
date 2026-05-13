@@ -38,6 +38,7 @@ in
         logs."level" = "error";
 
         "plugin:ioping"."enabled" = "no";
+        "plugin:go.d"."enabled" = "no";
         "plugin:perf"."enabled" = "no";
         "plugin:freeipmi"."enabled" = "no";
         "plugin:otel"."enabled" = "no";
@@ -87,6 +88,9 @@ in
                 summary: System clock sync state
                    info: When set to 0, the system kernel believes the system clock is not properly synchronized to a reliable server
                      to: silent
+          '';
+          "go.d.conf" = pkgs.writeText "netdata-go.d.conf" ''
+            enabled: no
           '';
         };
     };
