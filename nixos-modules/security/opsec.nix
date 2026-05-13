@@ -28,8 +28,7 @@
         enable = true;
         servers = [ ]; # NTS sources below instead of plain NTP
         extraConfig = ''
-          server virginia.time.system.gov iburst nts
-          server time.nist.gov iburst nts
+          server time.cloudflare.com iburst nts
           server nts.netnod.se iburst nts
           makestep 1.0 3
         '';
