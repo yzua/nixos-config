@@ -21,7 +21,7 @@ rec {
         OnCalendar = onCalendar;
         Persistent = true;
       }
-      // lib.optionalAttrs (randomizedDelaySec != null) { inherit randomizedDelaySec; }
+      // lib.optionalAttrs (randomizedDelaySec != null) { RandomizedDelaySec = randomizedDelaySec; }
       // lib.optionalAttrs (unit != null) { Unit = unit; };
       Install.WantedBy = [ "timers.target" ];
     };
