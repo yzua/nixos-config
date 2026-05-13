@@ -53,6 +53,10 @@ in
     inherit (constants.keyboard) layout variant options;
   };
 
+  # Keep the early boot LUKS prompt predictable. The graphical session still
+  # gets the full XKB layout above, but initrd passphrase entry uses the VT map.
+  console.keyMap = "us";
+
   # NOTE: Using environment.variables (not sessionVariables) because PAM pam_env
   # requires @{var} brace syntax, but @im=fcitx is a literal value.
   environment = {
