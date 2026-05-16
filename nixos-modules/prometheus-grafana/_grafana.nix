@@ -24,6 +24,11 @@ let
 in
 {
   config = lib.mkIf config.mySystem.observability.enable {
+    sops.secrets.grafana_admin_password = {
+      owner = "grafana";
+      mode = "0400";
+    };
+
     services.grafana = {
       enable = true;
 
@@ -73,5 +78,7 @@ in
         protectSystem = lib.mkDefault "strict";
       };
     };
+
+    mySystem.boot.deferServices = [ "grafana" ];
   };
 }

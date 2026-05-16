@@ -95,5 +95,10 @@ in
           randomizedDelaySec = "1h";
         };
       };
+
+    mySystem.boot.deferServices = lib.mkIf config.mySystem.scrutiny.enable [
+      "scrutiny"
+      "influxdb2"
+    ];
   };
 }

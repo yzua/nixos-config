@@ -107,5 +107,7 @@ in
       memoryHigh = "384M";
       useMkForce = true;
     };
+
+    mySystem.boot.deferServices = lib.mkIf config.mySystem.netdata.enable [ "netdata" ];
   };
 }

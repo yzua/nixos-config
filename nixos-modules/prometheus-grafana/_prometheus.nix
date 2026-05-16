@@ -106,5 +106,7 @@ in
         protectHome = lib.mkDefault "read-only";
       };
     };
+
+    mySystem.boot.deferServices = [ "prometheus" ];
   };
 }
