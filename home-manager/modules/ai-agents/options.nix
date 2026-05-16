@@ -151,6 +151,11 @@ in
       enable = mkBoolOption false "Install pbakaus/impeccable skills for Claude and OpenCode";
     };
 
+    terax = {
+      enable = mkBoolOption false "Install Terax AI-native terminal";
+      disableDmabufRenderer = mkBoolOption true "Set WEBKIT_DISABLE_DMABUF_RENDERER=1 for Terax on Wayland";
+    };
+
     everythingClaudeCode = {
       enable = mkBoolOption false "Install a curated Everything Claude Code subset for Claude, Codex, and OpenCode";
 

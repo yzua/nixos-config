@@ -61,6 +61,28 @@ let
   webReDoctor = pkgs.writeShellScriptBin "web-re-doctor" ''
     exec ${scriptsDir}/ai/web-re/web-re-doctor.sh "$@"
   '';
+  terax = pkgs.appimageTools.wrapType2 rec {
+    pname = "terax";
+    version = "0.6.6";
+
+    src = pkgs.fetchurl {
+      url = "https://github.com/crynta/terax-ai/releases/download/v${version}/Terax_${version}_amd64.AppImage";
+      sha256 = "sha256-4Ns4tz/SjExIKUTP/Uo74JwyE5fEBRF9pHDzAjzDVL4=";
+    };
+
+    profile = lib.optionalString cfg.terax.disableDmabufRenderer ''
+      export WEBKIT_DISABLE_DMABUF_RENDERER=1
+    '';
+
+    meta = with lib; {
+      description = "AI-native terminal emulator built with Tauri";
+      homepage = "https://terax.app";
+      license = licenses.asl20;
+      sourceProvenance = with sourceTypes; [ binaryNativeCode ];
+      platforms = [ constants.system ];
+      mainProgram = "terax";
+    };
+  };
   aliasLib = import ./helpers/_aliases.nix {
     inherit
       lib
@@ -94,36 +116,51 @@ let
 in
 {
   config = lib.mkIf cfg.enable {
-    home.packages = [
-      agentLogWrapper
-      agentIter
-      agentsSearch
-      aiAgentLauncher
-      aiAgentInventory
-      pkgs.bubblewrap
-      pkgs.github-mcp-server
-      pkgs.ripgrep
-      findingsAndroid
-      findingsWeb
-      generateTotp
-      reDoctor
-      webReDoctor
-    ]
-    ++ androidReLaunchers
-    ++ webReLaunchers
-    ++ (lib.optional cfg.logging.enable (
-      pkgs.writeShellScriptBin "ai-agent-log-cleanup" ''
-        ${logCleanupCommand}
-        echo "Cleaned up logs older than ${toString cfg.logging.retentionDays} days"
-      ''
-    ))
-    ++ (lib.optionals cfg.logging.enable [
-      logAnalyzer
-      logDashboard
-    ]);
+    home = {
+      packages = [
+        agentLogWrapper
+        agentIter
+        agentsSearch
+        aiAgentLauncher
+        aiAgentInventory
+        pkgs.bubblewrap
+        pkgs.github-mcp-server
+        pkgs.ripgrep
+        findingsAndroid
+        findingsWeb
+        generateTotp
+        reDoctor
+        webReDoctor
+      ]
+      ++ (lib.optional cfg.terax.enable terax)
+      ++ androidReLaunchers
+      ++ webReLaunchers
+      ++ (lib.optional cfg.logging.enable (
+        pkgs.writeShellScriptBin "ai-agent-log-cleanup" ''
+          ${logCleanupCommand}
+          echo "Cleaned up logs older than ${toString cfg.logging.retentionDays} days"
+        ''
+      ))
+      ++ (lib.optionals cfg.logging.enable [
+        logAnalyzer
+        logDashboard
+      ]);
 
-    home.sessionVariables = lib.mkIf cfg.opencode.enable {
-      OPENCODE_EXPERIMENTAL_LSP_TOOL = "true";
+      sessionVariables = lib.mkIf cfg.opencode.enable {
+        OPENCODE_EXPERIMENTAL_LSP_TOOL = "true";
+      };
+
+      file = lib.mkIf cfg.terax.enable {
+        ".local/share/applications/terax.desktop".text = ''
+          [Desktop Entry]
+          Type=Application
+          Name=Terax
+          Exec=terax %U
+          Icon=utilities-terminal
+          Comment=AI-native terminal emulator
+          Categories=Development;TerminalEmulator;
+        '';
+      };
     };
 
     programs = {
