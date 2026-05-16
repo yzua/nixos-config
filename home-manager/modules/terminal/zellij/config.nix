@@ -1,6 +1,11 @@
 # Zellij settings and keybinds.
 
-{ config, pkgs, ... }:
+{
+  config,
+  constants,
+  pkgs,
+  ...
+}:
 
 let
   zellijAiPanel = pkgs.writeShellScriptBin "zellij-ai-panel" ''
@@ -100,6 +105,25 @@ in
 {
   home.packages = [ zellijAiPanel ];
 
+  systemd.user.services.zellij-web = {
+    Unit = {
+      Description = "Zellij Web terminal access";
+      Documentation = "https://zellij.dev/documentation/web-client.html";
+      After = [ "graphical-session.target" ];
+      PartOf = [ "graphical-session.target" ];
+    };
+
+    Service = {
+      Type = "simple";
+      ExecStart = "${pkgs.zellij}/bin/zellij web --start --ip 127.0.0.1 --port ${toString constants.ports.zellij-web}";
+      ExecStop = "${pkgs.zellij}/bin/zellij web --stop";
+      Restart = "on-failure";
+      RestartSec = 5;
+    };
+
+    Install.WantedBy = [ "graphical-session.target" ];
+  };
+
   programs.zellij = {
     enable = true;
     # HM's zellij attach -c breaks with multiple sessions; auto-start is in zsh initContent
@@ -125,6 +149,8 @@ in
       copy_command = "${pkgs.wl-clipboard}/bin/wl-copy";
       copy_clipboard = "system";
       copy_on_select = true;
+      web_server_ip = "127.0.0.1";
+      web_server_port = constants.ports.zellij-web;
 
       scroll_buffer_size = 50000;
       scrollback_editor = "${pkgs.neovim}/bin/nvim";

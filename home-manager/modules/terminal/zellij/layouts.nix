@@ -1,4 +1,4 @@
-# Zellij layout definitions (default, dev, ai, monitoring).
+# Zellij layout definitions (default, dev, ai, mobile, monitoring).
 # deadnix false-positive: constants IS used in zjstatusConfig string interpolation.
 # deadnix: hide
 
@@ -140,6 +140,23 @@ in
               args "-ic" "ai-agent-inventory; exec zsh"
             }
             pane name="git" command="${pkgs.lazygit}/bin/lazygit"
+          }
+        }
+      }
+    '';
+
+    "zellij/layouts/mobile-ai.kdl".text = ''
+      layout {
+        tab name="phone" focus=true {
+          pane split_direction="vertical" {
+            pane size="70%" name="shell" command="${pkgs.zsh}/bin/zsh" focus=true {
+              args "-ic" "export ZELLIJ_MOBILE=1; exec zsh"
+            }
+            pane split_direction="horizontal" size="30%" {
+              pane name="logs" command="${pkgs.bash}/bin/bash" {
+                args "-c" "tail -F ${config.home.homeDirectory}/${constants.paths.aiAgentsLogDir}/*.log ${config.home.homeDirectory}/${constants.paths.opencodeLogDir}/*.log ${config.home.homeDirectory}/${constants.paths.codexLogDir}/*.log 2>/dev/null || { echo 'No AI logs yet. Waiting...'; sleep infinity; }"
+              }
+            }
           }
         }
       }

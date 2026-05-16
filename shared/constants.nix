@@ -9,6 +9,7 @@ let
   # Referenced by NixOS modules and Glance dashboard health checks.
   ports = {
     glance = 8082;
+    zellij-web = 8083;
     netdata = 19999;
     grafana = 3001;
     prometheus = 9090;

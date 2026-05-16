@@ -51,6 +51,10 @@ in
 
     # === AI agent wrappers ===
     _ai_tab_icon() {
+      if [[ -n "''${ZELLIJ_MOBILE:-}" ]]; then
+        return 0
+      fi
+
       case "$1" in
         cl*|ocl*|hcl*) printf '\uf1b0 ' ;;                   #  Claude — cl, clu, clglm, ocl, hcl + all workflow suffixes
         oc*|locgpt*|mocgpt*|xocgpt*) printf '\ue7a4 ' ;;     #  OpenCode — oc, ocglm, ocgem, ocgpt, ocs, oczen + all workflow suffixes
@@ -132,7 +136,11 @@ in
 
     zac() {
       if [[ -n "''${ZELLIJ:-}" ]]; then
-        zellij action new-tab --name "󰚩 council" --layout "$HOME/.config/zellij/layouts/ai-council.kdl"
+        if [[ -n "''${ZELLIJ_MOBILE:-}" ]]; then
+          zellij action new-tab --name "council" --layout "$HOME/.config/zellij/layouts/ai-council.kdl"
+        else
+          zellij action new-tab --name "󰚩 council" --layout "$HOME/.config/zellij/layouts/ai-council.kdl"
+        fi
       else
         zellij --layout ai-council
       fi
@@ -140,9 +148,44 @@ in
 
     zalogs() {
       if [[ -n "''${ZELLIJ:-}" ]]; then
-        zellij action new-tab --name "󰙨 ai-logs" --layout "$HOME/.config/zellij/layouts/ai-observe.kdl"
+        if [[ -n "''${ZELLIJ_MOBILE:-}" ]]; then
+          zellij action new-tab --name "ai-logs" --layout "$HOME/.config/zellij/layouts/ai-observe.kdl"
+        else
+          zellij action new-tab --name "󰙨 ai-logs" --layout "$HOME/.config/zellij/layouts/ai-observe.kdl"
+        fi
       else
         zellij --layout ai-observe
+      fi
+    }
+
+    zm() {
+      zellij-mobile "$@"
+    }
+
+    zp() {
+      if [[ -n "''${ZELLIJ:-}" ]]; then
+        zellij action new-pane "$@"
+      else
+        echo "zp must be run inside Zellij" >&2
+        return 1
+      fi
+    }
+
+    zpr() {
+      if [[ -n "''${ZELLIJ:-}" ]]; then
+        zellij action new-pane --direction right "$@"
+      else
+        echo "zpr must be run inside Zellij" >&2
+        return 1
+      fi
+    }
+
+    zpd() {
+      if [[ -n "''${ZELLIJ:-}" ]]; then
+        zellij action new-pane --direction down "$@"
+      else
+        echo "zpd must be run inside Zellij" >&2
+        return 1
       fi
     }
 
@@ -231,51 +274,6 @@ in
 
       rm -f "$layout_file"
     }
-
-    # === Auto-rename Zellij tab to running command ===
-    if [[ -n "''${ZELLIJ:-}" ]]; then
-      _zellij_tab_name_for_command() {
-        local raw="$1"
-        local cmd="''${raw%% *}"
-        cmd="''${cmd:t}"
-        case "$raw" in
-          just\ check*) printf "󱓞 check" ;;
-          just\ lint*) printf "󰁨 lint" ;;
-          just\ test*) printf "󰙨 test" ;;
-          just\ home*) printf "󱄅 home" ;;
-          just\ nixos*) printf "󱄅 nixos" ;;
-          just*) printf "just" ;;
-          nix\ build*) printf "󱄅 nix build" ;;
-          nix\ flake*) printf "󱄅 flake" ;;
-          home-manager*) printf "󱄅 home" ;;
-          nvim*|vim*|vi*) printf " edit" ;;
-          lazygit*|git*) printf " git" ;;
-          btop*|nvtop*|htop*) printf "󰍛 monitor" ;;
-          docker*|podman*) printf "󰡨 containers" ;;
-          pnpm\ dev*|npm\ run\ dev*|bun\ run\ dev*) printf "󰜎 dev" ;;
-          pnpm*|npm*|bun*) printf "󰎙 js" ;;
-          cargo\ test*) printf "󱘗 rs test" ;;
-          cargo*) printf "󱘗 rust" ;;
-          python*|uv*) printf " py" ;;
-          cl*|claude*) printf "$(_ai_tab_icon cl)cl" ;;
-          oc*|opencode*) printf "$(_ai_tab_icon oc)oc" ;;
-          cx*|codex*) printf "$(_ai_tab_icon cx)cx" ;;
-          gem*|gemini*) printf "$(_ai_tab_icon gem)gem" ;;
-          za|zac|zalogs|aip*) printf "󰚩 ai" ;;
-          *) printf "%s" "$cmd" ;;
-        esac
-      }
-
-      _zellij_auto_tab_preexec() {
-        local name
-        name="$(_zellij_tab_name_for_command "$2")"
-        case "$name" in
-          cd|ls|ll|la|l|clear|cls|exit|source|\.|zellij|"") return 0 ;;
-        esac
-        command zellij action rename-tab "$name" >/dev/null 2>&1 || true
-      }
-      preexec_functions+=(_zellij_auto_tab_preexec)
-    fi
 
     # === Environment setup ===
     export GPG_TTY=$(tty)
