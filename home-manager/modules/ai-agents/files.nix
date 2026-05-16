@@ -101,6 +101,24 @@ in
       # === Claude Agent Definitions ===
       (lib.mkIf cfg.claude.enable (mkTextFiles ".claude/agents" fileTemplates.claudeAgents))
 
+      # === agentmemory Bootstrap ===
+      (lib.mkIf cfg.agentmemory.enable {
+        ".agentmemory/preferences.json" = {
+          text = toJSON {
+            schemaVersion = 1;
+            lastAgent = null;
+            lastAgents = [ ];
+            lastProvider = null;
+            skipSplash = true;
+            skipNpxHint = true;
+            skipGlobalInstall = true;
+            skipConsoleInstall = true;
+            firstRunAt = "1970-01-01T00:00:00.000Z";
+          };
+          force = true;
+        };
+      })
+
       # === Aider Configuration (independent of any agent enable gate) ===
       {
         ".aider.conf.yml".text = builtins.toJSON {

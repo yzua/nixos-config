@@ -39,6 +39,12 @@
 - If information might have changed recently, verify it with current docs, official sites, or live command output before relying on it.
 - Separate verified facts from inference. If you infer, state that clearly.
 
+## Memory Discipline
+
+- If `agentmemory` is available in the current agent, check it before re-deriving repo conventions, prior decisions, or long-running task context.
+- Use it again after major decisions, fixes, or investigations so the next session can pick up the result without replaying the whole conversation.
+- Store durable facts, file paths, commands, and rationale; do not store secrets or noisy transcripts.
+
 ## Testing and validation
 
 - Run the narrowest relevant checks first, then broaden as needed.

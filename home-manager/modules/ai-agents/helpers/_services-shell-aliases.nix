@@ -32,6 +32,18 @@ in
   else
     { }
 )
+// (
+  if cfg.agentmemory.enable then
+    {
+      "mem-start" = "systemctl --user start agentmemory.service";
+      "mem-stop" = "systemctl --user stop agentmemory.service";
+      "mem-status" = "systemctl --user status agentmemory.service";
+      "mem-health" = "curl -fsS ${cfg.agentmemory.url}/agentmemory/health";
+      "mem-view" = "xdg-open ${cfg.agentmemory.viewerUrl}";
+    }
+  else
+    { }
+)
 // aiAliases
 // {
   "ai-mcp-scan" =

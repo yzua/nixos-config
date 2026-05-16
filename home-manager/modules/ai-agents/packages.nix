@@ -90,6 +90,7 @@ let
       scriptsDir
       ;
   };
+  agentmemoryRuntime = import ./helpers/_agentmemory-runtime.nix { inherit pkgs; };
   inherit (aliasLib) aiAliases aiAgentLauncher aiAgentInventory;
   mkCliAutoupdateScript = import ./helpers/_mk-cli-autoupdate-script.nix { inherit pkgs; };
   shellAliases = import ./helpers/_services-shell-aliases.nix {
@@ -132,6 +133,7 @@ in
         reDoctor
         webReDoctor
       ]
+      ++ (lib.optional cfg.agentmemory.enable agentmemoryRuntime.iiiEngine)
       ++ (lib.optional cfg.terax.enable terax)
       ++ androidReLaunchers
       ++ webReLaunchers

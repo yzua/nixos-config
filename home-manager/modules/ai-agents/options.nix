@@ -156,6 +156,13 @@ in
       disableDmabufRenderer = mkBoolOption true "Set WEBKIT_DISABLE_DMABUF_RENDERER=1 for Terax on Wayland";
     };
 
+    agentmemory = {
+      enable = mkBoolOption false "Enable shared persistent memory via agentmemory MCP";
+      version = mkStrOption "0.9.16" "agentmemory npm package version for the service and MCP shim";
+      url = mkStrOption "http://localhost:3111" "Base URL for the local agentmemory server";
+      viewerUrl = mkStrOption "http://localhost:3113" "URL for the local agentmemory viewer";
+    };
+
     everythingClaudeCode = {
       enable = mkBoolOption false "Install a curated Everything Claude Code subset for Claude, Codex, and OpenCode";
 

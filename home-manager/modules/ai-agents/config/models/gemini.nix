@@ -49,6 +49,7 @@ in
           "github"
           "semgrep"
           "chrome-devtools"
+          "agentmemory"
           "web-search-prime"
           "web-reader"
           "zread"

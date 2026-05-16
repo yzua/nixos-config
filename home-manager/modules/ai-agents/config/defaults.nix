@@ -13,6 +13,7 @@ in
     agencyAgents.enable = false;
     impeccable.enable = true;
     terax.enable = true;
+    agentmemory.enable = true;
 
     inherit (skillDefs) skills;
   };

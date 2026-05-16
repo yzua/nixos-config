@@ -9,6 +9,7 @@
 }:
 let
   inherit (hmSystemdHelpers) mkPersistentTimer;
+  agentmemoryRuntime = import ./_agentmemory-runtime.nix { inherit pkgs; };
 
   autoUpdateTools = [
     {
@@ -46,49 +47,76 @@ let
         ExecStart = "${mkCliAutoupdateScript { inherit binary npmPackage label; }}";
       };
     };
+
+  agentmemoryService = {
+    Unit = {
+      Description = "Shared persistent memory server for AI agents";
+      After = [ "network-online.target" ];
+    };
+    Service = {
+      Type = "simple";
+      WorkingDirectory = "%h";
+      Environment = [
+        "AGENTMEMORY_URL=${cfg.agentmemory.url}"
+        "CI=1"
+        "NPM_CONFIG_CACHE=%h/.cache/npm"
+        "PATH=${agentmemoryRuntime.iiiEngine}/bin:${pkgs.nodejs}/bin:/run/current-system/sw/bin"
+      ];
+      ExecStart = "${pkgs.nodejs}/bin/npx -y @agentmemory/agentmemory@${cfg.agentmemory.version}";
+      Restart = "always";
+      RestartSec = "10s";
+    };
+    Install.WantedBy = [ "default.target" ];
+  };
 in
-lib.mkIf cfg.logging.enable {
-  tmpfiles.rules = [
-    "d ${cfg.logging.directory} 0755 - - -"
-  ];
+lib.mkMerge [
+  (lib.mkIf cfg.agentmemory.enable {
+    services.agentmemory = agentmemoryService;
+  })
 
-  services = {
-    ai-agent-log-cleanup = {
-      Unit.Description = "Clean up old AI agent logs";
-      Service = {
-        Type = "oneshot";
-        ExecStart = "${pkgs.writeShellScript "cleanup" logCleanupCommand}";
+  (lib.mkIf cfg.logging.enable {
+    tmpfiles.rules = [
+      "d ${cfg.logging.directory} 0755 - - -"
+    ];
+
+    services = {
+      ai-agent-log-cleanup = {
+        Unit.Description = "Clean up old AI agent logs";
+        Service = {
+          Type = "oneshot";
+          ExecStart = "${pkgs.writeShellScript "cleanup" logCleanupCommand}";
+        };
       };
-    };
 
-    opencode-db-vacuum = {
-      Unit.Description = "Vacuum OpenCode SQLite database";
-      Service = {
-        Type = "oneshot";
-        ExecStart = "${pkgs.writeShellScript "opencode-vacuum" ''
-          DB="${config.xdg.dataHome}/opencode/opencode.db"
-          if [[ -f "$DB" ]]; then
-            ${pkgs.sqlite}/bin/sqlite3 "$DB" "VACUUM;"
-            echo "Vacuumed OpenCode database"
-          fi
-        ''}";
+      opencode-db-vacuum = {
+        Unit.Description = "Vacuum OpenCode SQLite database";
+        Service = {
+          Type = "oneshot";
+          ExecStart = "${pkgs.writeShellScript "opencode-vacuum" ''
+            DB="${config.xdg.dataHome}/opencode/opencode.db"
+            if [[ -f "$DB" ]]; then
+              ${pkgs.sqlite}/bin/sqlite3 "$DB" "VACUUM;"
+              echo "Vacuumed OpenCode database"
+            fi
+          ''}";
+        };
       };
-    };
-  }
-  // builtins.listToAttrs (
-    map (tool: lib.nameValuePair "${tool.binary}-autoupdate" (mkAutoUpdateService tool)) autoUpdateTools
-  );
+    }
+    // builtins.listToAttrs (
+      map (tool: lib.nameValuePair "${tool.binary}-autoupdate" (mkAutoUpdateService tool)) autoUpdateTools
+    );
 
-  timers = {
-    ai-agent-log-cleanup = mkPersistentTimer { description = "Weekly AI agent log cleanup"; };
-    opencode-db-vacuum = mkPersistentTimer { description = "Weekly OpenCode database vacuum"; };
-  }
-  // builtins.listToAttrs (
-    map (
-      tool:
-      lib.nameValuePair "${tool.binary}-autoupdate" (mkPersistentTimer {
-        description = "Weekly ${tool.label} auto-update";
-      })
-    ) autoUpdateTools
-  );
-}
+    timers = {
+      ai-agent-log-cleanup = mkPersistentTimer { description = "Weekly AI agent log cleanup"; };
+      opencode-db-vacuum = mkPersistentTimer { description = "Weekly OpenCode database vacuum"; };
+    }
+    // builtins.listToAttrs (
+      map (
+        tool:
+        lib.nameValuePair "${tool.binary}-autoupdate" (mkPersistentTimer {
+          description = "Weekly ${tool.label} auto-update";
+        })
+      ) autoUpdateTools
+    );
+  })
+]
