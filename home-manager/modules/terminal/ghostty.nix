@@ -56,7 +56,7 @@
       clipboard-trim-trailing-spaces = true;
 
       mouse-hide-while-typing = true;
-      mouse-scroll-multiplier = "precision:1,discrete:3";
+      mouse-scroll-multiplier = "precision:1,discrete:1";
       focus-follows-mouse = true;
       mouse-shift-capture = "never";
 
