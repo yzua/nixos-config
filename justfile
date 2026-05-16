@@ -84,7 +84,6 @@ test:
         "scripts/build/modules-check-test.sh"
         "scripts/ai/agent-launcher-test.sh"
         "scripts/ai/agent-iter-test.sh"
-        "scripts/ai/agent-registry-drift-test.sh"
         "scripts/ai/agents-search-test.sh"
         "scripts/ai/android-re/re-avd-test.sh"
         "scripts/ai/android-re/frida-hooks-test.sh"

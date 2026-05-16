@@ -4,6 +4,7 @@
   config,
   constants,
   lib,
+  pkgs,
   ...
 }:
 
@@ -18,6 +19,10 @@ let
   models = import ./helpers/_models.nix;
   agentEnvContent = import ./helpers/_agent-env.nix;
   settingsBuilders = import ./helpers/_settings-builders.nix { inherit cfg config lib; };
+  aliasLib = import ./helpers/_aliases.nix {
+    inherit lib pkgs;
+    scriptsDir = "${config.home.homeDirectory}/${constants.paths.scripts}";
+  };
   opencodeProfiles = import ./helpers/_opencode-profiles.nix { inherit config; };
   inherit (settingsBuilders)
     geminiSettings
@@ -190,6 +195,10 @@ in
       (lib.mkIf cfg.enable {
         "ai-agents/models.sh" = {
           text = agentEnvContent;
+          force = true;
+        };
+        "ai-agents/aliases.sh" = {
+          text = aliasLib.generatedBashRegistry;
           force = true;
         };
       })
