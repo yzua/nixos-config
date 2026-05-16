@@ -13,9 +13,9 @@ let
   zjstatusConfig = ''
     pane size=1 borderless=true {
       plugin location="file:~/.config/zellij/plugins/zjstatus.wasm" {
-        format_left   "{mode}{tabs}"
-        format_center ""
-        format_right  "#[bg=${constants.color.bg_soft},fg=${constants.color.bg0}]#[bg=${constants.color.bg0},fg=${constants.color.gray}]  {session} #[fg=${constants.color.gray}]   {datetime} "
+        format_left   "{mode}#[bg=${constants.color.bg0},fg=${constants.color.gray}]  {session} {command_git_branch}"
+        format_center "{tabs}"
+        format_right  "{command_ai_agents}#[bg=${constants.color.bg0},fg=${constants.color.gray}] {datetime} "
         format_space  "#[bg=${constants.color.bg_soft}]"
         format_hide_on_overlength "true"
         format_precedence "lrc"
@@ -38,12 +38,26 @@ let
         mode_move          "#[bg=${constants.color.yellow},fg=${constants.color.bg_hard},bold] 󰆾 MOVE #[bg=${constants.color.bg_soft},fg=${constants.color.yellow}]"
         mode_tmux          "#[bg=${constants.color.aqua_dim},fg=${constants.color.bg_hard},bold]  TMUX #[bg=${constants.color.bg_soft},fg=${constants.color.aqua_dim}]"
 
-        tab_normal              "#[bg=${constants.color.bg0},fg=${constants.color.gray}] {name}{floating_indicator}{fullscreen_indicator} #[bg=${constants.color.bg_soft},fg=${constants.color.bg0}]"
-        tab_active              "#[bg=${constants.color.aqua_dim},fg=${constants.color.bg_hard},bold] {name}{floating_indicator}{fullscreen_indicator} #[bg=${constants.color.bg_soft},fg=${constants.color.aqua_dim}]"
-        tab_separator           ""
+        tab_normal              "#[bg=${constants.color.bg0},fg=${constants.color.gray}] {index}:{name}{floating_indicator}{fullscreen_indicator} "
+        tab_active              "#[bg=${constants.color.aqua_dim},fg=${constants.color.bg_hard},bold] {index}:{name}{floating_indicator}{fullscreen_indicator} "
+        tab_rename              "#[bg=${constants.color.yellow_dim},fg=${constants.color.bg_hard},bold] {index}:{name} "
+        tab_separator           "#[bg=${constants.color.bg_soft},fg=${constants.color.bg1}]│"
         tab_floating_indicator  " 󰹙"
         tab_fullscreen_indicator " 󰊓"
-        tab_sync_indicator      " "
+        tab_sync_indicator      " 󰓦"
+        tab_display_count       "8"
+        tab_truncate_start_format "#[bg=${constants.color.bg_soft},fg=${constants.color.gray}]‹+{count} "
+        tab_truncate_end_format   "#[bg=${constants.color.bg_soft},fg=${constants.color.gray}] +{count}›"
+
+        command_git_branch_command "bash -lc 'branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null) || exit 0; printf \" %s\" \"$branch\"'"
+        command_git_branch_format "#[bg=${constants.color.bg0},fg=${constants.color.yellow_dim}] {stdout} "
+        command_git_branch_interval "10"
+        command_git_branch_rendermode "static"
+
+        command_ai_agents_command "bash -lc 'out=\"\"; pgrep -afu \"$USER\" \"(^|/| )(claude|opencode|codex|gemini|omp)( |$)\" >/dev/null && out=\"󰚩 AI\"; printf \"%s\" \"$out\"'"
+        command_ai_agents_format "#[bg=${constants.color.purple_dim},fg=${constants.color.bg_hard},bold] {stdout} #[bg=${constants.color.bg_soft},fg=${constants.color.purple_dim}]"
+        command_ai_agents_interval "5"
+        command_ai_agents_rendermode "static"
 
         datetime          " {format} "
         datetime_timezone "Etc/GMT-3"
@@ -86,10 +100,44 @@ in
     "zellij/layouts/ai.kdl".text = mkLayoutWithStatus ''
       tab name="agent" focus=true {
         pane split_direction="vertical" {
-          pane size="60%" name="claude" command="${config.home.homeDirectory}/.bun/bin/claude"
+          pane size="60%" name="claude" command="${pkgs.zsh}/bin/zsh" {
+            args "-ic" "cl"
+          }
           pane split_direction="horizontal" {
             pane size="50%" name="logs" command="${pkgs.bash}/bin/bash" {
               args "-c" "tail -f ${config.home.homeDirectory}/${constants.paths.opencodeLogDir}/*.log ${config.home.homeDirectory}/${constants.paths.codexLogDir}/*.log 2>/dev/null || echo 'No agent logs yet. Waiting...'; sleep infinity"
+            }
+            pane name="git" command="${pkgs.lazygit}/bin/lazygit"
+          }
+        }
+      }
+    '';
+
+    "zellij/layouts/ai-council.kdl".text = mkLayoutWithStatus ''
+      tab name="󰚩 council" focus=true {
+        pane split_direction="vertical" {
+          pane size="34%" name="claude" command="${pkgs.zsh}/bin/zsh" focus=true {
+            args "-ic" "cl"
+          }
+          pane size="33%" name="opencode" command="${pkgs.zsh}/bin/zsh" {
+            args "-ic" "oc"
+          }
+          pane size="33%" name="codex" command="${pkgs.zsh}/bin/zsh" {
+            args "-ic" "hcx"
+          }
+        }
+      }
+    '';
+
+    "zellij/layouts/ai-observe.kdl".text = mkLayoutWithStatus ''
+      tab name="󰙨 ai-logs" focus=true {
+        pane split_direction="horizontal" {
+          pane name="agent logs" command="${pkgs.bash}/bin/bash" focus=true {
+            args "-c" "tail -F ${config.home.homeDirectory}/${constants.paths.aiAgentsLogDir}/*.log ${config.home.homeDirectory}/${constants.paths.opencodeLogDir}/*.log ${config.home.homeDirectory}/${constants.paths.codexLogDir}/*.log 2>/dev/null || { echo 'No AI logs yet. Waiting...'; sleep infinity; }"
+          }
+          pane split_direction="vertical" {
+            pane size="50%" name="inventory" command="${pkgs.zsh}/bin/zsh" {
+              args "-ic" "ai-agent-inventory; exec zsh"
             }
             pane name="git" command="${pkgs.lazygit}/bin/lazygit"
           }

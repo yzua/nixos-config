@@ -32,6 +32,10 @@ let
       url = "https://github.com/leakec/multitask/releases/download/v0.44.1/multitask.wasm";
       hash = "sha256-WiM5rXpcrdNucjfcVfsmpEWq44xN+3IW+jBVsVRzXSU=";
     };
+    zellij-attention = {
+      url = "https://github.com/KiryuuLight/zellij-attention/releases/download/v0.3.1/zellij-attention.wasm";
+      hash = "sha256-QgkzerYacxRI7HMzYvPvaZqQW7tcARKpOm1hY2D9ci8=";
+    };
   };
 in
 {
