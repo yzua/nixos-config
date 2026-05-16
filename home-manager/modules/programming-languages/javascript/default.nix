@@ -8,12 +8,7 @@
 }:
 
 let
-  mkShellAliasPrograms =
-    { shellAliases }:
-    {
-      zsh.shellAliases = shellAliases;
-      bash.shellAliases = shellAliases;
-    };
+  mkShellAliasPrograms = import ../../../_helpers/_shell-alias-programs.nix;
   bunGlobalPackages = [
     "@anthropic-ai/claude-code"
     "@google/gemini-cli"
