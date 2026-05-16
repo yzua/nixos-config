@@ -17,47 +17,8 @@
       skill = "webapp-testing";
     }
 
-    # Methodology — Matt Pocock's engineering skills
-    {
-      repo = "mattpocock/skills";
-      skill = "diagnose";
-    }
-    {
-      repo = "mattpocock/skills";
-      skill = "tdd";
-    }
-    {
-      repo = "mattpocock/skills";
-      skill = "grill-with-docs";
-    }
-    {
-      repo = "mattpocock/skills";
-      skill = "grill-me";
-    }
-    {
-      repo = "mattpocock/skills";
-      skill = "to-prd";
-    }
-    {
-      repo = "mattpocock/skills";
-      skill = "to-issues";
-    }
-    {
-      repo = "mattpocock/skills";
-      skill = "triage";
-    }
-    {
-      repo = "mattpocock/skills";
-      skill = "zoom-out";
-    }
-    {
-      repo = "mattpocock/skills";
-      skill = "improve-codebase-architecture";
-    }
-    {
-      repo = "mattpocock/skills";
-      skill = "caveman";
-    }
+    # Methodology — all installable skills exposed by mattpocock/skills.
+    "mattpocock/skills"
 
     # Domain rules
     {
@@ -120,9 +81,6 @@
       repo = "github/awesome-copilot";
       skill = "documentation-writer";
     }
-    {
-      repo = "addyosmani/agent-skills";
-      skill = "documentation-and-adrs";
-    }
+    "addyosmani/agent-skills"
   ];
 }
