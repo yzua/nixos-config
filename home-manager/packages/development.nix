@@ -16,6 +16,8 @@ let
     aider-chat # AI pair programming (fast-moving, needs latest)
     cargo
     cargo-nextest
+    gradle_9 # Required for current Fabric Loom snapshots
+    pkg-config # Native library discovery for Rust/JNI mod builds
     rustc
     rustfmt # Rust formatter (system-wide for conform.nvim)
     zig # Zig compiler + formatter (used by AI agent hooks and editors)

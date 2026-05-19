@@ -16,6 +16,9 @@
     kdeconnect.enable = false; # Desktop has no Bluetooth adapter; avoids repetitive Bluez warnings.
     opensnitch.enable = false;
     i2pd.enable = true;
+    # Syncthing is a standalone Home Manager service, so declare its LAN
+    # requirement here for Mullvad local network sharing.
+    mullvadVpn.lanServices = [ "syncthing" ];
     tailscale.enable = true;
     yggdrasil.enable = true;
     vnc = {
@@ -23,6 +26,7 @@
       tools.enable = true;
     };
     webRe.enable = true;
+    rustdesk.enable = true;
   };
 
   # LUKS unlock for root only — swap disabled (use zram only).

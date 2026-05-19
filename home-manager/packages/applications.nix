@@ -16,6 +16,21 @@
     keepassxc
     antigravity-fhs
 
+    # Minecraft
+    (prismlauncher.override {
+      additionalLibs = [
+        libdecor
+        libxkbcommon
+        wayland
+      ];
+      additionalPrograms = [
+        libdecor
+        libxkbcommon
+        wayland
+      ];
+    })
+    fabric-installer
+
     # Messaging
     signal-desktop
     telegram-desktop

@@ -5,6 +5,7 @@
     ./desktop-entries.nix # Desktop entries and Element keyring wrapper script
     ./keepassxc.nix # KeePassXC desktop entry
     ./obs.nix # OBS Studio with CUDA and plugins
+    ./minecraft.nix # Prism Launcher and Waylandcraft Fabric instance seed
     ./syncthing.nix # Syncthing local file sync
     ./nixcord.nix # Discord (Vesktop + Vencord)
     ./activitywatch.nix # ActivityWatch app usage tracking

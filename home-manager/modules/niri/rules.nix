@@ -173,6 +173,10 @@
 
       (mkWorkspaceAppIdRule "^(${constants.editorAppId})$" ws.editor { })
 
+      (mkWorkspaceRule [ { title = "^Minecraft\\*? 26\\.1\\.2$"; } ] ws.editor {
+        default-column-width.proportion = 1.0;
+      })
+
       {
         matches = [ { app-id = "^(${constants.terminalAppId})$"; } ];
         excludes = [ { app-id = "^scratchpad$"; } ];

@@ -15,11 +15,11 @@
 
   programs.niri = {
     enable = true;
-    package = pkgs.niri-stable; # Provided by niri overlay
+    package = pkgs.niri;
   };
 
   # XWayland compatibility via xwayland-satellite
-  environment.systemPackages = [ pkgs.xwayland-satellite-stable ];
+  environment.systemPackages = [ pkgs.xwayland-satellite ];
 
   # Security services for compositor
   security.polkit.enable = true;

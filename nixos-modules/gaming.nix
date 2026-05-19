@@ -17,28 +17,35 @@
   };
 
   config = lib.mkIf config.mySystem.gaming.enable {
-    programs.steam = {
-      enable = true;
-      gamescopeSession.enable = config.mySystem.gaming.enableGamescope;
-      extraCompatPackages = with pkgs; [ proton-ge-bin ];
-    };
+    programs = {
+      steam = {
+        enable = true;
+        gamescopeSession.enable = config.mySystem.gaming.enableGamescope;
+        extraCompatPackages = with pkgs; [ proton-ge-bin ];
+      };
 
-    programs.gamemode = lib.mkIf config.mySystem.gaming.enableGamemode {
-      enable = true;
-      settings = {
-        general = {
-          renice = 10; # Renice game process for priority
-          softrealtime = "auto"; # SCHED_ISO when available
-          inhibit_screensaver = 1;
-        };
-        gpu = {
-          apply_gpu_optimisations = "accept-responsibility";
-          gpu_device = 1; # NVIDIA GPU is card1 (card0 has no vendor file)
-          nv_powermizer_mode = 1; # Prefer maximum performance
-        };
-        custom = {
-          start = "${pkgs.libnotify}/bin/notify-send 'GameMode' 'Optimizations activated'";
-          end = "${pkgs.libnotify}/bin/notify-send 'GameMode' 'Optimizations deactivated'";
+      gamescope = lib.mkIf config.mySystem.gaming.enableGamescope {
+        enable = true;
+        capSysNice = true;
+      };
+
+      gamemode = lib.mkIf config.mySystem.gaming.enableGamemode {
+        enable = true;
+        settings = {
+          general = {
+            renice = 10; # Renice game process for priority
+            softrealtime = "auto"; # SCHED_ISO when available
+            inhibit_screensaver = 1;
+          };
+          gpu = {
+            apply_gpu_optimisations = "accept-responsibility";
+            gpu_device = 1; # NVIDIA GPU is card1 (card0 has no vendor file)
+            nv_powermizer_mode = 1; # Prefer maximum performance
+          };
+          custom = {
+            start = "${pkgs.libnotify}/bin/notify-send 'GameMode' 'Optimizations activated'";
+            end = "${pkgs.libnotify}/bin/notify-send 'GameMode' 'Optimizations deactivated'";
+          };
         };
       };
     };
