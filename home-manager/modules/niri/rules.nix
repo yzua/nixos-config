@@ -22,8 +22,8 @@
         pattern: workspace: extra:
         mkWorkspaceRule [ (appIdMatch pattern) ] workspace extra;
 
-      # LibreWolf profile app-ids derived from _profiles.nix (single source of truth).
-      lwProfiles = import ../apps/librewolf/_profiles.nix { inherit constants; };
+      # LibreWolf profile app-ids (shared data from helpers).
+      lwProfiles = import ../../_helpers/_librewolf-profiles.nix { inherit constants; };
       lwProfileNames = map (p: "librewolf-${p.name}") lwProfiles;
       lwBaseAppIds = [
         "librewolf"

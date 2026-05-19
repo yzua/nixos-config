@@ -30,7 +30,7 @@ let
     }
     // (if mimeType == null then { } else { inherit mimeType; });
 
-  librewolfDesktopProfiles = import ./librewolf/_profiles.nix { inherit constants; };
+  librewolfDesktopProfiles = import ../../_helpers/_librewolf-profiles.nix { inherit constants; };
 
   librewolfDesktopEntries = builtins.listToAttrs (
     map (profile: {

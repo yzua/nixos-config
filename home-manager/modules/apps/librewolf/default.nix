@@ -9,7 +9,7 @@
 }:
 let
   extensionPolicies = import ./_extensions.nix;
-  profileSpecs = import ./_profiles.nix { inherit constants; };
+  profileSpecs = import ../../../_helpers/_librewolf-profiles.nix { inherit constants; };
   baseSettings = {
     "app.update.auto" = false;
     "browser.shell.checkDefaultBrowser" = false;
