@@ -32,3 +32,9 @@ check_tool() {
 		log_warning "tool missing: ${tool}"
 	fi
 }
+
+# Check whether a TCP port has an active listener on the host.
+port_in_use() {
+	local port="$1"
+	command -v ss >/dev/null 2>&1 && ss -ltnH "( sport = :${port} )" | grep -q .
+}

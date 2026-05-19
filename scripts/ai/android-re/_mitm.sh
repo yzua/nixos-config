@@ -2,6 +2,7 @@
 # MITM proxy (mitmproxy) setup, CA injection, and proxy configuration.
 # shellcheck source=scripts/lib/logging.sh
 # shellcheck source=scripts/ai/android-re/_helpers.sh
+# shellcheck source=scripts/ai/_re-mitm-common.sh
 
 MITM_CONF_DIR="${MITM_CONF_DIR:-${HOME}/Downloads/android-re-tools/custom-ca}"
 MITM_CA_HASH="${MITM_CA_HASH:-}"
@@ -9,6 +10,10 @@ MITM_CA_SOURCE="${MITM_CA_SOURCE:-${MITM_CONF_DIR}/mitmproxy-ca-cert.cer}"
 MITM_CA_TARGET=""
 MITM_HOST="${MITM_HOST:-0.0.0.0}"
 MITM_PORT="${MITM_PORT:-8084}"
+
+REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
+# shellcheck disable=SC1091
+source "${REPO_ROOT}/scripts/ai/_re-mitm-common.sh"
 
 # Internal: compute the CA certificate hash and set MITM_CA_HASH/MITM_CA_TARGET.
 # Returns 0 on success, 1 on any failure (bad hash, openssl error).
@@ -43,31 +48,8 @@ _try_init_mitm_ca_vars() {
 	_compute_ca_hash || return 1
 }
 
-kill_mitm_listeners() {
-	pkill -f "mitmdump.*--listen-port ${MITM_PORT}" 2>/dev/null || true
-	pkill -f "mitmproxy.*--listen-port ${MITM_PORT}" 2>/dev/null || true
-
-	for _ in $(seq 1 10); do
-		if ! port_in_use "${MITM_PORT}"; then
-			return 0
-		fi
-		sleep 0.5
-	done
-
-	if port_in_use "${MITM_PORT}"; then
-		log_warning "port ${MITM_PORT} still has a listener after mitm cleanup — killing forcefully"
-		ss -ltnpH "( sport = :${MITM_PORT} )" | grep -oP 'pid=\K[0-9]+' | xargs -r kill -9 2>/dev/null || true
-		sleep 1
-	fi
-}
-
-mitm_listener_ready() {
-	port_in_use "${MITM_PORT}"
-}
-
-mitm_command() {
-	printf 'mitmdump --set confdir=%q --listen-host %q --listen-port %q --set ssl_insecure=true --set flow_detail=2' "${MITM_CONF_DIR}" "${MITM_HOST}" "${MITM_PORT}"
-}
+# Legacy alias for mitm_running from shared mitm common.
+mitm_listener_ready() { mitm_running; }
 
 sync_mitm_ca() {
 	local device_cert
@@ -113,24 +95,11 @@ EOF
 
 start_mitm_tmux() {
 	need_cmd mitmdump
-	if [[ ! -e "${MITM_CONF_DIR}/mitmproxy-ca-cert.cer" ]]; then
-		log_info "generating mitmproxy CA cert in ${MITM_CONF_DIR}"
-		mkdir -p "${MITM_CONF_DIR}"
-		mitmdump --set confdir="${MITM_CONF_DIR}" -q &
-		local mitm_pid=$!
-		sleep 3
-		kill "${mitm_pid}" 2>/dev/null || true
-		wait "${mitm_pid}" 2>/dev/null || true
-		if [[ ! -e "${MITM_CONF_DIR}/mitmproxy-ca-cert.cer" ]]; then
-			log_warning "failed to generate mitmproxy CA cert in ${MITM_CONF_DIR}"
-			return 1
-		fi
-		log_success "mitmproxy CA cert generated"
-	fi
+	mitm_ensure_ca_cert || return 1
 	kill_mitm_listeners
 	ensure_re_tmux
 
-	if mitm_listener_ready; then
+	if mitm_running; then
 		log_success "mitmproxy listener already present on ${MITM_PORT}"
 		return 0
 	fi
@@ -142,7 +111,7 @@ start_mitm_tmux() {
 	tmux send-keys -t "${TMUX_SESSION}:${TMUX_MITM_WINDOW}" Enter
 
 	for _ in $(seq 1 15); do
-		if mitm_listener_ready; then
+		if mitm_running; then
 			log_success "mitmproxy listening on ${MITM_HOST}:${MITM_PORT}"
 			return 0
 		fi
