@@ -4,7 +4,7 @@
 
 let
   cfg = config.programs.aiAgents;
-  zai = import ../helpers/_zai-services.nix;
+  zai = import ../helpers/_zai.nix { };
 
   mkZaiRemoteMcp = path: {
     enable = true;

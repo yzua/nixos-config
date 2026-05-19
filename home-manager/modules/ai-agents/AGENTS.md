@@ -126,6 +126,7 @@ ai-agents/
 └── config/                  # Split configuration values
     ├── default.nix          # Import hub
     ├── defaults.nix         # Default values for agent options
+    ├── _shell-env.nix       # Computed shell env for external modules (zsh, niri)
     ├── global-instructions.md # Global instructions text (not a module)
     ├── _skills.nix          # Skill installations and omissions
     ├── mcp-servers.nix      # MCP server definitions + logging
@@ -177,6 +178,15 @@ All `helpers/_*.nix` files are plain Nix expressions (not modules). They are imp
 ### Activation File Rules
 
 The `activation/` directory is a submodule with its own `default.nix`. Individual files (`secrets.nix`, `claude-setup.nix`, `codex-setup.nix`, `plugins.nix`, `skills.nix`) are helpers imported by `activation/default.nix` — not listed in the top-level `ai-agents/default.nix` import hub.
+
+### External Module Interface
+
+The `programs.aiAgents.shellEnv` option is the **only** interface external modules should consume from ai-agents. It provides computed shell environment data through the HM option system rather than requiring raw file imports.
+
+- `shellEnv.zaiInlinePrefix`: env var prefix string for `claude_glm` shell function
+- `shellEnv.opencodeProfileData`: list of profile attrsets for shell wrapper generation
+
+External modules (currently `terminal/zsh/functions.nix`) read `config.programs.aiAgents.shellEnv.*` instead of importing `helpers/_zai-env.nix` or `helpers/_opencode-profiles.nix` directly. The computed values are set in `config/_shell-env.nix`.
 
 ### Complexity Hotspots (WARNING)
 

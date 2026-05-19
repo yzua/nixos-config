@@ -5,7 +5,7 @@
 
 let
   models = import ./_models.nix;
-  zaiConfig = import ./_zai-config.nix;
+  zai = import ./_zai.nix { };
 
   lines = [
     "# Auto-generated model and service config — do not edit."
@@ -17,12 +17,12 @@ let
     "AI_MODEL_GPT_DEFAULT='${models.gpt-default}'"
     "AI_MODEL_GPT_XHIGH='${models.gpt-xhigh}'"
     ""
-    "# ZAI service config (source: helpers/_zai-config.nix)"
-    "ZAI_API_ROOT='${zaiConfig.apiRoot}'"
-    "ZAI_TIMEOUT='${toString zaiConfig.timeout}'"
-    "ZAI_MODEL_HAIKU='${zaiConfig.models.haiku}'"
-    "ZAI_MODEL_SONNET='${zaiConfig.models.sonnet}'"
-    "ZAI_MODEL_OPUS='${zaiConfig.models.opus}'"
+    "# ZAI service config (source: helpers/_zai.nix)"
+    "ZAI_API_ROOT='${zai.config.apiRoot}'"
+    "ZAI_TIMEOUT='${toString zai.config.timeout}'"
+    "ZAI_MODEL_HAIKU='${zai.config.models.haiku}'"
+    "ZAI_MODEL_SONNET='${zai.config.models.sonnet}'"
+    "ZAI_MODEL_OPUS='${zai.config.models.opus}'"
   ];
 in
 builtins.concatStringsSep "\n" lines + "\n"

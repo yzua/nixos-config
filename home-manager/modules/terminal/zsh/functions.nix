@@ -10,17 +10,13 @@
 
 let
   inherit (secretLoader) loadSecretFn;
-  zaiEnv = import ../../ai-agents/helpers/_zai-env.nix;
-
-  # Derive OpenCode wrapper functions from profile definitions.
-  # Single source: home-manager/modules/ai-agents/helpers/_opencode-profiles.nix.
-  opencodeProfiles = import ../../ai-agents/helpers/_opencode-profiles.nix { inherit config; };
+  aiShellEnv = config.programs.aiAgents.shellEnv;
 
   # Profiles that get a simple wrapper (excludes default "opencode" and
   # "opencode-openrouter" which needs secret loading).
   simpleWrapperProfiles = builtins.filter (
     p: p.alias != "oc" && p.name != "opencode-openrouter"
-  ) opencodeProfiles.profiles;
+  ) aiShellEnv.opencodeProfileData;
 
   profileSuffix = p: builtins.replaceStrings [ "opencode-" ] [ "" ] p.name;
 in
@@ -95,7 +91,7 @@ in
       local debug_dir="''${AI_AGENT_LOG_DIR:-$HOME/.local/share/ai-agents/logs}"
       mkdir -p "$debug_dir"
       ANTHROPIC_AUTH_TOKEN="$key" \
-      ${zaiEnv.inlinePrefix} \
+      ${aiShellEnv.zaiInlinePrefix} \
       claude --dangerously-skip-permissions --debug-file "$debug_dir/claude-debug-$(date +%Y-%m-%d).log" "$@"
     }
 

@@ -22,8 +22,8 @@ let
   opencodeConfigPaths = map opencodeProfiles.configPath opencodeProfiles.names;
   opencodeConfigPathList = lib.concatMapStringsSep " " lib.escapeShellArg opencodeConfigPaths;
 
-  zaiFilters = import ../helpers/_zai-filters.nix { inherit lib; };
-  inherit (zaiFilters)
+  zai = import ../helpers/_zai.nix { inherit lib; };
+  inherit (zai)
     opencodeZaiFilter
     claudeZaiFilter
     ompZaiFilter

@@ -321,5 +321,14 @@ in
       theme = mkStrOption "gruvbox-dark" "Theme for oh-my-pi";
       extraSettings = mkAttrsOption { } "Additional oh-my-pi settings merged into mcp.json";
     };
+
+    # === Computed Shell Environment ===
+    # Read-only: consumed by terminal/zsh/functions.nix instead of direct file imports.
+    shellEnv = {
+      zaiInlinePrefix = mkStrOption "" "Computed ZAI env var prefix for claude_glm shell function";
+      opencodeProfileData =
+        mkTypedOption (lib.types.listOf lib.types.attrs) [ ]
+          "Computed OpenCode profile definitions for shell wrapper functions";
+    };
   };
 }
