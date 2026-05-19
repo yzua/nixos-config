@@ -86,11 +86,13 @@ in
     };
 
     # Alloy is always enabled alongside Loki (it ships logs to Loki)
-    mySystem.alloy.enable = lib.mkDefault true;
-
-    mySystem.boot.deferServices = lib.mkIf config.mySystem.loki.enable [
-      "loki"
-      "alloy"
-    ];
+    mySystem = {
+      alloy.enable = lib.mkDefault true;
+      systemReport.features.HAS_LOKI = lib.boolToString true;
+      boot.deferServices = lib.mkIf config.mySystem.loki.enable [
+        "loki"
+        "alloy"
+      ];
+    };
   };
 }

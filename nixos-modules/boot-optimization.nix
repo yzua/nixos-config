@@ -37,7 +37,10 @@ in
   options.mySystem.boot.deferServices = lib.mkOption {
     type = lib.types.listOf lib.types.str;
     default = [ ];
-    description = "Services to defer from multi-user.target to a post-boot timer.";
+    description = ''
+      Services to defer from multi-user.target to a post-boot timer.
+      Written by: netdata.nix, scrutiny.nix, loki.nix, prometheus-grafana/_prometheus.nix, prometheus-grafana/_grafana.nix.
+    '';
   };
 
   config = {

@@ -6,11 +6,10 @@
     ./bootloader.nix # Bootloader, kernel, systemd-boot
     ./nix.nix # Nix package manager, flakes, binary caches
     ./users.nix # User accounts and group memberships
-    ./timezone.nix # Timezone (UTC+3)
+    ./system-baseline.nix # Timezone, xserver, libinput, upower, fstrim, earlyoom
     ./i18n.nix # Locale, input methods, keyboard layout
     ./environment.nix # Session variables and XDG paths
     ./kernel-tuning.nix # Kernel and network sysctl tuning (TCP BBR, inotify, memory)
-    ./system-services.nix # SSD trim, earlyoom OOM protection, notification bus
     ./resource-limits.nix # Systemd timeouts, PAM session limits
     ./host-defaults.nix # Profile-based defaults for mySystem options
     ./host-info.nix # Hostname and state version management
@@ -20,14 +19,11 @@
     ./nvidia.nix # NVIDIA GPU drivers, CUDA, Wayland
     ./audio.nix # PipeWire audio stack
     ./bluetooth.nix # Bluetooth with Blueman
-    ./libinput.nix # Touchpad and mouse input
-    ./upower.nix # Battery and power monitoring
     ./fwupd.nix # Firmware updates (fwupd/LVFS)
 
     # Desktop environment
     ./niri.nix # Niri scrollable tiling Wayland compositor
     ./greetd.nix # greetd display manager with tuigreet
-    ./xserver.nix # X server for XWayland compatibility
     ./xdg-desktop-portal.nix # XDG portals for Wayland
     ./nautilus.nix # GNOME Files with thumbnails and automounting
 

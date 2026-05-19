@@ -12,7 +12,7 @@
 let
   inherit (systemdHelpers)
     mkOneshotService
-    mkPersistentTimer
+    mkNixosTimer
     ;
 
   aideConf = pkgs.writeText "aide.conf" ''
@@ -73,7 +73,7 @@ in
     environment.systemPackages = [ pkgs.aide ];
 
     systemd = {
-      timers.aide-check = mkPersistentTimer {
+      timers.aide-check = mkNixosTimer {
         description = "Weekly AIDE file integrity check";
         onCalendar = "weekly";
         randomizedDelaySec = "2h";

@@ -10,11 +10,13 @@
 
 let
   inherit (constants) localhost;
-  secretFile = ../../secrets/secrets.yaml;
-  secretFileText = lib.optionalString (builtins.pathExists secretFile) (
-    "\n" + builtins.readFile secretFile
-  );
-  hasSecret = name: lib.hasInfix "\n${name}:" secretFileText;
+  inherit
+    (import ../../shared/_secret-check.nix {
+      inherit lib;
+      rootDir = ../..;
+    })
+    hasSecret
+    ;
 
   observabilityAssertions = lib.optionals config.mySystem.observability.enable [
     {

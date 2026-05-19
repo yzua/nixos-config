@@ -13,7 +13,7 @@
 }:
 
 let
-  inherit (hmSystemdHelpers) mkPersistentTimer;
+  inherit (hmSystemdHelpers) mkHmTimer;
 
   scrubberBinPath = lib.makeBinPath [
     pkgsStable.coreutils
@@ -135,7 +135,7 @@ in
       };
     };
 
-    timers.metadata-scrubber-full = mkPersistentTimer {
+    timers.metadata-scrubber-full = mkHmTimer {
       description = "Weekly full metadata scrub";
       onCalendar = "weekly";
       randomizedDelaySec = "2h";

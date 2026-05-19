@@ -8,17 +8,12 @@
 }:
 
 let
-  mullvad = "${pkgs.mullvad}/bin/mullvad";
+  mullvad = "${config.services.mullvad-vpn.package}/bin/mullvad";
 
   # LAN sharing policy: allow when services need LAN access, block otherwise.
-  # Docker requires LAN sharing — bridge traffic uses RFC1918 ranges that
-  # Mullvad lockdown mode would otherwise block, breaking container networking.
+  # Modules that need LAN append to mySystem.mullvadVpn.lanServices.
   lanCommand =
-    if
-      (
-        config.mySystem.kdeconnect.enable || config.mySystem.flatpak.enable || config.mySystem.docker.enable
-      )
-    then
+    if config.mySystem.mullvadVpn.lanServices != [ ] then
       "${mullvad} lan set allow"
     else
       "${mullvad} lan set block";
@@ -69,14 +64,23 @@ let
     ${mullvad} obfuscation set mode auto
 
     # === Local Network ===
-    # SECURITY: Only allow LAN access when services need it (KDE Connect, LocalSend, Docker).
+    # SECURITY: Only allow LAN access when services need it.
     # On public/hostile networks, LAN access is an attack surface.
+    # See mySystem.mullvadVpn.lanServices for the list of services that need LAN.
     ${lanCommand}
   '';
 in
 {
   options.mySystem.mullvadVpn = {
     enable = lib.mkEnableOption "Mullvad VPN service";
+    lanServices = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      description = ''
+        Services that require LAN access through the VPN tunnel.
+        Written by: docker.nix, kdeconnect.nix, flatpak.nix, and host configs for Home Manager services.
+      '';
+    };
   };
 
   config = lib.mkIf config.mySystem.mullvadVpn.enable {

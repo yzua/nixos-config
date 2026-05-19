@@ -4,12 +4,12 @@
 # Do NOT add them to imports — modules-check enforces this convention.
 #
 # Available helpers:
-#   _systemd-helpers.nix  — mkServiceHardening, mkPersistentTimer, mkOneshotService
+#   _systemd-helpers.nix  — mkServiceHardening, mkNixosTimer, mkOneshotService
 #
 # Service URLs are now `constants.urls` (auto-derived from constants.ports).
 #
 # Usage (from a sibling module):
-#   inherit (systemdHelpers) mkPersistentTimer;
+#   inherit (systemdHelpers) mkNixosTimer;
 #   inherit (constants) urls;
 
 { }

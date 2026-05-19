@@ -13,9 +13,9 @@ let
   inherit (systemdHelpers)
     mkServiceHardening
     mkOneshotService
-    mkPersistentTimer
+    mkNixosTimer
     ;
-  inherit (constants) localhost ports;
+  inherit (constants) localhost ports urls;
 in
 {
   options.mySystem.scrutiny = {
@@ -49,7 +49,7 @@ in
       let
         waitScript = pkgs.writeShellScript "wait-for-scrutiny" ''
           for i in $(seq 1 30); do
-            ${pkgs.curl}/bin/curl -sf http://${localhost}:${toString ports.scrutiny}/api/summary >/dev/null 2>&1 && exit 0
+            ${pkgs.curl}/bin/curl -sf ${urls.scrutiny}/api/summary >/dev/null 2>&1 && exit 0
             sleep 2
           done
           echo "Scrutiny API not ready after 60s"
@@ -89,16 +89,19 @@ in
           };
         };
 
-        timers.scrutiny-retention-cleanup = mkPersistentTimer {
+        timers.scrutiny-retention-cleanup = mkNixosTimer {
           description = "Monthly Scrutiny InfluxDB data cleanup";
           onCalendar = "monthly";
           randomizedDelaySec = "1h";
         };
       };
 
-    mySystem.boot.deferServices = lib.mkIf config.mySystem.scrutiny.enable [
-      "scrutiny"
-      "influxdb2"
-    ];
+    mySystem = {
+      systemReport.features.HAS_SCRUTINY = lib.boolToString true;
+      boot.deferServices = lib.mkIf config.mySystem.scrutiny.enable [
+        "scrutiny"
+        "influxdb2"
+      ];
+    };
   };
 }

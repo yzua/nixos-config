@@ -15,7 +15,7 @@ The module system follows a strict layout:
 - **Feature Modules**: Single files like `gaming.nix`, `nvidia.nix`, or `backup.nix` that manage specific subsystems.
 - **Sub-module Directories**: Paths like `security/`, `cleanup/`, `glance/`, `prometheus-grafana/`, `system-report/`, `nix-ld/` that have their own internal hubs.
 - **helpers/**: Internal helpers (`_systemd-helpers.nix`). Not in the hub; passed into modules via `specialArgs.systemdHelpers` from `flake.nix`.
-- **`../shared/`**: Cross-cutting helpers (`constants.nix` for identity/defaults/ports/URLs, `_option-helpers.nix` for typed option constructors). Lives at repo root, not inside this directory. Import via `../shared/`. HM-specific helpers (`_secret-loader.nix`, `_systemd-helpers.nix`) live in `home-manager/_helpers/`, not `shared/`.
+- **`../shared/`**: Cross-cutting helpers (`constants.nix` for identity/defaults/ports/URLs, `_option-helpers.nix` for typed option constructors, `_secret-check.nix` for secret inventory checks). Lives at repo root, not inside this directory. Import via `../shared/`. HM-specific helpers (`_secret-loader.nix`, `_systemd-helpers.nix`) live in `home-manager/_helpers/`, not `shared/`.
 
 ## WHERE TO LOOK
 
@@ -45,7 +45,7 @@ Files that start with an underscore are internal helpers. For example, `cleanup/
 ## ANTI-PATTERNS
 
 - **Host-specific hardware**: Don't put policy for a single machine here. Keep those files in the `hosts/` path.
-- **Scattered checks**: Avoid putting cross-module assertions inside feature files. Use `validation.nix` instead.
+- **Scattered checks**: Avoid putting cross-module assertions inside feature files. Use `validation.nix` instead. Exception: sub-module directories with their own `_validation.nix` (e.g., `prometheus-grafana/`) may own assertions about their direct dependencies, since those assertions travel with the sub-module.
 - **Hidden enablement**: Don't turn on services without a `mySystem` toggle. Mandatory features are the only exception.
 
 ---
@@ -89,3 +89,13 @@ Modules are grouped into these namespaces:
 - **Observability**: Metrics, dashboards, logs (Loki + Alloy shipper), health reports, alerts.
 - **Boot optimization**: Deferred service startup.
 - **Maintenance**: Cleanup timers, backups, Nix Helper (`nh`).
+
+## Extensible Option Patterns
+
+Several `mySystem.*` options are designed as shared accumulation points where modules contribute values. The NixOS module system merges `listOf` and `attrsOf` definitions from multiple modules automatically.
+
+- **`mySystem.mullvadVpn.lanServices`** (listOf str): Modules that need LAN access through the VPN tunnel append their name here. Mullvad allows LAN when the list is non-empty.
+- **`mySystem.boot.deferServices`** (listOf str): Modules with heavy services append service names here to defer them from boot via timers. `boot-optimization.nix` collects the list and generates the timers.
+- **`mySystem.systemReport.features`** (attrsOf str): Modules with observability/security capabilities append feature flags (e.g., `HAS_LOKI = "true"`). `system-report` collects and exports them as env vars to report scripts.
+
+When adding a new module that needs LAN access, deferred boot, or report visibility, append to the relevant option inside your module's `mkIf` guard — no need to edit the consumer module.

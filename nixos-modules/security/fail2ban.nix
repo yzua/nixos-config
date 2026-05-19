@@ -13,6 +13,7 @@
   };
 
   config = lib.mkIf config.mySystem.fail2ban.enable {
+    mySystem.systemReport.features.HAS_FAIL2BAN = lib.boolToString true;
     # audit CLI (ausearch, aureport) for log analysis; auditd daemon is disabled
     # in hardening.nix due to AppArmor kernel interaction panics.
     environment.systemPackages = [ pkgsStable.audit ];

@@ -20,6 +20,8 @@ in
   config = lib.mkIf config.mySystem.flatpak.enable {
     services.flatpak.enable = true;
 
+    mySystem.mullvadVpn.lanServices = [ "flatpak" ];
+
     systemd = {
       # SECURITY: Default Flatpak overrides — force network through VPN, restrict filesystem
       tmpfiles.rules = [

@@ -10,7 +10,7 @@
 
 let
   inherit (systemdHelpers) mkServiceHardening;
-  inherit (constants) localhost ports;
+  inherit (constants) urls;
 in
 {
   options.mySystem.alloy = {
@@ -54,7 +54,7 @@ in
 
       loki.write "default" {
         endpoint {
-          url = "http://${localhost}:${toString ports.loki}/loki/api/v1/push"
+          url = "${urls.loki}/loki/api/v1/push"
         }
         external_labels = {}
       }

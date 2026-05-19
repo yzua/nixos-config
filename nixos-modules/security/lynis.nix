@@ -12,7 +12,7 @@ let
   inherit (systemdHelpers)
     mkServiceHardening
     mkOneshotService
-    mkPersistentTimer
+    mkNixosTimer
     ;
 
   auditScript = pkgsStable.writeShellScript "security-audit.sh" ''
@@ -32,7 +32,7 @@ in
     environment.systemPackages = [ pkgsStable.lynis ];
 
     systemd = {
-      timers.security-audit = mkPersistentTimer {
+      timers.security-audit = mkNixosTimer {
         description = "Weekly security audit";
         onCalendar = "weekly";
         unit = "security-audit.service";

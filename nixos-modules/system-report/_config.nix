@@ -15,7 +15,7 @@ let
   inherit (systemdHelpers)
     mkServiceHardening
     mkOneshotService
-    mkPersistentTimer
+    mkNixosTimer
     ;
 
   cfg = config.mySystem.systemReport;
@@ -23,14 +23,7 @@ let
   # Standard hardening for system-report services
   reportHardening = mkServiceHardening { readWritePaths = [ cfg.outputDir ]; };
 
-  featureFlags = {
-    HAS_PROMETHEUS = lib.boolToString config.mySystem.observability.enable;
-    HAS_LOKI = lib.boolToString config.mySystem.loki.enable;
-    HAS_NETDATA = lib.boolToString config.mySystem.netdata.enable;
-    HAS_SCRUTINY = lib.boolToString config.mySystem.scrutiny.enable;
-    HAS_OPENSNITCH = lib.boolToString config.mySystem.opensnitch.enable;
-    HAS_FAIL2BAN = lib.boolToString config.mySystem.fail2ban.enable;
-    HAS_SECURE_BOOT = lib.boolToString config.mySystem.secureBoot.enable;
+  featureFlags = cfg.features // {
     SYSTEM_REPORT_DIR = cfg.outputDir;
     REPORT_USER = user;
     SYSTEM_REPORT_HELPERS = "${reportScriptsDir}/bin/report-helpers.sh";
@@ -121,19 +114,19 @@ in
       };
 
       timers = {
-        system-report-errors = mkPersistentTimer {
+        system-report-errors = mkNixosTimer {
           description = "Hourly system error scan";
           onCalendar = "hourly";
           randomizedDelaySec = "5m";
         };
 
-        system-report-full = mkPersistentTimer {
+        system-report-full = mkNixosTimer {
           description = "Daily full system health report";
           onCalendar = "06:00";
           randomizedDelaySec = "15m";
         };
 
-        system-report-cleanup = mkPersistentTimer {
+        system-report-cleanup = mkNixosTimer {
           description = "Weekly cleanup of old system reports";
           onCalendar = "weekly";
           randomizedDelaySec = "1h";

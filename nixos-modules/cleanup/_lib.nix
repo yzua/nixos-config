@@ -9,7 +9,7 @@
 let
   inherit (systemdHelpers)
     mkOneshotService
-    mkPersistentTimer
+    mkNixosTimer
     ;
 
   bash = "${pkgs.bash}/bin/bash";
@@ -46,7 +46,7 @@ let
       delay,
     }:
     {
-      systemd.timers."cleanup-${name}" = mkPersistentTimer {
+      systemd.timers."cleanup-${name}" = mkNixosTimer {
         inherit description;
         onCalendar = calendar;
         unit = "cleanup-${name}.service";

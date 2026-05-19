@@ -41,6 +41,7 @@ in
   };
 
   config = lib.mkIf config.mySystem.opensnitch.enable {
+    mySystem.systemReport.features.HAS_OPENSNITCH = lib.boolToString true;
     services.opensnitch = {
       enable = true;
 

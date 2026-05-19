@@ -1,6 +1,6 @@
 # Prometheus + Alertmanager + Grafana observability stack.
 
-{ lib, ... }:
+{ config, lib, ... }:
 
 {
   imports = [
@@ -12,5 +12,9 @@
 
   options.mySystem.observability = {
     enable = lib.mkEnableOption "Prometheus + Grafana observability stack";
+  };
+
+  config = lib.mkIf config.mySystem.observability.enable {
+    mySystem.systemReport.features.HAS_PROMETHEUS = "true";
   };
 }

@@ -8,7 +8,7 @@
   hmSystemdHelpers,
 }:
 let
-  inherit (hmSystemdHelpers) mkPersistentTimer;
+  inherit (hmSystemdHelpers) mkHmTimer;
   agentmemoryRuntime = import ./_agentmemory-runtime.nix { inherit pkgs; };
 
   autoUpdateTools = [
@@ -107,13 +107,13 @@ lib.mkMerge [
     );
 
     timers = {
-      ai-agent-log-cleanup = mkPersistentTimer { description = "Weekly AI agent log cleanup"; };
-      opencode-db-vacuum = mkPersistentTimer { description = "Weekly OpenCode database vacuum"; };
+      ai-agent-log-cleanup = mkHmTimer { description = "Weekly AI agent log cleanup"; };
+      opencode-db-vacuum = mkHmTimer { description = "Weekly OpenCode database vacuum"; };
     }
     // builtins.listToAttrs (
       map (
         tool:
-        lib.nameValuePair "${tool.binary}-autoupdate" (mkPersistentTimer {
+        lib.nameValuePair "${tool.binary}-autoupdate" (mkHmTimer {
           description = "Weekly ${tool.label} auto-update";
         })
       ) autoUpdateTools

@@ -73,6 +73,8 @@
       ];
     };
 
+    mySystem.mullvadVpn.lanServices = [ "docker" ];
+
     networking.firewall = {
       trustedInterfaces = [ "docker0" ];
       # Let Docker manage its own FORWARD/NAT chains.

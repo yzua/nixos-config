@@ -51,6 +51,7 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    mySystem.systemReport.features.HAS_SECURE_BOOT = lib.boolToString true;
     environment.systemPackages = [
       pkgsStable.sbctl
       pkgsStable.mokutil # MOK (Machine Owner Key) management

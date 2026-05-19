@@ -108,6 +108,9 @@ in
       useMkForce = true;
     };
 
-    mySystem.boot.deferServices = lib.mkIf config.mySystem.netdata.enable [ "netdata" ];
+    mySystem = {
+      systemReport.features.HAS_NETDATA = lib.boolToString true;
+      boot.deferServices = lib.mkIf config.mySystem.netdata.enable [ "netdata" ];
+    };
   };
 }

@@ -74,12 +74,12 @@
 
           - alert: PrometheusTargetDown
             expr: up == 0
-            for: 5m
+            for: 10m
             labels:
               severity: warning
             annotations:
               summary: "Scrape target down: {{ $labels.job }} on {{ $labels.instance }}"
-              description: "Prometheus cannot reach {{ $labels.job }} for 5 minutes"
+              description: "Prometheus cannot reach {{ $labels.job }} for 15 minutes"
 
       - name: network
         rules:
