@@ -134,7 +134,7 @@ in
       illegal = "ch-zrh-wg-socks5-002.relays.mullvad.net"; # Switzerland
     };
     brave = {
-      personal = "fi-hel-wg-socks5-001.relays.mullvad.net"; # Finland
+      personal = "fi-hel-wg-socks5-101.relays.mullvad.net"; # Finland
     };
     # I2P local daemon
     i2pd = "127.0.0.1"; # Local I2P daemon (port 4447)
