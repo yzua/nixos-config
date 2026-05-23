@@ -2,6 +2,7 @@
 
 {
   config,
+  inputs,
   lib,
   pkgs,
   ...
@@ -21,6 +22,11 @@ let
 
   opencodeConfigPaths = map opencodeProfiles.configPath opencodeProfiles.names;
   opencodeConfigPathList = lib.concatMapStringsSep " " lib.escapeShellArg opencodeConfigPaths;
+  herdrPackage = inputs.herdr.packages.${pkgs.stdenv.hostPlatform.system}.default;
+  herdrSource = inputs.herdr.outPath;
+  herdrIntegrationTargets = lib.concatStringsSep " " (
+    map lib.escapeShellArg cfg.herdr.installIntegrations
+  );
 
   zai = import ../helpers/_zai.nix { inherit lib; };
   inherit (zai)
@@ -115,12 +121,91 @@ in
       # === Skill Installation ===
       installAgentSkills = skillInstallation;
 
+      installHerdrSkill = lib.mkIf cfg.herdr.enable (
+        lib.hm.dag.entryAfter
+          [
+            "installAgentSkills"
+            "installImpeccable"
+            "installEverythingClaudeCode"
+          ]
+          ''
+            herdr_skill_source=${lib.escapeShellArg "${herdrSource}/SKILL.md"}
+
+            install_herdr_skill() {
+              local target_dir="$1"
+              mkdir -p "$target_dir"
+              cp "$herdr_skill_source" "$target_dir/SKILL.md"
+              chmod 644 "$target_dir/SKILL.md"
+            }
+
+            ${lib.optionalString cfg.claude.enable ''
+              install_herdr_skill "$HOME/.claude/skills/herdr"
+            ''}
+            ${lib.optionalString cfg.codex.enable ''
+              install_herdr_skill "$HOME/.codex/skills/herdr"
+            ''}
+            ${lib.optionalString cfg.gemini.enable ''
+              install_herdr_skill "$HOME/.gemini/skills/herdr"
+            ''}
+            ${lib.optionalString cfg.opencode.enable ''
+              for profile in ${lib.concatStringsSep " " (map lib.escapeShellArg opencodeProfileNames)}; do
+                install_herdr_skill "$HOME/.config/$profile/skills/herdr"
+              done
+            ''}
+
+            echo "✓ Herdr agent skill installed"
+          ''
+      );
+
       # === Codex Configuration ===
       setupCodexConfig = codexConfig;
 
       # === Claude Configuration ===
       # Real files (not symlinks) so plugins can modify them.
       setupClaudeConfig = claudeConfig;
+
+      installHerdrIntegrations = lib.mkIf cfg.herdr.enable (
+        lib.hm.dag.entryAfter
+          [
+            "setupClaudeConfig"
+            "setupCodexConfig"
+            "writeBoundary"
+          ]
+          ''
+            herdr_bin=${lib.escapeShellArg "${herdrPackage}/bin/herdr"}
+
+            mkdir -p "$HOME/.config/herdr"
+            ${lib.optionalString cfg.omp.enable ''
+              mkdir -p "$HOME/.omp/agent/extensions"
+            ''}
+            ${lib.optionalString cfg.opencode.enable ''
+              for profile in ${lib.concatStringsSep " " (map lib.escapeShellArg opencodeProfileNames)}; do
+                mkdir -p "$HOME/.config/$profile/plugins"
+              done
+            ''}
+
+            ${lib.optionalString (cfg.herdr.installIntegrations != [ ]) ''
+              for target in ${herdrIntegrationTargets}; do
+                if [[ "$target" == "opencode" ]]; then
+                  ${lib.optionalString cfg.opencode.enable ''
+                    echo "✓ Herdr opencode integration managed declaratively for all Home Manager OpenCode profiles"
+                  ''}
+                  ${lib.optionalString (!cfg.opencode.enable) ''
+                    echo "⚠ Herdr opencode integration requested but OpenCode is disabled; skipping" >&2
+                  ''}
+                  continue
+                fi
+
+                if "$herdr_bin" integration install "$target" >/tmp/herdr-integration-"$target".log 2>&1; then
+                  echo "✓ Herdr $target integration installed"
+                else
+                  echo "⚠ Herdr $target integration install failed; continuing Home Manager activation" >&2
+                  sed 's/^/  /' /tmp/herdr-integration-"$target".log >&2 || true
+                fi
+              done
+            ''}
+          ''
+      );
 
       # === Plugin Installation ===
       inherit (pluginInstalls)

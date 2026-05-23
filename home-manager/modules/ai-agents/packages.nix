@@ -4,6 +4,7 @@
   config,
   constants,
   hmSystemdHelpers,
+  inputs,
   lib,
   pkgs,
   ...
@@ -61,28 +62,7 @@ let
   webReDoctor = pkgs.writeShellScriptBin "web-re-doctor" ''
     exec ${scriptsDir}/ai/web-re/web-re-doctor.sh "$@"
   '';
-  terax = pkgs.appimageTools.wrapType2 rec {
-    pname = "terax";
-    version = "0.6.6";
-
-    src = pkgs.fetchurl {
-      url = "https://github.com/crynta/terax-ai/releases/download/v${version}/Terax_${version}_amd64.AppImage";
-      sha256 = "sha256-4Ns4tz/SjExIKUTP/Uo74JwyE5fEBRF9pHDzAjzDVL4=";
-    };
-
-    profile = lib.optionalString cfg.terax.disableDmabufRenderer ''
-      export WEBKIT_DISABLE_DMABUF_RENDERER=1
-    '';
-
-    meta = with lib; {
-      description = "AI-native terminal emulator built with Tauri";
-      homepage = "https://terax.app";
-      license = licenses.asl20;
-      sourceProvenance = with sourceTypes; [ binaryNativeCode ];
-      platforms = [ constants.system ];
-      mainProgram = "terax";
-    };
-  };
+  herdrPackage = inputs.herdr.packages.${pkgs.stdenv.hostPlatform.system}.default;
   aliasLib = import ./helpers/_aliases.nix {
     inherit
       lib
@@ -133,8 +113,8 @@ in
         reDoctor
         webReDoctor
       ]
+      ++ (lib.optional cfg.herdr.enable herdrPackage)
       ++ (lib.optional cfg.agentmemory.enable agentmemoryRuntime.iiiEngine)
-      ++ (lib.optional cfg.terax.enable terax)
       ++ androidReLaunchers
       ++ webReLaunchers
       ++ (lib.optional cfg.logging.enable (
@@ -148,18 +128,23 @@ in
         logDashboard
       ]);
 
-      sessionVariables = lib.mkIf cfg.opencode.enable {
-        OPENCODE_EXPERIMENTAL_LSP_TOOL = "true";
-      };
+      sessionVariables = lib.mkMerge [
+        (lib.mkIf cfg.opencode.enable {
+          OPENCODE_EXPERIMENTAL_LSP_TOOL = "true";
+        })
+        (lib.mkIf cfg.herdr.enable {
+          HERDR_DISABLE_SOUND = "1";
+        })
+      ];
 
-      file = lib.mkIf cfg.terax.enable {
-        ".local/share/applications/terax.desktop".text = ''
+      file = lib.mkIf cfg.herdr.enable {
+        ".local/share/applications/herdr.desktop".text = ''
           [Desktop Entry]
           Type=Application
-          Name=Terax
-          Exec=terax %U
+          Name=Herdr
+          Exec=${constants.terminal} -e herdr
           Icon=utilities-terminal
-          Comment=AI-native terminal emulator
+          Comment=Terminal-native AI agent multiplexer
           Categories=Development;TerminalEmulator;
         '';
       };

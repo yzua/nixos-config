@@ -33,6 +33,19 @@ in
     { }
 )
 // (
+  if cfg.herdr.enable then
+    {
+      hd = "herdr";
+      hds = "herdr status";
+      hdstop = "herdr server stop";
+      hdi = "herdr integration status";
+      hdagents = "herdr agent list";
+      hdlogs = "tail -F ~/.config/herdr/herdr*.log 2>/dev/null";
+    }
+  else
+    { }
+)
+// (
   if cfg.agentmemory.enable then
     {
       "mem-start" = "systemctl --user start agentmemory.service";

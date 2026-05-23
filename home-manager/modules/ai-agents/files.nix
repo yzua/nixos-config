@@ -3,6 +3,7 @@
 {
   config,
   constants,
+  inputs,
   lib,
   pkgs,
   ...
@@ -24,6 +25,7 @@ let
     scriptsDir = "${config.home.homeDirectory}/${constants.paths.scripts}";
   };
   opencodeProfiles = import ./helpers/_opencode-profiles.nix { inherit config; };
+  herdrToml = pkgs.formats.toml { };
   inherit (settingsBuilders)
     geminiSettings
     ompSettings
@@ -36,6 +38,88 @@ let
   opencodeGruvboxDarkTheme = toJSON (
     import ./helpers/_opencode-gruvbox-theme.nix { inherit (constants) color; }
   );
+  herdrSource = inputs.herdr.outPath;
+  herdrConfigFile = herdrToml.generate "herdr-config.toml" {
+    onboarding = false;
+
+    terminal = {
+      default_shell = "${pkgs.zsh}/bin/zsh";
+      new_cwd = "follow";
+    };
+
+    theme.name = cfg.herdr.theme;
+
+    ui = {
+      sidebar_width = 30;
+      sidebar_min_width = 20;
+      sidebar_max_width = 42;
+      mouse_capture = true;
+      mouse_scroll_lines = 3;
+      confirm_close = true;
+      prompt_new_tab_name = true;
+      show_agent_labels_on_pane_borders = true;
+      agent_panel_scope = "all";
+      accent = "cyan";
+
+      toast.delivery = cfg.herdr.toastDelivery;
+      sound = {
+        enabled = false;
+        agents = {
+          claude = "on";
+          codex = "on";
+          gemini = "on";
+          open_code = "on";
+        };
+      };
+    };
+
+    worktrees.directory = cfg.herdr.worktreesDirectory;
+    advanced.scrollback_limit_bytes = 52428800;
+
+    experimental = {
+      allow_nested = false;
+      kitty_graphics = false;
+      reveal_hidden_cursor_for_cjk_ime = false;
+      cjk_ime_agents = [
+        "claude"
+        "codex"
+        "opencode"
+        "gemini"
+      ];
+    };
+
+    keys = {
+      switch_workspace = "prefix+shift+1..9";
+      focus_agent = "prefix+alt+1..9";
+      previous_agent = "prefix+alt+k";
+      next_agent = "prefix+alt+j";
+      open_worktree = "prefix+shift+o";
+      remove_worktree = "prefix+alt+d";
+
+      command = [
+        {
+          key = "prefix+g";
+          type = "pane";
+          command = "lazygit";
+        }
+        {
+          key = "prefix+a";
+          type = "pane";
+          command = "ai-agent-launcher";
+        }
+        {
+          key = "prefix+shift+a";
+          type = "pane";
+          command = "ai-agent-inventory";
+        }
+        {
+          key = "prefix+shift+l";
+          type = "pane";
+          command = "ai-agent-dashboard";
+        }
+      ];
+    };
+  };
 
   opencodeConfigFiles = builtins.listToAttrs (
     lib.flatten (
@@ -82,6 +166,20 @@ let
             }) impeccable.impeccableCommandDefs
           ) opencodeProfileNames
         )
+      )
+    else
+      { };
+
+  opencodeHerdrPluginFiles =
+    if cfg.herdr.enable then
+      builtins.listToAttrs (
+        map (profile: {
+          name = "${profile}/plugins/herdr-agent-state.js";
+          value = {
+            source = "${herdrSource}/src/integration/assets/opencode/herdr-agent-state.js";
+            force = true;
+          };
+        }) opencodeProfileNames
       )
     else
       { };
@@ -220,6 +318,13 @@ in
           force = true;
         };
       })
+      # Herdr terminal-native agent multiplexer config
+      (lib.mkIf cfg.herdr.enable {
+        "herdr/config.toml" = {
+          source = herdrConfigFile;
+          force = true;
+        };
+      })
       # Android RE agent-specific MCP server fragment (merged into runtime config by launcher)
       (lib.mkIf cfg.enable {
         "opencode/android-re-mcp-servers.json" = {
@@ -235,7 +340,9 @@ in
         };
       })
       # OpenCode profile configs
-      (lib.mkIf cfg.opencode.enable (opencodeConfigFiles // opencodeImpeccableCommandFiles))
+      (lib.mkIf cfg.opencode.enable (
+        opencodeConfigFiles // opencodeImpeccableCommandFiles // opencodeHerdrPluginFiles
+      ))
     ];
   };
 }

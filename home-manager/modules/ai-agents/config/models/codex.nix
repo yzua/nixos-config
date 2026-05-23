@@ -18,6 +18,7 @@
     features = {
       apps = false;
       child_agents_md = true;
+      hooks = true;
       multi_agent = true;
       plugins = true;
       shell_snapshot = true;

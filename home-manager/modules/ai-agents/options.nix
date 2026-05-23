@@ -151,9 +151,33 @@ in
       enable = mkBoolOption false "Install pbakaus/impeccable skills for Claude and OpenCode";
     };
 
-    terax = {
-      enable = mkBoolOption false "Install Terax AI-native terminal";
-      disableDmabufRenderer = mkBoolOption true "Set WEBKIT_DISABLE_DMABUF_RENDERER=1 for Terax on Wayland";
+    herdr = {
+      enable = mkBoolOption false "Install and configure Herdr terminal-native AI agent multiplexer";
+      theme = mkStrOption "terminal" "Herdr built-in theme name";
+      toastDelivery = mkTypedOption (lib.types.enum [
+        "off"
+        "herdr"
+        "terminal"
+        "system"
+      ]) "terminal" "Herdr toast notification delivery mode";
+      worktreesDirectory = mkStrOption "${config.xdg.dataHome}/herdr/worktrees" "Directory for Herdr-managed Git worktrees";
+      installIntegrations =
+        mkTypedOption
+          (lib.types.listOf (
+            lib.types.enum [
+              "claude"
+              "codex"
+              "opencode"
+              "omp"
+            ]
+          ))
+          [
+            "claude"
+            "codex"
+            "opencode"
+            "omp"
+          ]
+          "Herdr direct integrations to install during Home Manager activation";
     };
 
     agentmemory = {
