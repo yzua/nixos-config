@@ -24,6 +24,7 @@ let
       printf '%s\n' \
         "Claude Code" \
         "Claude GLM" \
+        "Herdr" \
         "OpenCode" \
         "OpenCode GPT" \
         "OpenCode Sonnet" \
@@ -50,6 +51,9 @@ let
         ;;
       "Claude GLM")
         exec "$zellij" action new-tab --name "󰚩 clglm" -- "$zsh" -ic "clglm"
+        ;;
+      "Herdr")
+        exec "$zellij" action new-tab --name "herdr" -- "$zsh" -ic "hd"
         ;;
       "OpenCode")
         exec "$zellij" action new-tab --name " oc" -- "$zsh" -ic "oc"

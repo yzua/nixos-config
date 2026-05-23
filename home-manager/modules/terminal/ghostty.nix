@@ -66,6 +66,7 @@
       link-url = true;
       link-previews = true;
 
+      command = "${pkgs.zsh}/bin/zsh";
       shell-integration = "zsh";
       shell-integration-features = "cursor,sudo,title";
 
@@ -102,6 +103,7 @@
         "ctrl+shift+w=close_surface"
         "ctrl+shift+o=new_split:right"
         "ctrl+shift+e=new_split:down"
+        # Keep Shift+Enter unbound so Herdr and agent TUIs can distinguish it.
         "ctrl+alt+h=goto_split:left"
         "ctrl+alt+j=goto_split:down"
         "ctrl+alt+k=goto_split:up"

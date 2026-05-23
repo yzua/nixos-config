@@ -55,6 +55,7 @@ in
         cl*|ocl*|hcl*) printf '\uf1b0 ' ;;                   #  Claude — cl, clu, clglm, ocl, hcl + all workflow suffixes
         oc*|locgpt*|mocgpt*|xocgpt*) printf '\ue7a4 ' ;;     #  OpenCode — oc, ocglm, ocgem, ocgpt, ocs, oczen + all workflow suffixes
         cx*|lcx*|mcx*|hcx*|xcx*) printf '\uf1c0 ' ;;         #  Codex — cx, lcx, mcx, hcx, xcx + all workflow suffixes
+        hd*|herdr*) printf '\uf07b ' ;;                       #  Herdr — hd, hds, herdr
         opi*) printf '\uf135 ' ;;                              #  oh-my-pi — opi + all workflow suffixes
         gem*) printf '\uf529 ' ;;                              #  Gemini — gem + all workflow suffixes
         *) ;;
@@ -63,7 +64,7 @@ in
 
     _zellij_rename_tab() {
       local tab_name="$1"
-      [[ -n "$tab_name" && -n "${"ZELLIJ:-"}" ]] || return 0
+      [[ -n "$tab_name" && -n "''${ZELLIJ:-}" ]] || return 0
       local icon
       icon="$(_ai_tab_icon "$tab_name")"
       command zellij action rename-tab "''${icon}''${tab_name}" >/dev/null 2>&1 || true
@@ -185,8 +186,36 @@ in
       fi
     }
 
+    _shell_quote() {
+      printf "%q" "$1"
+    }
+
+    _kdl_escape() {
+      local value="$1"
+      value="''${value//\\/\\\\}"
+      value="''${value//\"/\\\"}"
+      printf '%s' "$value"
+    }
+
+    _aip_agent_command() {
+      local agent="$1"
+      local prompt="$2"
+      local shell_prompt="$3"
+
+      if [[ -n "$prompt" ]]; then
+        case "$agent" in
+          oc|ocglm|ocgem|ocgpt|ocor|ocs|oczen|opi|opencode*|gem*|gemini*)
+            printf '%s --prompt %s' "$agent" "$shell_prompt" ;;
+          *)
+            printf '%s %s' "$agent" "$shell_prompt" ;;
+        esac
+      else
+        printf '%s' "$agent"
+      fi
+    }
+
     # === AI multi-pane launcher ===
-    # Launch multiple AI agents side-by-side in Zellij panes
+    # Launch multiple AI agents side-by-side in Herdr tabs or Zellij panes.
     # Prompt injection: claude/codex/gemini use positional, opencode uses --prompt
     aip() {
       if [[ $# -eq 0 ]]; then
@@ -215,13 +244,49 @@ in
         return 1
       fi
 
-      local layout_file zsh_bin
-      layout_file=$(mktemp /tmp/aip-XXXXXX.kdl)
+      local zsh_bin
       zsh_bin="$SHELL"
       local joined_agents="''${(j:+:)agents}"
+      local shell_prompt
+      shell_prompt="$(_shell_quote "$prompt")"
 
-      # Escape double quotes for KDL string safety
-      local kdl_prompt="''${prompt//\"/\\\"}"
+      if [[ "''${HERDR_ENV:-}" == "1" ]]; then
+        if ! command -v jq >/dev/null 2>&1; then
+          echo "Error: aip in Herdr requires jq" >&2
+          return 1
+        fi
+
+        local tab_json root_pane pane pane_json cmd
+        tab_json="$(herdr tab create --label "$joined_agents" --focus)" || return 1
+        root_pane="$(printf '%s' "$tab_json" | jq -r '.result.root_pane.pane_id // empty')" || return 1
+        if [[ -z "$root_pane" ]]; then
+          echo "Error: herdr tab create did not return a root pane id" >&2
+          return 1
+        fi
+
+        local i=0
+        for agent in "''${agents[@]}"; do
+          if [[ $i -eq 0 ]]; then
+            pane="$root_pane"
+          else
+            pane_json="$(herdr pane split "$root_pane" --direction right --no-focus)" || return 1
+            pane="$(printf '%s' "$pane_json" | jq -r '.result.pane.pane_id // empty')" || return 1
+            if [[ -z "$pane" ]]; then
+              echo "Error: herdr pane split did not return a pane id" >&2
+              return 1
+            fi
+          fi
+
+          herdr pane rename "$pane" "$agent" >/dev/null 2>&1 || true
+          cmd="$(_aip_agent_command "$agent" "$prompt" "$shell_prompt")"
+          herdr pane run "$pane" "$cmd" >/dev/null
+          ((i++))
+        done
+        return 0
+      fi
+
+      local layout_file
+      layout_file=$(mktemp /tmp/aip-XXXXXX.kdl)
 
       # Inherit zjstatus bar from default layout
       local default_layout="$HOME/.config/zellij/layouts/default.kdl"
@@ -236,17 +301,7 @@ in
         echo '    pane split_direction="vertical" {'
         local i=0 cmd
         for agent in "''${agents[@]}"; do
-          # Build command with prompt injection per agent family
-          if [[ -n "$prompt" ]]; then
-            case "$agent" in
-              oc|ocglm|ocgem|ocgpt|ocor|ocs|oczen|opi|opencode*|gem*|gemini*)
-                cmd="$agent --prompt '$kdl_prompt'" ;;
-              *)
-                cmd="$agent '$kdl_prompt'" ;;
-            esac
-          else
-            cmd="$agent"
-          fi
+          cmd="$(_kdl_escape "$(_aip_agent_command "$agent" "$prompt" "$shell_prompt")")"
 
           if [[ $i -eq 0 ]]; then
             echo "      pane name=\"$agent\" command=\"$zsh_bin\" focus=true {"

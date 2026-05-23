@@ -38,6 +38,7 @@ in
         # Agent context tools (e.g. "ctx | wl-copy" to paste into AI)
         ctx = "eza --tree --level=2 --ignore-glob='.git|node_modules|.direnv|target|dist|.next'";
         rmap = "git ls-files";
+        zh = "zellij-herdr";
 
         # Navigation
         ".." = "cd ..";

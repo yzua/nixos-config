@@ -53,6 +53,9 @@ in
     (writeShellScriptBin "zellij-mobile" ''
       exec ${pkgs.zellij}/bin/zellij attach --create mobile --layout "$HOME/.config/zellij/layouts/mobile-ai.kdl" "$@"
     '')
+    (writeShellScriptBin "zellij-herdr" ''
+      exec ${pkgs.zellij}/bin/zellij attach --create herdr --layout "$HOME/.config/zellij/layouts/herdr.kdl" "$@"
+    '')
     (writeShellScriptBin "zellij-web-password" ''
       set -euo pipefail
       password_file=${zellijWebPasswordFile}
