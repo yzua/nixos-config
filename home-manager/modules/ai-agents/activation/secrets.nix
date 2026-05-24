@@ -56,7 +56,7 @@ lib.hm.dag.entryAfter [ "writeBoundary" "linkGeneration" "setupCodexConfig" "set
       echo "✓ Patched codex config.toml with $label"
     fi
 
-    if [[ -n "$gemini_filter" ]] && [[ -f "$HOME/.gemini/settings.json" ]]; then
+    if ${lib.boolToString cfg.gemini.enable} && [[ -n "$gemini_filter" ]] && [[ -f "$HOME/.gemini/settings.json" ]]; then
       patch_json_file "$HOME/.gemini/settings.json" "$jq_arg" "$secret" "$gemini_filter"
       echo "✓ Patched gemini settings.json with $label"
     fi

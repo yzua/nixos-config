@@ -94,7 +94,7 @@ execute_agent() {
 	cmd+=("${prefix_args[@]}")
 
 	if [[ -n "$prompt" ]]; then
-		if [[ "$_COMMAND_PREFIX" == opencode* ]]; then
+		if [[ "$_COMMAND_PREFIX" == opencode* || "$_COMMAND_PREFIX" == agy* ]]; then
 			cmd+=("--prompt")
 		fi
 		cmd+=("$prompt")
@@ -209,8 +209,8 @@ run_sectioned_mode() {
 		"") return 1 ;;
 		esac
 		;;
-	"Gemini")
-		agent_alias="gem"
+	"Antigravity")
+		agent_alias="ag"
 		;;
 	esac
 

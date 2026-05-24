@@ -1,4 +1,4 @@
-# AI coding agents configuration (Claude Code, OpenCode, Codex, Gemini CLI).
+# AI coding agents configuration (Claude Code, OpenCode, Codex, Antigravity CLI).
 
 { ... }:
 {

@@ -63,7 +63,7 @@ in
         nix-tools = allowPathRegex "nix-tools" "^/nix/store/[^/]+-nix-[^/]+/bin/(nix|nix-daemon)$";
         browsers = allowPathRegex "browsers" "^/nix/store/[^/]+-(brave|chromium|librewolf|firefox|google-chrome|ungoogled-chromium)[^/]*/bin/.*";
         dev-tools = allowPathRegex "dev-tools" "^/nix/store/[^/]+-(git|curl|wget|openssh|gh|go|nodejs|python3|uv|cargo|rustup)[^/]*/bin/.*";
-        ai-cli-tools = allowPathRegex "ai-cli-tools" "^/nix/store/[^/]+-(codex|claude|opencode|gemini|nodejs|bun)[^/]*/bin/.*";
+        ai-cli-tools = allowPathRegex "ai-cli-tools" "^/nix/store/[^/]+-(codex|claude|opencode|antigravity|nodejs|bun)[^/]*/bin/.*";
       };
     };
   };

@@ -46,7 +46,7 @@ chmod +x "${tmp_dir}/bin/agent-stub"
 ln -s "${tmp_dir}/bin/agent-stub" "${tmp_dir}/bin/claude"
 ln -s "${tmp_dir}/bin/agent-stub" "${tmp_dir}/bin/opencode"
 ln -s "${tmp_dir}/bin/agent-stub" "${tmp_dir}/bin/codex"
-ln -s "${tmp_dir}/bin/agent-stub" "${tmp_dir}/bin/gemini"
+ln -s "${tmp_dir}/bin/agent-stub" "${tmp_dir}/bin/agy"
 
 usage_output="$(bash "${TARGET}" 2>&1 || true)"
 assert_contains "${usage_output}" "Usage: iter [count] <agent-alias> [prompt...]" "usage output is shown without arguments"
@@ -142,17 +142,19 @@ unlimited_output="$({
 	PATH="${tmp_dir}/bin:${PATH}" \
 		ITER_LOG_FILE="${unlimited_log}" \
 		ITER_COUNT_DIR="${tmp_dir}/counts" \
-		ITER_FAIL_TOOL="gemini" \
+		ITER_FAIL_TOOL="agy" \
 		ITER_FAIL_AFTER=3 \
 		ITER_FAIL_CODE=17 \
-		bash "${TARGET}" gem "keep going"
+		bash "${TARGET}" ag "keep going"
 } 2>&1)"
 unlimited_status=$?
 set -e
 
 unlimited_runs="$(wc -l <"${unlimited_log}" | tr -d ' ')"
+unlimited_log_contents="$(cat "${unlimited_log}")"
 assert_eq "${unlimited_status}" "17" "unlimited mode returns failing exit status"
 assert_eq "${unlimited_runs}" "3" "unlimited mode repeats until failure"
+assert_contains "${unlimited_log_contents}" "agy|ARGS=--dangerously-skip-permissions --prompt keep\\ going" "antigravity uses prompt mode for headless execution"
 assert_contains "${unlimited_output}" "Iteration 3/unlimited failed with exit code 17" "unlimited mode reports failure"
 
 # --- Rate-limit retry test ---

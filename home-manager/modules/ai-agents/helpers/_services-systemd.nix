@@ -23,11 +23,6 @@ let
       label = "Codex CLI";
     }
     {
-      binary = "gemini";
-      npmPackage = "@google/gemini-cli";
-      label = "Gemini CLI";
-    }
-    {
       binary = "omp";
       npmPackage = "@oh-my-pi/pi-coding-agent";
       label = "Oh My Pi CLI";

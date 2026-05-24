@@ -68,14 +68,14 @@ find_all_agent_logs() {
 }
 
 # Find log files for a specific agent by name.
-# Args: $1 — agent name (claude, opencode, codex, gemini)
+# Args: $1 — agent name (claude, opencode, codex, antigravity)
 #        $2 — mtime filter (default: -7)
 find_agent_logs() {
 	local agent="$1"
 	local mtime="${2:--7}"
 
 	case "$agent" in
-	claude | gemini)
+	claude | antigravity)
 		_find_logs_in_roots "$mtime" "$LOG_DIR"
 		;;
 	opencode)

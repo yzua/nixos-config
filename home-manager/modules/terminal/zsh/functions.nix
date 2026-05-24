@@ -57,7 +57,7 @@ in
         cx*|lcx*|mcx*|hcx*|xcx*) printf '\uf1c0 ' ;;         #  Codex — cx, lcx, mcx, hcx, xcx + all workflow suffixes
         hd*|herdr*) printf '\uf07b ' ;;                       #  Herdr — hd, hds, herdr
         opi*) printf '\uf135 ' ;;                              #  oh-my-pi — opi + all workflow suffixes
-        gem*) printf '\uf529 ' ;;                              #  Gemini — gem + all workflow suffixes
+        ag*|gem*) printf '\uf529 ' ;;                          #  Antigravity — ag/gem + all workflow suffixes
         *) ;;
       esac
     }
@@ -204,7 +204,7 @@ in
 
       if [[ -n "$prompt" ]]; then
         case "$agent" in
-          oc|ocglm|ocgem|ocgpt|ocor|ocs|oczen|opi|opencode*|gem*|gemini*)
+          oc|ocglm|ocgem|ocgpt|ocor|ocs|oczen|opi|opencode*|ag|ag*|agy|antigravity*|gem*)
             printf '%s --prompt %s' "$agent" "$shell_prompt" ;;
           *)
             printf '%s %s' "$agent" "$shell_prompt" ;;
@@ -216,15 +216,15 @@ in
 
     # === AI multi-pane launcher ===
     # Launch multiple AI agents side-by-side in Herdr tabs or Zellij panes.
-    # Prompt injection: claude/codex/gemini use positional, opencode uses --prompt
+    # Prompt injection: claude/codex use positional; opencode/Antigravity use --prompt
     aip() {
       if [[ $# -eq 0 ]]; then
         echo "Usage: aip <agent> [agent...] [\"prompt\"]" >&2
-        echo "  Any alias or function: cl, clglm, oc, ocglm, gem, cx..." >&2
+        echo "  Any alias or function: cl, clglm, oc, ocglm, ag, cx..." >&2
         echo "  Last arg becomes the initial prompt if not a known command." >&2
         echo "Examples:" >&2
         echo "  aip oc cl                  # Two agents side-by-side" >&2
-        echo "  aip oc clglm gem           # Three agents" >&2
+        echo "  aip oc clglm ag            # Three agents" >&2
         echo '  aip oc ocglm "who are you" # With prompt injection' >&2
         return 1
       fi

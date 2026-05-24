@@ -11,7 +11,6 @@ let
   mkShellAliasPrograms = import ../../../_helpers/_shell-alias-programs.nix;
   bunGlobalPackages = [
     "@anthropic-ai/claude-code"
-    "@google/gemini-cli"
     "@oh-my-pi/pi-coding-agent"
     "@openai/codex"
     "opencode-ai"
@@ -119,6 +118,10 @@ in
 
       # Remove Bun's t3 shim so the npm-managed binary can take precedence cleanly.
       $DRY_RUN_CMD ${pkgs.bun}/bin/bun remove --global --cwd "$HOME" t3 >/dev/null 2>&1 || true
+      # Remove retired standalone Gemini CLI; Antigravity CLI is Nix-managed as agy.
+      $DRY_RUN_CMD ${pkgs.bun}/bin/bun remove --global --cwd "$HOME" @google/gemini-cli >/dev/null 2>&1 || true
+      $DRY_RUN_CMD ${pkgs.nodejs}/bin/npm uninstall --global @google/gemini-cli >/dev/null 2>&1 || true
+      $DRY_RUN_CMD rm -f "$HOME/.npm-global/bin/gemini" "$HOME/.npm-global/bin/gemini-cli"
 
       echo "✔ Global packages management completed"
     '';

@@ -15,7 +15,7 @@ in
       "oc-log" = "ai-agent-log-wrapper opencode opencode";
       "oc-port" = "opencode --port 4096";
       "codex-log" = "ai-agent-log-wrapper codex codex";
-      "gemini-log" = "ai-agent-log-wrapper gemini gemini";
+      "ag-log" = "ai-agent-log-wrapper antigravity agy";
       "opi-log" = "ai-agent-log-wrapper omp omp";
 
       "ai-logs" = "tail -f ${al}/*.log ${ol}/*.log ${cl}/*.log 2>/dev/null";

@@ -108,6 +108,19 @@ in
       # Runs after all config writers so keys can be injected last.
       patchAiAgentSecrets = secretPatching;
 
+      cleanupRetiredGeminiCli = lib.mkIf (!cfg.gemini.enable) (
+        lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+          gemini_cfg="$HOME/.gemini/settings.json"
+          if [[ -f "$gemini_cfg" ]] && ${pkgs.jq}/bin/jq -e '
+            (.policyPaths // []) == ["$HOME/.gemini/policies"]
+            or (.ui.customThemes.Gruvbox.name // "") == "Gruvbox"
+          ' "$gemini_cfg" >/dev/null 2>&1; then
+            rm -f "$gemini_cfg"
+            echo "✓ Removed retired Gemini CLI settings"
+          fi
+        ''
+      );
+
       # Remove nested example assets that some skill packs ship under ~/.agents/skills.
       # Codex scans for SKILL.md recursively and warns on these non-skill sample files.
       sanitizeInstalledSkills = lib.hm.dag.entryAfter [ "writeBoundary" ] ''

@@ -1,6 +1,6 @@
 # AI Agents Infrastructure
 
-High-density orchestration for Claude Code, OpenCode, Codex CLI, and Gemini CLI. This module manages dynamic provider switching and secure secret injection.
+High-density orchestration for Claude Code, OpenCode, Codex CLI, and Antigravity CLI. This module manages dynamic provider switching and secure secret injection.
 
 ---
 
@@ -54,7 +54,7 @@ ai-agents/
 │   ├── _aliases.nix             # Zsh alias generation for agent launchers/workflows
 │   ├── _destructive-rules.nix   # Destructive action allow/deny rules per agent
 │   ├── _file-templates.nix      # Config file templates
-│   ├── _gemini-policies.nix     # Gemini CLI safety policy definitions
+│   ├── _gemini-policies.nix     # Retired Gemini CLI safety policy helper
 │   ├── _workflow-prompts.nix    # Workflow prompt definitions
 │   ├── _zai-services.nix        # Z.AI MCP service registry
 │   ├── _zai-filters.nix         # Z.AI MCP jq filter generation
@@ -62,7 +62,7 @@ ai-agents/
 │   ├── _mk-cli-autoupdate-script.nix     # CLI autoupdate script builder
 │   ├── _services-shell-aliases.nix       # Shell alias definitions for agent services
 │   ├── _services-systemd.nix             # Systemd user service/timer definitions
-│   ├── _formatters.nix                   # Formatter registry (shared by claude hooks + gemini config)
+│   ├── _formatters.nix                   # Formatter registry for agent hooks
 │   ├── _impeccable-commands.nix          # Impeccable skill command definitions and text renderer
 │   ├── _models.nix                       # Shared model/provider constants (names, aliases)
 │   ├── _opencode-gruvbox-theme.nix       # OpenCode Gruvbox Dark TUI theme
@@ -143,7 +143,6 @@ ai-agents/
     └── models/              # Model/provider registries
         ├── default.nix      # Import hub + shared toggles (agencyAgents, impeccable)
         ├── codex.nix        # Codex CLI configuration
-        ├── gemini.nix       # Gemini CLI configuration (imports ../../helpers/_formatters.nix)
         ├── opencode.nix      # OpenCode configuration (agents, LSP, providers)
         ├── _opencode-agents.nix # OpenCode agent definitions
         ├── _opencode-commands.nix # OpenCode slash command definitions

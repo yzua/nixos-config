@@ -38,7 +38,6 @@ in
             "zai_api_key"
             "openrouter_api_key"
             "context7_api_key"
-            "gemini_api_key"
             "zellij_web_password"
           ]
       ))
@@ -64,7 +63,6 @@ in
           ZAI_API_KEY=${config.sops.placeholder.zai_api_key}
           OPENROUTER_API_KEY=${config.sops.placeholder.openrouter_api_key}
           CONTEXT7_API_KEY=${config.sops.placeholder.context7_api_key}
-          GEMINI_API_KEY=${config.sops.placeholder.gemini_api_key}
         '';
       };
     };

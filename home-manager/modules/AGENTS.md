@@ -9,7 +9,7 @@ Most modules directly configure `programs.*`, `services.*`, `home.*`; `ai-agents
 
 ```
 modules/
-├── ai-agents/          # AI coding agent config (Claude Code, OpenCode, Codex, Gemini CLI)
+├── ai-agents/          # AI coding agent config (Claude Code, OpenCode, Codex, Antigravity CLI)
 │   ├── default.nix     # Import hub (options, activation, files, services, config)
 │   ├── options.nix     # All programs.aiAgents option definitions
 │   ├── files.nix       # home.file + xdg.configFile declarations
@@ -21,7 +21,7 @@ modules/
 │   │   ├── _aliases.nix           # Zsh alias generation for agent launchers/workflows
 │   │   ├── _destructive-rules.nix # Destructive action allow/deny rules per agent
 │   │   ├── _file-templates.nix    # Config file templates
-│   │   ├── _gemini-policies.nix   # Gemini CLI safety policy definitions
+│   │   ├── _gemini-policies.nix   # Retired Gemini CLI safety policy helper
 │   │   ├── _workflow-prompts.nix  # Workflow prompt definitions
 │   │   ├── _zai-services.nix      # Z.AI MCP service registry
 │   │   ├── _zai-filters.nix       # Z.AI MCP jq filter generation
@@ -76,7 +76,6 @@ modules/
 │       └── models/            # Model/provider registries
 │           ├── default.nix  # Import hub + shared toggles (agencyAgents, impeccable)
 │           ├── codex.nix    # Codex CLI config (model, profiles, custom agents, developer instructions)
-│           ├── gemini.nix   # Gemini CLI config (settings, theming, model aliases, auto-format hooks)
 │           ├── opencode.nix # OpenCode config (agents, LSP, providers)
 │           ├── _opencode-agents.nix # OpenCode agent definitions
 │           ├── _opencode-commands.nix # OpenCode slash command definitions

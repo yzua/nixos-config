@@ -133,22 +133,15 @@ PY
 	fi
 }
 
-# Collect Gemini inventory rows.
-collect_gemini() {
-	need_cmd jq
-	local cfg="$HOME/.gemini/settings.json"
-	if [[ -f "$cfg" ]]; then
-		# shellcheck disable=SC2016
-		collect_json_rows_jq "gemini" "model_alias" "$cfg" '.modelConfigs.customAliases // {} | keys[]' '.modelConfigs.customAliases[$k].modelConfig.model // "n/a"'
-
-		mapfile -t gemini_configured_hooks < <(json_keys "$cfg" '.hooks // {} | keys[]')
-		list_hook_rows_with_unconfigured "gemini" "$cfg" "https://geminicli.com/docs/hooks/reference/" "${gemini_configured_hooks[@]}"
-
-		collect_mcp_rows "gemini" "$cfg"
+# Collect Antigravity inventory rows.
+collect_antigravity() {
+	local agy_bin
+	agy_bin="$(command -v agy || true)"
+	if [[ -n "$agy_bin" ]]; then
+		row "antigravity" "version" "agy" "$(agy --version 2>/dev/null || echo "unknown")" "$agy_bin"
 	fi
 
-	list_skill_dirs "$HOME/.gemini/skills" "gemini"
-	list_command_files "$HOME/.gemini/commands" "gemini"
+	list_skill_dirs "$HOME/.antigravity/skills" "antigravity"
 }
 
 # Dispatch to the correct collector(s) for a tool name.
@@ -164,14 +157,14 @@ collect_rows_for_tool() {
 	codex)
 		collect_codex
 		;;
-	gemini)
-		collect_gemini
+	antigravity)
+		collect_antigravity
 		;;
 	all)
 		collect_opencode
 		collect_claude
 		collect_codex
-		collect_gemini
+		collect_antigravity
 		;;
 	*)
 		print_error "Unknown tool: $tool"

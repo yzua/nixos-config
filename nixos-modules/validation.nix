@@ -135,9 +135,8 @@ in
         hasSecret "zai_api_key"
         && hasSecret "openrouter_api_key"
         && hasSecret "context7_api_key"
-        && hasSecret "gemini_api_key"
         && hasSecret "zellij_web_password";
-      message = "AI agent configuration requires zai_api_key, openrouter_api_key, context7_api_key, gemini_api_key, and zellij_web_password in secrets/secrets.yaml.";
+      message = "AI agent configuration requires zai_api_key, openrouter_api_key, context7_api_key, and zellij_web_password in secrets/secrets.yaml.";
     }
   ];
 

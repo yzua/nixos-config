@@ -1,6 +1,6 @@
 # AI Agent Orchestration Scripts
 
-AI agent launching, iterating, logging, analyzing, and inventorying across Claude Code, Codex, OpenCode, and Gemini CLI with a unified alias system and shared workflow suffixes.
+AI agent launching, iterating, logging, analyzing, and inventorying across Claude Code, Codex, OpenCode, and Antigravity CLI with a unified alias system and shared workflow suffixes.
 
 Parent: `scripts/AGENTS.md`
 

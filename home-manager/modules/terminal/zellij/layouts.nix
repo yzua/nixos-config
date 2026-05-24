@@ -54,7 +54,7 @@ let
         command_git_branch_interval "10"
         command_git_branch_rendermode "static"
 
-        command_ai_agents_command "bash -lc 'out=\"\"; pgrep -afu \"$USER\" \"(^|/| )(claude|opencode|codex|gemini|omp|herdr)( |$)\" >/dev/null && out=\"󰚩 AI\"; printf \"%s\" \"$out\"'"
+        command_ai_agents_command "bash -lc 'out=\"\"; pgrep -afu \"$USER\" \"(^|/| )(claude|opencode|codex|agy|antigravity|omp|herdr)( |$)\" >/dev/null && out=\"󰚩 AI\"; printf \"%s\" \"$out\"'"
         command_ai_agents_format "#[bg=${constants.color.purple_dim},fg=${constants.color.bg_hard},bold] {stdout} #[bg=${constants.color.bg_soft},fg=${constants.color.purple_dim}]"
         command_ai_agents_interval "5"
         command_ai_agents_rendermode "static"

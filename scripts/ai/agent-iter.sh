@@ -16,7 +16,7 @@ Usage: iter [count] <agent-alias> [prompt...]
 Examples:
   iter clglmmd
   iter 3 oc "fix the failing check"
-  iter 5 gem "review this repo again"
+  iter 5 ag "review this repo again"
 
 Notes:
   - iter is headless/non-interactive. It will not open a persistent TUI.
