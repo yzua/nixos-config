@@ -41,7 +41,7 @@ in
         };
         position = {
           x = 1080;
-          y = 540;
+          y = 420;
         };
         scale = 1;
         focus-at-startup = true;
