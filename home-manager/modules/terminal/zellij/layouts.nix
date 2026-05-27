@@ -15,7 +15,7 @@ let
       plugin location="file:~/.config/zellij/plugins/zjstatus.wasm" {
         format_left   "{mode}#[bg=${constants.color.bg0},fg=${constants.color.gray}]  {session} {command_git_branch}"
         format_center "{tabs}"
-        format_right  "{command_ai_agents}#[bg=${constants.color.bg0},fg=${constants.color.gray}] {datetime} "
+        format_right  "#[bg=${constants.color.bg0},fg=${constants.color.gray}] {datetime} "
         format_space  "#[bg=${constants.color.bg_soft}]"
         format_hide_on_overlength "true"
         format_precedence "lrc"
@@ -38,10 +38,10 @@ let
         mode_move          "#[bg=${constants.color.yellow},fg=${constants.color.bg_hard},bold] 󰆾 MOVE #[bg=${constants.color.bg_soft},fg=${constants.color.yellow}]"
         mode_tmux          "#[bg=${constants.color.aqua_dim},fg=${constants.color.bg_hard},bold]  TMUX #[bg=${constants.color.bg_soft},fg=${constants.color.aqua_dim}]"
 
-        tab_normal              "#[bg=${constants.color.bg0},fg=${constants.color.gray}] {index}:{name}{floating_indicator}{fullscreen_indicator} "
-        tab_active              "#[bg=${constants.color.aqua_dim},fg=${constants.color.bg_hard},bold] {index}:{name}{floating_indicator}{fullscreen_indicator} "
-        tab_rename              "#[bg=${constants.color.yellow_dim},fg=${constants.color.bg_hard},bold] {index}:{name} "
-        tab_separator           "#[bg=${constants.color.bg_soft},fg=${constants.color.bg1}]│"
+        tab_normal              "#[bg=${constants.color.bg0},fg=${constants.color.gray}] {index} "
+        tab_active              "#[bg=${constants.color.aqua_dim},fg=${constants.color.bg_hard},bold] {index} "
+        tab_rename              "#[bg=${constants.color.yellow_dim},fg=${constants.color.bg_hard},bold] {index} "
+        tab_separator           "#[bg=${constants.color.bg_soft},fg=${constants.color.bg1}]/"
         tab_floating_indicator  " 󰹙"
         tab_fullscreen_indicator " 󰊓"
         tab_sync_indicator      " 󰓦"
@@ -53,11 +53,6 @@ let
         command_git_branch_format "#[bg=${constants.color.bg0},fg=${constants.color.yellow_dim}] {stdout} "
         command_git_branch_interval "10"
         command_git_branch_rendermode "static"
-
-        command_ai_agents_command "bash -lc 'out=\"\"; pgrep -afu \"$USER\" \"(^|/| )(claude|opencode|codex|agy|antigravity|omp|herdr)( |$)\" >/dev/null && out=\"󰚩 AI\"; printf \"%s\" \"$out\"'"
-        command_ai_agents_format "#[bg=${constants.color.purple_dim},fg=${constants.color.bg_hard},bold] {stdout} #[bg=${constants.color.bg_soft},fg=${constants.color.purple_dim}]"
-        command_ai_agents_interval "5"
-        command_ai_agents_rendermode "static"
 
         datetime          " {format} "
         datetime_timezone "Etc/GMT-3"
