@@ -97,6 +97,7 @@ let
   scrollSearchSharedBinds = ''
     bind "Esc" "q" { ScrollToBottom; SwitchToMode "Normal"; }
     bind "Ctrl c" { ScrollToBottom; SwitchToMode "Normal"; }
+    bind "Alt c" { Copy; }
     bind "j" "Down" { ScrollDown; }
     bind "k" "Up" { ScrollUp; }
     bind "d" "Ctrl d" { HalfPageScrollDown; }
@@ -146,8 +147,8 @@ in
       styled_underlines = true;
       auto_layout = true;
       mouse_mode = true;
-      advanced_mouse_actions = true;
-      focus_follows_mouse = true;
+      advanced_mouse_actions = false;
+      focus_follows_mouse = false;
       visual_bell = true;
 
       copy_command = "${pkgs.wl-clipboard}/bin/wl-copy";
@@ -186,6 +187,10 @@ in
       keybinds {
         unbind "Ctrl q"
 
+        normal {
+          bind "Alt c" { Copy; }
+        }
+
         scroll {
           ${scrollSearchSharedBinds}
           bind "g" { ScrollToTop; }
@@ -204,7 +209,8 @@ in
         }
 
         entersearch {
-          bind "Ctrl c" "Esc" { SwitchToMode "Scroll"; }
+          bind "Ctrl c" { SwitchToMode "Scroll"; }
+          bind "Esc" { ScrollToBottom; SwitchToMode "Normal"; }
           bind "Enter" { SwitchToMode "Search"; }
         }
 
@@ -214,7 +220,7 @@ in
         }
 
         shared_except "scroll" "locked" "entersearch" "search" {
-          bind "Ctrl s" { SwitchToMode "Scroll"; }
+          bind "Alt u" { SwitchToMode "Scroll"; }
         }
 
         shared_except "locked" "renametab" "renamepane" "entersearch" {
