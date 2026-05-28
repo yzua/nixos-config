@@ -61,11 +61,16 @@ in
     '';
 
     # SECURITY: Systemd hardening directives + resource limits
-    systemd.services.alloy.serviceConfig = mkServiceHardening {
-      protectHome = true;
-      useMkForce = true;
-      memoryMax = "128M";
-      memoryHigh = "64M";
-    };
+    systemd.services.alloy.serviceConfig =
+      mkServiceHardening {
+        protectHome = true;
+        useMkForce = true;
+        memoryMax = "128M";
+        memoryHigh = "64M";
+      }
+      // {
+        # Alloy 1.16 initializes wazero/go-re2 with executable mmap.
+        MemoryDenyWriteExecute = lib.mkForce false;
+      };
   };
 }
