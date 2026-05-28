@@ -48,7 +48,7 @@ in
 
     hardware = {
       nvidia = {
-        open = false;
+        open = true;
         nvidiaSettings = true;
         modesetting.enable = true; # Required for Wayland compositors
         package = nvidiaDriverChannel;
