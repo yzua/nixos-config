@@ -40,7 +40,7 @@
     zmap
 
     # Security testing
-    hydra
+    thc-hydra
     mitmproxy # HTTP/HTTPS proxy for traffic analysis
 
     # Code coverage and binary hardening analysis

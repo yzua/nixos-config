@@ -17,6 +17,7 @@ in
       alsa.support32Bit = true;
       pulse.enable = true;
       jack.enable = true;
+      extraLadspaPackages = [ rnnoise ];
 
       extraConfig.pipewire = {
         # Increase buffer size to reduce audio stuttering in Electron apps (pear-desktop).
@@ -41,7 +42,7 @@ in
                     {
                       type = "ladspa";
                       name = "rnnoise";
-                      plugin = "${rnnoise}/lib/ladspa/librnnoise_ladspa.so";
+                      plugin = "librnnoise_ladspa";
                       label = "noise_suppressor_stereo";
                       control = {
                         "VAD Threshold (%)" = 50.0;

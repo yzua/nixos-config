@@ -78,17 +78,81 @@
         allowBroken = false;
         allowInsecure = false;
         allowUnsupportedSystem = false;
+        android_sdk.accept_license = true;
       };
+
+      nixpkgsOverlays = [
+        (_final: prev: {
+          openldap =
+            if (prev.openldap.version or "") == "2.6.13" then
+              prev.openldap.overrideAttrs (_old: {
+                # openldap 2.6.13's syncrepl test fails on this nixpkgs revision
+                # and blocks FHS app closures such as Bottles/Lutris.
+                doCheck = false;
+              })
+            else
+              prev.openldap;
+
+          aw-server-rust =
+            if (prev.aw-server-rust.version or "") == "0.13.2" then
+              let
+                sources = prev.fetchFromGitHub {
+                  owner = "ActivityWatch";
+                  repo = "activitywatch";
+                  rev = "v${prev.aw-server-rust.version}";
+                  hash = "sha256-Z3WAg3b1zN0nS00u0zIose55JXRzQ7X7qy39XMY7Snk=";
+                  fetchSubmodules = true;
+                };
+
+                aw-webui = prev.buildNpmPackage {
+                  pname = "aw-webui";
+                  inherit (prev.aw-server-rust) version;
+
+                  src = "${sources}/aw-server-rust/aw-webui";
+                  npmDepsHash = "sha256-fPk7UpKuO3nEN1w+cf9DIZIG1+XRUk6PJfVmtpC30XE=";
+
+                  makeCacheWritable = true;
+                  npmFlags = [ "--legacy-peer-deps" ];
+
+                  patches = [
+                    (prev.replaceVars "${nixpkgs}/pkgs/applications/office/activitywatch/commit-hash.patch" {
+                      commit_hash = sources.rev;
+                    })
+                  ];
+
+                  installPhase = ''
+                    runHook preInstall
+                    mv dist $out
+                    mv media/logo/logo.{png,svg} $out
+                    runHook postInstall
+                  '';
+
+                  # Upstream's npm test currently fails because @vue/vue2-jest
+                  # requires vue-template-compiler but aw-webui does not vendor it.
+                  doCheck = false;
+                };
+              in
+              prev.aw-server-rust.overrideAttrs (old: {
+                env = (old.env or { }) // {
+                  AW_WEBUI_DIR = aw-webui;
+                };
+              })
+            else
+              prev.aw-server-rust;
+        })
+      ];
 
       constants = import ./shared/constants.nix;
 
       pkgs = import nixpkgs {
         inherit system;
+        overlays = nixpkgsOverlays;
         config = pkgConfig;
       };
 
       pkgsStable = import nixpkgs-stable {
         inherit system;
+        overlays = nixpkgsOverlays;
         config = pkgConfig;
       };
 
@@ -102,6 +166,7 @@
           inputs
           user
           pkgsStable
+          nixpkgsOverlays
           constants
           optionHelpers
           ;

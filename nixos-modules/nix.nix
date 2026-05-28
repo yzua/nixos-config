@@ -5,12 +5,14 @@
   inputs,
   lib,
   pkgConfig,
+  nixpkgsOverlays,
   ...
 }:
 
 {
   # Mirror pkgConfig from flake.nix — nixosSystem evaluates its own nixpkgs instance
   nixpkgs.config = pkgConfig;
+  nixpkgs.overlays = nixpkgsOverlays;
 
   nix = {
     daemonCPUSchedPolicy = "batch";
