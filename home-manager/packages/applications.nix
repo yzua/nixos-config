@@ -1,6 +1,10 @@
 # Desktop applications, multimedia, productivity, and theming packages.
 
-{ pkgs, ... }:
+{
+  pkgs,
+  pkgsStable,
+  ...
+}:
 
 {
   home.packages = with pkgs; [
@@ -11,7 +15,7 @@
     imv
     kiro-fhs
     localsend
-    libreoffice-qt6-fresh
+    pkgsStable.libreoffice-qt6-fresh
     sqlitebrowser
     keepassxc
     antigravity-fhs
