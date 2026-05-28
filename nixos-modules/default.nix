@@ -51,7 +51,6 @@
     ./web-re.nix # Web reverse engineering and security tools
     ./kdeconnect.nix # KDE Connect phone-desktop integration
     ./vnc.nix # VNC remote access (x11vnc, noVNC, websockify)
-    ./rustdesk.nix # RustDesk remote desktop client
 
     # Virtualisation
     ./docker.nix # Docker container engine

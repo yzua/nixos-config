@@ -26,7 +26,6 @@
       tools.enable = true;
     };
     webRe.enable = true;
-    rustdesk.enable = true;
   };
 
   # LUKS unlock for root only — swap disabled (use zram only).
