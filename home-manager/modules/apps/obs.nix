@@ -1,4 +1,4 @@
-# OBS Studio configuration with CUDA and essential plugins.
+# OBS Studio configuration with essential plugins.
 
 { pkgs, ... }:
 
@@ -28,7 +28,7 @@ in
   programs.obs-studio = {
     enable = true;
 
-    package = pkgs.obs-studio.override { cudaSupport = true; };
+    package = pkgs.obs-studio;
 
     plugins = capturePlugins ++ effectsPlugins ++ automationPlugins;
   };
