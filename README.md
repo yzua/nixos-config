@@ -1,3 +1,5 @@
+
+
 # NixOS System Configuration
 
 Flake-based NixOS + Home Manager config with Niri compositor, Noctalia Shell, GruvboxAlt theming, and full privacy/monitoring stack.
@@ -226,7 +228,7 @@ nixos-modules/                # Shared system modules (58 imports in hub)
 home-manager/                 # User-level modules + packages
 scripts/                      # Utility scripts (ai/, build/, apps/, hardware/, system/, sops/; shared helpers in lib/)
 secrets/secrets.yaml          # Encrypted secrets (sops-nix)
-dev-shells/                   # Per-language dev shell templates (nix flake init -t)
+dev-shells/                   # Per-language dev shell templates (nix flake init -t <flake>#<template>; independent flakes)
 guides/                       # User-facing tool guides (AI Agents, Ghostty, Niri, Neovim, Yazi, Zellij)
 themes/                       # GruvboxAlt theme overrides (LibreWolf CSS, Telegram Desktop, YouTube Music)
 ```
