@@ -4,6 +4,9 @@
 /.direnv/
 /.venv/
 
+# Local notes and research; do not publish the docs folder.
+/docs/
+
 # Local environment files; templates remain visible for review.
 .env
 .env.*
