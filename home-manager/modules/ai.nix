@@ -28,6 +28,7 @@ in
     copilot-cli
     ctx
     executor
+    herdr
     opencode2
     pi
     skills

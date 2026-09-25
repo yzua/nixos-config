@@ -1,4 +1,4 @@
-# Everyday CLI tools; shell integrations remain unmanaged.
+# Everyday CLI tools without shell-managed packages.
 
 { pkgs, ... }:
 
@@ -7,10 +7,8 @@
     pkgs.bat
     pkgs.btop
     pkgs.fd
-    pkgs.fzf
     pkgs.jq
     pkgs.lazygit
     pkgs.ripgrep
-    pkgs.zoxide
   ];
 }

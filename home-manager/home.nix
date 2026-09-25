@@ -16,6 +16,7 @@ in
     ./modules/keepassxc.nix
     ./modules/mime.nix
     ./modules/secrets.nix
+    ./modules/shell.nix
     ./modules/skills.nix
     ./modules/vesktop.nix
   ];
@@ -39,6 +40,12 @@ in
   home.username = "yz";
   home.homeDirectory = "/home/yz";
   home.stateVersion = "26.05";
+  # Preserve the PATH order from this account's existing .bashrc when Home
+  # Manager takes ownership of it; do not package the mutable binaries in Nix.
+  programs.bash.bashrcExtra = ''
+    export PATH="$HOME/.npm-global/bin:$PATH"
+    export PATH="$HOME/.opencode/bin:$PATH"
+  '';
   home.packages = [
     pkgs.gh
     pkgs.telegram-desktop
