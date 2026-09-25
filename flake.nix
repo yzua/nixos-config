@@ -14,9 +14,9 @@
         modules = [ ./configuration.nix ];
       };
 
-      # Provides just before the first system switch installs it.
+      # Provides the command menu and Git before the first system switch.
       devShells.${system}.default = pkgs.mkShell {
-        packages = [ pkgs.just ];
+        packages = [ pkgs.git pkgs.just ];
       };
     };
 }

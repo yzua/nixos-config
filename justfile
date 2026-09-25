@@ -5,18 +5,23 @@ default:
 
 # Evaluate the flake without building or activating it.
 verify:
-    nix flake check --no-build --no-write-lock-file path:.
+    nix flake check --no-build --no-write-lock-file .
 
 # Build a system closure without activating it.
 build:
     mkdir -p "${XDG_STATE_HOME:-$HOME/.local/state}/nixos"
-    nix build --no-write-lock-file 'path:.#nixosConfigurations.nixos.config.system.build.toplevel' --out-link "${XDG_STATE_HOME:-$HOME/.local/state}/nixos/result-system"
+    nix build --no-write-lock-file '.#nixosConfigurations.nixos.config.system.build.toplevel' --out-link "${XDG_STATE_HOME:-$HOME/.local/state}/nixos/result-system"
 
 # Compare the built system with the one currently running.
 preview: build
     nix store diff-closures /run/current-system "${XDG_STATE_HOME:-$HOME/.local/state}/nixos/result-system"
 
-# Explicitly activate this host; run `just preview` and review the diff first.
+# Activate exactly the built closure; run `just preview` and review it first.
 switch:
     @test "$(hostname)" = "nixos" || { echo "This flake is for host nixos only" >&2; exit 1; }
-    sudo nixos-rebuild switch --flake 'path:.#nixos' --no-write-lock-file --option experimental-features 'nix-command flakes'
+    @result="${XDG_STATE_HOME:-$HOME/.local/state}/nixos/result-system"; \
+      test -L "$result" || { echo "No build found; run just preview first" >&2; exit 1; }; \
+      expected="$(nix eval --raw --no-write-lock-file '.#nixosConfigurations.nixos.config.system.build.toplevel.outPath')"; \
+      actual="$(readlink -f "$result")"; \
+      test "$actual" = "$expected" || { echo "Build is stale; run just preview first" >&2; exit 1; }; \
+      sudo nixos-rebuild switch --store-path "$actual"

@@ -135,7 +135,7 @@
 
   # Use the pinned flake and its small command menu for future rebuilds.
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
-  environment.systemPackages = [ pkgs.just ];
+  environment.systemPackages = [ pkgs.git pkgs.just ];
 
   # List packages installed in system profile.
   # You can use https://search.nixos.org/ to find more packages (and options).
