@@ -1,25 +1,63 @@
-# NixOS configuration
+# NixOS + Home Manager
 
-The `PC` NixOS flake output uses `hosts/PC/default.nix`. This host entrypoint
-imports its generated `hardware-configuration.nix`, plus shared
-`modules/nixos/base.nix` (locale and system tools),
-`modules/nixos/development.nix` (system-wide Node.js and pnpm),
-`modules/nixos/gnome.nix` (GNOME, IBus, audio, printing),
-`modules/nixos/mullvad-vpn.nix` (Mullvad VPN daemon and GUI), and
-`modules/nixos/numtide-cache.nix` (Numtide binary cache). A future
-host can import whichever shared modules it needs while keeping its own
-hardware, boot settings, hostname, and `system.stateVersion`.
+A single-host GNOME configuration built as a Nix flake. NixOS owns the machine;
+standalone Home Manager owns user apps and preferences. The current outputs are
+`PC` and `yz@PC`. Nixpkgs and Home Manager follow the 26.05 release branches,
+and `flake.lock` pins the exact inputs. The old configuration is a reference,
+not an import.
 
-The standalone Home Manager output `yz@PC` uses `home-manager/home.nix`, which
-imports modules for GNOME's English/Arabic input sources, Firefox, MIME
-defaults, KeePassXC, desktop apps (including Vesktop through Nixcord), everyday
-CLI tools, AI tools, and user-level SOPS secrets.
-`home-manager/modules/ai.nix` lists AI tools supplied by the pinned
-`llm-agents.nix` input (which keeps its own Nixpkgs pin).
-As features grow, add files under `home-manager/modules/` and list them in
-`home-manager/home.nix`'s `imports`; the standalone flake output stays the same.
-The lock file pins Nixpkgs and Home Manager to matching 26.05 release branches;
-nothing from the old configuration is imported.
+**Jump to:** [Quick start](#quick-start) · [Layout](#layout) ·
+[Workflow](#workflow) · [Desktop](#desktop-and-user-applications) ·
+[Git](#git-and-signing) · [Secrets](#encrypted-user-secrets) ·
+[AI tools](#ai-tools-and-caches) · [License](#license)
+
+## Quick start
+
+From the repository root, with Nix flakes and `just` available:
+
+```sh
+just check          # evaluate both outputs; do not build or activate
+just status         # compare active, saved, and desired generations
+just home-preview   # build and review the user generation
+just preview        # build and review the NixOS generation
+```
+
+Only after reviewing each preview, activate the corresponding saved build:
+
+```sh
+just home-switch    # as your normal user, never with sudo
+just switch         # NixOS activation; asks for sudo when needed
+```
+
+When moving apps or settings from NixOS to Home Manager, **preview and switch
+Home Manager before previewing and switching NixOS** so they do not disappear
+between activations. Previews can download or build packages; check the
+configured binary caches before accepting a large local build. On a fresh
+installation without `just` or enabled flakes, run a recipe through the flake's
+dev shell, for example:
+
+```sh
+NIX_CONFIG='experimental-features = nix-command flakes' nix develop . -c just check
+```
+
+## Layout
+
+| Path | Responsibility |
+| --- | --- |
+| `flake.nix`, `flake.lock` | Pinned inputs, outputs, formatter and dev shell |
+| `hosts/PC/` | Machine-specific hardware, boot, hostname, account and initial state version |
+| `modules/nixos/` | Explicitly imported system features: base tools, development, GNOME, Mullvad VPN and Numtide cache |
+| `home-manager/home.nix` | Standalone account profile and its explicit module imports |
+| `home-manager/modules/` | User apps, GNOME inputs, browser, Git, MIME defaults, AI tools and SOPS integration |
+| `scripts/`, `justfile`, `tests/` | Preview/switch guards, checks and mocked workflow tests |
+| `secrets/` | Encrypted SOPS files only; decryption keys live outside this repo |
+
+The host selects shared modules explicitly and keeps its hardware, boot policy,
+hostname and `system.stateVersion` in `hosts/PC/`. The Home Manager profile
+sets its own account and `home.stateVersion`; new user features belong in a
+focused module imported from `home-manager/home.nix`.
+
+## Workflow
 
 Git flakes use tracked files as their source. Stage each new `.nix` file with
 `git add` before checking or previewing; otherwise Nix will not see it.
@@ -31,27 +69,18 @@ build output in unrelated repos. Neither layer hides Nix modules, `flake.lock`,
 Ignore rules are not a secret scanner and do not hide files already tracked;
 review `git diff --cached` before committing.
 
-From the repository root, run `just check` to check Nix file headers, evaluate
-both configurations, check repo-declared package lists for duplicates, and warn
-about untracked Nix files. `just headers` quickly checks tracked and untracked
-Nix files for a first-line purpose comment; `just verify` runs only the no-build
-flake check; `just pkgs` runs only the package check. `just status` compares
-active, saved preview, and desired system/home generations without building or
-switching.
+`just check` checks Nix file headers, evaluates both configurations, checks
+explicit package lists for duplicates, and warns about untracked Nix files.
+For individual checks, use `just headers`, `just verify` (flake evaluation), or
+`just pkgs`. `just status` compares active, saved preview, and desired
+generations without building or switching.
 
-The `justfile` is the entry point for the helpers under `scripts/`:
-`config.sh` selects and validates flake outputs for recipes and checkers;
-`saved-preview-build.sh` shares the saved-path guard and Home profile location;
-`home-switch.sh` activates the validated Home generation without rebuilding;
-`home-preview.sh` reviews the closure, managed files, and declared GNOME input
-sources alongside their current dconf value;
-`check-nix-headers.sh` backs `just headers`; `check-packages.sh` backs
-`just pkgs` and checks only this repo's explicit package declarations (not
-packages added implicitly by NixOS or Home Manager); `status.sh` backs
-`just status` and compares active, saved, and desired generations without
-building.
-`bash tests/workflow.sh` exercises selection, stale-build guards, and read-only
-input-source preview with temporary generations; it never activates a real one.
+`justfile` drives the helpers in `scripts/`; `scripts/config.sh` centralizes
+output selection and `scripts/saved-preview-build.sh` guards activation against
+missing or stale previews. From the dev shell, `bash tests/workflow.sh` tests
+those guards with temporary generations; it never activates a real one.
+
+### Development tools
 
 Development tools live only in the flake's dev shell, not in the installed
 NixOS or Home Manager profiles. It uses the pinned Nixpkgs packages: the
@@ -59,7 +88,7 @@ NixOS or Home Manager profiles. It uses the pinned Nixpkgs packages: the
 Nix files, `shfmt` for shell scripts (2-space indentation), `statix` and
 `deadnix` for Nix linting, and ShellCheck for shell linting. `just` formats its
 own justfile. The shell also includes `sops` and `age` for encrypted secrets.
-No Git hook or background formatter is needed.
+Formatting is opt-in; no background formatter or formatting hook runs.
 The generated `hardware-configuration.nix` is exempt from formatting and
 dead-code checks; `statix.toml` permits idiomatic repeated dotted option paths.
 
@@ -73,6 +102,8 @@ Once inside `nix develop`, run the same `just` recipes directly. `nix fmt`
 uses the same Nix/shell formatter; `just check` stays a header, evaluation,
 and package-list check rather than building lint tooling or rewriting files.
 
+### Selection and safety guards
+
 The recipes select the output matching the running hostname and login when
 possible, or a sole output. If selection is ambiguous, set `NIXOS_CONFIG`
 and/or `HOME_CONFIG` to the intended flake output names. Activation still
@@ -83,11 +114,19 @@ NixOS output. When a caller needs both outputs, it selects the NixOS output
 first and uses that host as context for Home selection.
 
 `just build` builds the NixOS closure without activating it; `just preview`
-builds it and diffs it against `/run/current-system`. Review that preview
-before `just switch`, which activates the saved build only if it still matches
-the flake. This host's rename from `nixos` to `PC` is migration history:
+builds it and diffs it against `/run/current-system`. `just home-preview`
+builds the independent Home generation and shows its closure and managed-file
+changes. Builds save `result-system` or `result-home` links under
+`${XDG_STATE_HOME:-$HOME/.local/state}/nixos/`, outside the flake directory.
+Both switches activate only the matching saved build; neither `check` nor
+`status` activates anything. Unqualified `nixos-rebuild` uses `/etc/nixos`,
+**not** this flake.
+
+This host's rename from `nixos` to `PC` is migration history:
 `ALLOW_HOST_RENAME=1` is only for a deliberately approved hostname change,
 not a normal switch or a way to bypass a wrong output selection.
+
+## Desktop and user applications
 
 Home Manager is standalone and separate from the NixOS switch. Telegram,
 Firefox, KeePassXC, GitHub CLI (`gh`), Wayland clipboard tools
@@ -98,13 +137,16 @@ extra plugins. Nixcord manages Vesktop without installing Discord separately
 or rebuilding the cached stock Vesktop package. Mullvad VPN is instead a
 NixOS service with the GUI package; it does not declare auto-connect or extra
 early-boot traffic blocking. Firefox remains the default browser for links.
+
+### Firefox, GNOME and MIME defaults
+
 Firefox declares Personal and Work with stable profile paths. Removing the old
 Personal path override leaves that older profile on disk but selects a new
-`personal` profile on the next Home Manager switch.
-Both profiles use DuckDuckGo for normal and private search and have a few
-non-breaking privacy/comfort preferences. Password
-databases, logins, and Firefox Sync remain unmanaged; Home Manager does not
-manage your shell.
+`personal` profile on the next Home Manager switch. Both profiles use DuckDuckGo
+for normal and private search and have a few non-breaking privacy/comfort
+preferences. Password databases, logins, and Firefox Sync remain unmanaged;
+Home Manager does not manage your shell.
+
 Run `just home-preview` to build and compare it with an existing Home Manager
 profile, review managed home files, and see active and desired GNOME input
 sources. Those sources are dconf settings, not managed files; GVariant type
@@ -112,22 +154,28 @@ annotations may make the two displayed values look different even when their
 content agrees. No other dconf values or decrypted secrets are printed.
 `just home-switch` runs without sudo. It verifies the selected user, home
 directory, and saved build, then installs and activates that **exact** Home
-Manager generation without another flake build. Both switch recipes reject
-missing or stale saved builds; neither `check` nor `status` activates anything.
+Manager generation without another flake build.
+
+`home-manager/modules/mime.nix` owns application defaults, including Firefox
+web and Telegram URL associations. On this machine, the previous
+`mimeapps.list`, Firefox `profiles.ini`, and Personal profile's
+`search.json.mozlz4` were backed up under
+`${XDG_STATE_HOME:-$HOME/.local/state}/nixos/firefox-mime-backup.*` before Home
+Manager took ownership. Edit the modules rather than their managed symlinks.
+KeePassXC's browser native-messaging host is installed, but its browser
+extension and any password database are not configured.
+
+## Git and signing
 
 After a reviewed `just home-switch`, sign in interactively with `gh auth login`
 and check with `gh auth status`. On Wayland, `wl-clipboard` lets `gh` copy the
 one-time code; Firefox is the web URL handler in `home-manager/modules/mime.nix`.
 To explicitly use Firefox for the login flow, run `GH_BROWSER=firefox gh auth login`
 and press Enter at the URL prompt rather than clicking the terminal's hyperlink.
-For HTTPS GitHub remotes, run
-`gh auth setup-git` after login to use `gh` as Git's credential helper; for
-SSH remotes, register an SSH key with GitHub instead. GitHub login data and
-the credential-helper settings in `~/.gitconfig` remain outside Home Manager
-and the Nix store. A Git commit is local: to publish it, first connect the
-checkout to a repository you own if it has no remote
-(`git remote add origin <repo-url>`), then push reviewed commits with
-`git push -u origin HEAD`.
+For HTTPS GitHub remotes, run `gh auth setup-git` after login to use `gh` as
+Git's credential helper; for SSH remotes, register an SSH key with GitHub
+instead. GitHub login data and credential-helper settings remain outside Home
+Manager and the Nix store. Commits stay local until you explicitly push them.
 
 ### Git identity and SSH signing
 
@@ -154,16 +202,7 @@ public key with GitHub as a *signing* key, separate from local verification;
 do not assume authentication-key registration is sufficient. Check the GitHub
 account's signing keys before using `gh ssh-key add <public-key-file> --type signing`.
 
-`home-manager/modules/mime.nix` is the single place for application defaults.
-It preserves the existing Firefox web and Telegram URL associations. On this
-machine, the previous `mimeapps.list`, Firefox `profiles.ini`, and Personal
-profile's `search.json.mozlz4` were backed up under
-`${XDG_STATE_HOME:-$HOME/.local/state}/nixos/firefox-mime-backup.*` before Home
-Manager took ownership. Edit the modules rather than the managed symlinks.
-KeePassXC's browser native-messaging host is installed, but its browser
-extension and any password database are not configured.
-
-### Encrypted user secrets
+## Encrypted user secrets
 
 The SOPS recipient policy in `.sops.yaml` contains **public keys only**: a
 primary editor identity and an offline recovery identity. The private primary
@@ -180,7 +219,9 @@ user's age key. `secrets/test.yaml` contains only an encrypted, harmless test
 value, declared as `sops.secrets.test` in `home-manager/modules/secrets.nix`.
 After a reviewed Home Manager switch, the user service decrypts it at runtime;
 its path is `config.sops.secrets.test.path`. **No real secrets from the old
-configuration have been migrated, and this change does not activate anything.**
+configuration have been migrated.** The example declaration does not activate
+anything by itself.
+
 Create only the additional secrets an application needs:
 
 ```sh
@@ -212,11 +253,13 @@ The removable backup uses a filesystem that cannot enforce Unix file modes;
 keep it physically secure, ideally use an encrypted backup, and rotate any
 identity if it may have been exposed.
 
+## AI tools and caches
+
 The AI module installs Codex CLI, Pi, OpenCode V2 (`opencode2`), Claude Code,
 Antigravity CLI (`agy`), ChatGPT (the Linux desktop app also includes Codex),
-Claude Desktop, Copilot CLI, T3Code Desktop,
-ZCode, `skills`, `ctx`, and `executor` for the Home Manager user. Executor uses
-the pinned Numtide binary package; no second input or package entry is needed.
+Claude Desktop, Copilot CLI, T3Code Desktop, ZCode, `skills`, `ctx`, and
+`executor` for the Home Manager user. Executor uses the pinned Numtide binary
+package; no second input or package entry is needed.
 `skills` is the optional installer CLI for unmanaged skills; don't run
 `skills update` on the Nix-managed ones. `home-manager/modules/skills.nix`
 separately links all `SKILL.md` bundles from a pinned, non-flake
@@ -228,8 +271,8 @@ agent settings alone. Some upstream skills are experimental or agent-specific;
 read their instructions before invoking them. Other desktop apps may need
 in-app skill installation rather than local files.
 
-Run `just skills-update` to update **only** that skills input to a new upstream
-commit, then review the `flake.lock` diff and the changed skill content. Run
+Use `nix flake update mattPocockSkills` to update **only** that skills input to
+a new upstream commit, then review the `flake.lock` diff and changed content. Run
 `just check` and `just home-preview`, inspect the managed-file/conflict list,
 and use `just home-switch` without sudo only after approving the preview.
 New upstream `SKILL.md` directories are picked up automatically on update;
@@ -249,28 +292,7 @@ also contains any other pending system changes; do not switch it without
 reviewing those changes. Updating the `llm-agents.nix` lock pin is a separate
 reviewed change, not an automatic update when a CLI starts.
 
-When moving packages or settings from NixOS to Home Manager, activate Home
-Manager **before** switching NixOS: `just home-preview`, `just home-switch`,
-`just preview`, then `just switch`. This keeps user apps available while
-changing system ownership. The `yz@PC` output has the same Home Manager
-settings as the former `yz@nixos` output; renaming its key alone needs no
-Home Manager activation.
+## License
 
-On a fresh installation, if `just` or flakes are not enabled yet, run the
-recipes through the flake's development shell from the repository root:
-
-```sh
-NIX_CONFIG='experimental-features = nix-command flakes' nix develop . -c just check
-NIX_CONFIG='experimental-features = nix-command flakes' nix develop . -c just preview
-```
-
-After reviewing the preview, switch **only when you choose to**:
-
-```sh
-NIX_CONFIG='experimental-features = nix-command flakes' nix develop . -c just switch
-```
-
-Builds save `result-system` or `result-home` links under
-`${XDG_STATE_HOME:-$HOME/.local/state}/nixos/`, outside the flake directory.
-Unqualified `nixos-rebuild` uses `/etc/nixos`, **not** this flake; use the
-`just` recipes from the repository root instead.
+[WTFPL, version 2](LICENSE) — the same license used by
+[gitanon](https://github.com/yzua/gitanon/blob/main/LICENSE).
