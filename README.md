@@ -14,13 +14,20 @@ activation, and `just preview` to build and compare with the running system.
 Only `just switch` activates the last built closure. It refuses a stale build,
 so preview again after making changes.
 
-Home Manager is standalone and separate from the NixOS switch. Its fresh
-`yz@nixos` baseline is in `home-manager/home.nix` and does not manage existing
-shell, GNOME, or application settings. Run `just home-preview` to build it;
-`just home-switch` activates it as `yz` without sudo, but only after checking
-that the built home configuration is current. `just verify` evaluates both
-NixOS and Home Manager. A first Home Manager activation has no prior profile
-for `home-preview` to compare.
+Home Manager is standalone and separate from the NixOS switch. `yz@nixos` is in
+`home-manager/home.nix`: Telegram and GNOME's English/Arabic input sources live
+there. Node.js/npm stay in NixOS system packages for all users, including root.
+Home Manager does not manage your
+shell or Firefox settings. Run `just home-preview` to build it; `just
+home-switch` activates it as `yz` without sudo, but only after checking that
+the built home configuration is current. It also writes the GNOME input-source
+dconf setting (not a managed file shown by the preview). `just verify` evaluates
+both NixOS and Home Manager.
+
+For this migration, activate Home Manager **before** switching NixOS: `just
+home-preview`, `just home-switch`, `just preview`, then `just switch`. This
+keeps Telegram available while moving Node.js into system packages, drops
+`wget`, and removes the old system-owned keyboard user unit.
 
 On a fresh installation before the first switch, use the flake's development
 shell if `just` or flakes are not enabled yet:

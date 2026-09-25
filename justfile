@@ -40,11 +40,17 @@ home-preview: home-build
         echo "No prior Home Manager profile; this would be the first activation"; \
       fi
     @files="$(readlink -f "${XDG_STATE_HOME:-$HOME/.local/state}/nixos/result-home/home-files")"; \
+      profile="${XDG_STATE_HOME:-$HOME/.local/state}/nix/profiles/home-manager"; \
+      old_files=""; \
+      if [ -e "$profile/home-files" ]; then old_files="$(readlink -f "$profile/home-files")"; fi; \
       echo "Managed home files:"; \
       find "$files" -type l -printf '  ~/%P\n' | sort; \
       find "$files" -type l -printf '%P\n' | while IFS= read -r path; do \
         if [ -e "$HOME/$path" ] || [ -L "$HOME/$path" ]; then \
-          echo "Already present (review before switching): ~/$path"; \
+          if [ -z "$old_files" ] || [ ! -L "$HOME/$path" ] || \
+             [ "$(readlink "$HOME/$path")" != "$old_files/$path" ]; then \
+            echo "Already present (review before switching): ~/$path"; \
+          fi; \
         fi; \
       done
 

@@ -42,9 +42,9 @@
   # English, so deleting the block is all that is needed.
   i18n.defaultLocale = "en_US.UTF-8";
 
-  # Arabic is available as a *keyboard layout* only (see
-  # systemd.user.services.gnome-input-sources below). It is deliberately not a
-  # system locale, so nothing in the UI switches to Arabic by itself.
+  # Arabic is available as a *keyboard layout* only (configured for yz in
+  # Home Manager). It is deliberately not a system locale, so nothing in the
+  # UI switches to Arabic by itself.
   #
   # Note: there is no Arabic IBus engine in nixpkgs -- the engines offered by
   # i18n.inputMethod.ibus.engines are anthy, m17n, mozc, pinyin, rime, etc.
@@ -61,39 +61,11 @@
 
   programs.nix-ld.enable = true;
 
-  # Configure keymap in X11. On GNOME/Wayland the active layouts come from
-  # org.gnome.desktop.input-sources (set below); this is only the fallback for
-  # plain X11 sessions.
+  # Configure keymap in X11. On GNOME/Wayland Home Manager sets the active
+  # input sources; this is only the fallback for plain X11 sessions.
   services.xserver.xkb = {
     layout = "us";
     variant = "";
-  };
-
-  # English (first entry = default) plus Arabic, switchable with Super+Space.
-  #
-  # This is applied as your user at session start so that it survives rebuilds.
-  # It only sets the two layouts, so you can still add or reorder layouts in
-  # Settings > Keyboard after logging in and nothing will fight you.
-  #
-  # The "ara" layout is a 4-level standard Arabic layout:
-  #   level 1  Arabic letters   ض ص ث ق ف غ ع ه خ ح ج د ش س ي ب ل ا
-  #   level 2  diacritics       fatha, damma, kasra, shadda...
-  #   level 3  Arabic-Indic digits, on Shift+number
-  systemd.user.services.gnome-input-sources = {
-    description = "GNOME input sources: English (default) + Arabic";
-    wantedBy = [ "graphical-session.target" ];
-    after = [ "dconf.service" ];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-      ExecStart = pkgs.lib.concatStringsSep " " [
-        "${pkgs.glib}/bin/gsettings"
-        "set"
-        "org.gnome.desktop.input-sources"
-        "sources"
-        "\"[('xkb', 'us'), ('xkb', 'ara')]\""
-      ];
-    };
   };
 
   # Enable CUPS to print documents.
@@ -119,12 +91,6 @@
     isNormalUser = true;
     description = "yz";
     extraGroups = [ "networkmanager" "wheel" ];
-    packages = with pkgs; [
-       wget
-       nodejs          # Adds Node.js & npm
-       telegram-desktop # Adds Telegram
-    #  thunderbird
-    ];
   };
 
   # Install firefox.
@@ -135,7 +101,7 @@
 
   # Use the pinned flake and its small command menu for future rebuilds.
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
-  environment.systemPackages = [ pkgs.git pkgs.just ];
+  environment.systemPackages = [ pkgs.git pkgs.just pkgs.nodejs ];
 
   # List packages installed in system profile.
   # You can use https://search.nixos.org/ to find more packages (and options).
