@@ -1,0 +1,24 @@
+# Nix build links and local development state.
+/result
+/result-*
+/.direnv/
+/.venv/
+
+# Local environment files; templates remain visible for review.
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+
+# Accidental plaintext copies and private keys. Encrypted SOPS YAML is tracked.
+/secrets/**/*-decrypted.*
+/secrets/**/*.yaml.!backup
+keys.txt
+id_ed25519
+id_rsa
+id_ecdsa
+*.key
+*.pem
+*.p12
+*.pfx

@@ -1,0 +1,2 @@
+# Dotted NixOS/Home Manager option assignments commonly share a top-level key.
+disabled = ["repeated_keys"]

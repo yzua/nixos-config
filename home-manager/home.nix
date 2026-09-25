@@ -1,16 +1,49 @@
-{ lib, pkgs, ... }:
+# Standalone Home Manager entry point for this account and its user modules.
 
+{ pkgs, ... }:
+
+let
+  githubEmail = "260740417+yzua@users.noreply.github.com";
+in
 {
+  imports = [
+    ./modules/ai.nix
+    ./modules/cli.nix
+    ./modules/desktop-apps.nix
+    ./modules/firefox.nix
+    ./modules/git.nix
+    ./modules/gnome.nix
+    ./modules/keepassxc.nix
+    ./modules/mime.nix
+    ./modules/secrets.nix
+    ./modules/skills.nix
+    ./modules/vesktop.nix
+  ];
+
+  # Account-specific Git identity; GitHub remotes use the account's noreply address.
+  programs.git.settings.user = {
+    name = "yz";
+    email = "git.remarry972@simplelogin.com";
+  };
+  programs.git.includes = [
+    {
+      condition = "hasconfig:remote.*.url:https://github.com/**";
+      contents.user.email = githubEmail;
+    }
+    {
+      condition = "hasconfig:remote.*.url:git@github.com:*/**";
+      contents.user.email = githubEmail;
+    }
+  ];
+
   home.username = "yz";
   home.homeDirectory = "/home/yz";
   home.stateVersion = "26.05";
-  home.packages = [ pkgs.telegram-desktop ];
+  home.packages = [
+    pkgs.gh
+    pkgs.telegram-desktop
+    pkgs.wl-clipboard
+  ];
 
   programs.home-manager.enable = true;
-
-  # English (default) and Arabic, switchable in GNOME with Super+Space.
-  dconf.settings."org/gnome/desktop/input-sources".sources = [
-    (lib.hm.gvariant.mkTuple [ "xkb" "us" ])
-    (lib.hm.gvariant.mkTuple [ "xkb" "ara" ])
-  ];
 }

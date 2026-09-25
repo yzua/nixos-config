@@ -1,0 +1,11 @@
+# Public recipients only. Keep the recovery identity offline.
+keys:
+  - &editor age1cl84e6k30g8r0qx7zyrjsy9d66ker93due3kw3qjd9g8suz7hp2qynfjj6
+  - &recovery age1977w869pzpd4m4srd5dfjfcx3wyhdjmj6rgdk8ts38qntxd7wpdql6mzup
+
+creation_rules:
+  - path_regex: ^secrets/.*\.yaml$
+    key_groups:
+      - age:
+          - *editor
+          - *recovery

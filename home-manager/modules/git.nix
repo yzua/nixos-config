@@ -1,0 +1,52 @@
+# Configure user Git signing and a global conventional commit message hook.
+
+{ config, pkgs, ... }:
+
+{
+  programs.git = {
+    enable = true;
+    # Git itself is already installed system-wide; Home Manager owns the settings.
+    package = null;
+
+    # Only universally disposable editor/OS files belong in a global ignore.
+    ignores = [
+      ".DS_Store"
+      "Thumbs.db"
+      "*~"
+      "*.swp"
+      "*.swo"
+      ".#*"
+    ];
+
+    signing = {
+      format = "ssh";
+      key = "${config.home.homeDirectory}/.ssh/id_ed25519.pub";
+      signByDefault = true;
+    };
+    # Provision this user-owned trust file from the public key, outside Nix.
+    settings.gpg.ssh.allowedSignersFile = "${config.xdg.configHome}/git/allowed_signers";
+
+    hooks.commit-msg = pkgs.writeShellScript "git-conventional-commit-msg" ''
+      set -eu
+
+      IFS= read -r subject < "$1" || true
+      case "$subject" in
+        Merge\ *|Revert\ *|fixup!\ *|squash!\ *|amend!\ *|Initial\ commit) ;;
+        *)
+          pattern='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert|wip)(\([^()]+\))?!?: .+'
+          if ! [[ "$subject" =~ $pattern ]]; then
+            printf 'Expected a conventional commit: <type>[optional scope][!]: <description>\n' >&2
+            printf 'Types: feat fix docs style refactor perf test build ci chore revert wip\n' >&2
+            exit 1
+          fi
+          ;;
+      esac
+
+      # core.hooksPath otherwise hides a repository's own commit-msg hook.
+      local_hook="$(git rev-parse --git-common-dir)/hooks/commit-msg"
+      if [ -x "$local_hook" ]; then
+        "$local_hook" "$@"
+      fi
+    '';
+  };
+}
