@@ -24,4 +24,4 @@ switch:
       expected="$(nix eval --raw --no-write-lock-file '.#nixosConfigurations.nixos.config.system.build.toplevel.outPath')"; \
       actual="$(readlink -f "$result")"; \
       test "$actual" = "$expected" || { echo "Build is stale; run just preview first" >&2; exit 1; }; \
-      sudo nixos-rebuild switch --store-path "$actual"
+      sudo nixos-rebuild switch --no-reexec --store-path "$actual"
