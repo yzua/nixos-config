@@ -41,6 +41,17 @@
     }:
     let
       system = "x86_64-linux";
+      # Share this account's identity between the host and standalone home profile.
+      username = "yz";
+      homeProfile = {
+        inherit username;
+        homeDirectory = "/home/${username}";
+        gitIdentity = {
+          name = username;
+          email = "git.remarry972@simplelogin.com";
+          githubEmail = "260740417+yzua@users.noreply.github.com";
+        };
+      };
       pkgs = import nixpkgs {
         inherit system;
         # Home Manager uses this package set; approve only the requested apps.
@@ -72,6 +83,7 @@
       home = home-manager.lib.homeManagerConfiguration {
         inherit pkgs;
         extraSpecialArgs = {
+          inherit homeProfile;
           aiPackages = llm-agents.packages.${system};
           inherit mattPocockSkills nixcord;
         };
@@ -84,11 +96,12 @@
     {
       nixosConfigurations.PC = nixpkgs.lib.nixosSystem {
         inherit system;
+        specialArgs = { inherit username; };
         modules = [ ./hosts/PC/default.nix ];
       };
 
-      homeConfigurations."yz@PC" = home;
-      checks.${system}.home-yz-PC = home.activationPackage;
+      homeConfigurations."${username}@PC" = home;
+      checks.${system}."home-${username}-PC" = home.activationPackage;
 
       formatter.${system} = formatter;
 

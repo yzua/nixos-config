@@ -15,6 +15,10 @@ let
       wrapProgram "$out/bin/codex" --add-flags "--disable daemon_auto_start"
     '';
   };
+  # Numtide's V2 package exposes `opencode2`; provide the usual CLI name too.
+  opencodeCli = pkgs.writeShellScriptBin "opencode" ''
+    exec ${aiPackages.opencode2}/bin/opencode2 "$@"
+  '';
 in
 {
   # Executables come from Numtide; settings, logins, and session data remain
@@ -29,6 +33,7 @@ in
     ctx
     executor
     herdr
+    opencodeCli
     opencode2
     pi
     skills

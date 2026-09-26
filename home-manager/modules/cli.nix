@@ -21,8 +21,10 @@
     pkgs.microfetch
     pkgs.mitmproxy
     pkgs.nmap
+    pkgs.nodejs
     pkgs.openssl
     pkgs.openssl.dev
+    pkgs.pnpm
     pkgs.ripgrep
     pkgs.sd
     pkgs.tokei

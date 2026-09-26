@@ -1,6 +1,6 @@
 # PC host entry point: hardware, boot, account, and shared NixOS modules.
 
-{ pkgs, ... }:
+{ pkgs, username, ... }:
 
 {
   imports = [
@@ -8,7 +8,6 @@
     ./graphics.nix
     ../../modules/nixos/base.nix
     ../../modules/nixos/audio.nix
-    ../../modules/nixos/development.nix
     ../../modules/nixos/gnome.nix
     ../../modules/nixos/gaming.nix
     ../../modules/nixos/mullvad-vpn.nix
@@ -31,9 +30,9 @@
   programs.zsh.enable = true;
   environment.pathsToLink = [ "/share/zsh" ];
 
-  users.users."yz" = {
+  users.users.${username} = {
     isNormalUser = true;
-    description = "yz";
+    description = username;
     shell = pkgs.zsh;
     extraGroups = [
       "networkmanager"

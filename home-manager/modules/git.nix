@@ -1,5 +1,7 @@
-# Configure user Git signing and a global conventional commit message hook.
+# Configure user Git identity, signing, and a global conventional commit message hook.
 
+# Keep account-specific identity values in the importing profile.
+{ gitIdentity }:
 { config, pkgs, ... }:
 
 {
@@ -23,8 +25,22 @@
       key = "${config.home.homeDirectory}/.ssh/id_ed25519.pub";
       signByDefault = true;
     };
+    settings.user = {
+      inherit (gitIdentity) name email;
+    };
     # Provision this user-owned trust file from the public key, outside Nix.
     settings.gpg.ssh.allowedSignersFile = "${config.xdg.configHome}/git/allowed_signers";
+
+    includes = [
+      {
+        condition = "hasconfig:remote.*.url:https://github.com/**";
+        contents.user.email = gitIdentity.githubEmail;
+      }
+      {
+        condition = "hasconfig:remote.*.url:git@github.com:*/**";
+        contents.user.email = gitIdentity.githubEmail;
+      }
+    ];
 
     hooks.commit-msg = pkgs.writeShellScript "git-conventional-commit-msg" ''
       set -eu

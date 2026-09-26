@@ -21,12 +21,6 @@ let
     # Pi's tools already run without approval; this skips project trust for the run.
     p = "pi --approve";
   };
-  # Keep account-owned CLIs available in either interactive shell without
-  # placing their mutable contents in the Nix store.
-  localCliPath = ''
-    export PATH="$HOME/.npm-global/bin:$PATH"
-    export PATH="$HOME/.opencode/bin:$PATH"
-  '';
 in
 {
   programs.bash = {
@@ -36,7 +30,6 @@ in
     shellAliases = aliases;
     # Match Zsh's ignore-space history; do not put secrets in commands regardless.
     historyControl = [ "ignoreboth" ];
-    bashrcExtra = localCliPath;
   };
 
   programs.zsh = {
@@ -46,15 +39,12 @@ in
     syntaxHighlighting.enable = true;
     # Start tmux before loading the heavier interactive hooks in the outer shell.
     # Keep SSH, non-Ghostty shells, and tmux panes free of automatic attachment.
-    initContent = lib.mkMerge [
-      (lib.mkOrder 500 ''
-        if [[ -o interactive && -z ''${TMUX-} && -z ''${SSH_CONNECTION-} && ''${TERM-} == xterm-ghostty ]] \
-          && command -v tmux >/dev/null 2>&1; then
-          tmux new-session -A -s main
-        fi
-      '')
-      localCliPath
-    ];
+    initContent = lib.mkOrder 500 ''
+      if [[ -o interactive && -z ''${TMUX-} && -z ''${SSH_CONNECTION-} && ''${TERM-} == xterm-ghostty ]] \
+        && command -v tmux >/dev/null 2>&1; then
+        tmux new-session -A -s main
+      fi
+    '';
   };
 
   programs.atuin = {
