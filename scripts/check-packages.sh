@@ -20,7 +20,7 @@ let
       else map (package:
         builtins.concatStringsSep "\t" [
           scope
-          (package.pname or (builtins.parseDrvName package.name).name)
+          "${package.pname or (builtins.parseDrvName package.name).name}:${package.outputName or "out"}"
           (builtins.substring rootLength (builtins.stringLength definition.file - rootLength) definition.file)
         ]) definition.value
     ) option.definitionsWithLocations);

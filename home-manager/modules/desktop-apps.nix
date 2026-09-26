@@ -6,6 +6,7 @@
   home.packages = [
     pkgs.google-chrome
     pkgs.obs-studio
+    pkgs.sqlitebrowser
     pkgs.vscode
   ];
 }
