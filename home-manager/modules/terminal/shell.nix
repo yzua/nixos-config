@@ -137,6 +137,8 @@ in
     # Use Shift-drag for Ghostty text selection while tmux handles the mouse.
     mouse = true;
     extraConfig = ''
+      # Preserve modified Enter keys for apps running through tmux (such as Pi).
+      set -g extended-keys on
       set -g renumber-windows on
       set -g status-style 'bg=default,fg=default'
       set -g status-left ' #S '
