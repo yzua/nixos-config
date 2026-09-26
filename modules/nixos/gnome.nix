@@ -16,6 +16,4 @@
     layout = "us";
     variant = "";
   };
-
-  services.printing.enable = true;
 }

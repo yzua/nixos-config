@@ -1,13 +1,9 @@
 # Standalone Home Manager entry point for this account and its user modules.
 
-{ pkgs, ... }:
+_:
 
 let
   githubEmail = "260740417+yzua@users.noreply.github.com";
-  localCliPath = ''
-    export PATH="$HOME/.npm-global/bin:$PATH"
-    export PATH="$HOME/.opencode/bin:$PATH"
-  '';
 in
 {
   imports = [
@@ -46,17 +42,6 @@ in
   home.username = "yz";
   home.homeDirectory = "/home/yz";
   home.stateVersion = "26.05";
-  # Keep account-owned CLIs available in either interactive shell without
-  # placing their mutable contents in the Nix store.
-  programs.bash.bashrcExtra = localCliPath;
-  programs.zsh.initContent = localCliPath;
-  # Opt out of gh usage telemetry; extensions have separate settings.
-  home.sessionVariables.GH_TELEMETRY = "false";
-  home.packages = [
-    pkgs.gh
-    pkgs.telegram-desktop
-    pkgs.wl-clipboard
-  ];
 
   programs.home-manager.enable = true;
 }

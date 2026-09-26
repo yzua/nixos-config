@@ -14,6 +14,7 @@
     ../../modules/nixos/mullvad-vpn.nix
     ../../modules/nixos/numtide-cache.nix
     ../../modules/nixos/tor.nix
+    ../../modules/nixos/tor-mullvad-bypass.nix
   ];
 
   boot.loader.systemd-boot.enable = true;
@@ -22,6 +23,7 @@
 
   networking.hostName = "PC";
   networking.networkmanager.enable = true;
+  services.printing.enable = true;
   # Etc/GMT signs are reversed: GMT-3 is a fixed UTC+03:00, with no DST.
   time.timeZone = "Etc/GMT-3";
 

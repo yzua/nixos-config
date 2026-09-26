@@ -11,6 +11,7 @@
     pkgs.fd
     pkgs.ffmpeg
     pkgs.fx
+    pkgs.gh
     pkgs.hcloud
     pkgs.htmlq
     pkgs.imagemagick
@@ -27,7 +28,11 @@
     pkgs.tokei
     pkgs.tree
     pkgs.wireshark-cli
+    pkgs.wl-clipboard
     pkgs.yq
     pkgs.yt-dlp
   ];
+
+  # Opt out of gh usage telemetry; extensions have separate settings.
+  home.sessionVariables.GH_TELEMETRY = "false";
 }
