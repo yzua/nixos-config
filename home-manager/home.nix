@@ -50,6 +50,8 @@ in
   # placing their mutable contents in the Nix store.
   programs.bash.bashrcExtra = localCliPath;
   programs.zsh.initContent = localCliPath;
+  # Opt out of gh usage telemetry; extensions have separate settings.
+  home.sessionVariables.GH_TELEMETRY = "false";
   home.packages = [
     pkgs.gh
     pkgs.telegram-desktop
