@@ -1,5 +1,13 @@
 #!/usr/bin/env bash
-# Resolve saved preview builds and the active Home Manager profile consistently.
+# Resolve per-output saved preview builds and the active Home Manager profile.
+
+saved_preview_link() {
+  local kind="$1" output="$2"
+  case "$kind" in
+    system | home) printf '%s/nixos/result-%s-%s\n' "${XDG_STATE_HOME:-$HOME/.local/state}" "$kind" "$output" ;;
+    *) printf 'Unsupported preview kind: %s\n' "$kind" >&2; return 1 ;;
+  esac
+}
 
 generation_target() {
   if [[ -e "$1" ]]; then

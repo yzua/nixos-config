@@ -5,7 +5,7 @@ This repository manages independent NixOS and standalone Home Manager generation
 ## Language
 
 **Saved preview build**:
-The store path retained by the latest preview for a selected output. It is eligible for activation only while it matches that output's current desired store path; saving it does not imply that a person has reviewed it.
+The store path retained by the latest preview for a selected output. Each output retains its own preview, even if another output is previewed later or describes the same store path. It is eligible for activation only while it matches that output's current desired store path; saving it does not imply that a person has reviewed it.
 _Avoid_: Reviewed build
 
 **Desired generation**:

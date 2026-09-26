@@ -10,6 +10,27 @@ mkdir -p "$test_root/bin" "$test_root/state/nixos" "$test_root/state/nix/profile
 cat >"$test_root/bin/nix" <<'SH'
 #!/usr/bin/env bash
 case "$*" in
+  build\ --no-write-lock-file*)
+    case "$*" in
+      *'.#nixosConfigurations.'*) target="$TEST_SYSTEM_EXPECTED" ;;
+      *'.#homeConfigurations.'*) target="$TEST_EXPECTED" ;;
+      *) printf 'Unexpected build: %s\n' "$*" >&2; exit 1 ;;
+    esac
+    while (($#)); do
+      if [[ "$1" == --out-link ]]; then
+        ln -sfn "$target" "$2"
+        exit
+      fi
+      shift
+    done
+    printf 'Missing build out-link\n' >&2
+    exit 1 ;;
+  store\ diff-closures*)
+    [[ $(readlink -f "$4") == "$TEST_DIFF_EXPECTED" ]] || {
+      printf 'Compared the wrong saved build: %s\n' "$4" >&2
+      exit 1
+    }
+    printf 'diff %s\n' "$4" >> "$TEST_DIFF_LOG" ;;
   *--apply*'.#homeConfigurations') printf '%s\n' "$TEST_HOME_NAMES" ;;
   *--apply*'.#nixosConfigurations') printf '%s\n' "$TEST_SYSTEM_NAMES" ;;
   *'.config.home.username') printf '%s\n' "$TEST_USER" ;;
@@ -55,6 +76,7 @@ export TEST_USER
 export TEST_HOME="$HOME"
 export TEST_EXPECTED="$test_root/generation"
 export TEST_LOG="$test_root/log"
+export TEST_DIFF_LOG="$test_root/diffs"
 export TEST_SOURCES="@a(ss) [@(ss) ('xkb','us'),@(ss) ('xkb','ara')]"
 export TEST_ACTIVE_SOURCES="[('xkb', 'us')]"
 export TEST_HOST=host-a
@@ -74,19 +96,24 @@ selected=$(HOME_CONFIG='' NIXOS_CONFIG=host-a TEST_HOME_NAMES="$(id -un)@host-a"
   bash -c 'source scripts/config.sh; select_home; printf "%s" "$HOME_CONFIG"') || fail 'system-context Home selection'
 [[ "$selected" == "$(id -un)@host-a" ]] || fail 'selected system did not supply Home context'
 
-ln -s "$test_root/generation" "$XDG_STATE_HOME/nixos/result-home"
+home_result="$XDG_STATE_HOME/nixos/result-home-$HOME_CONFIG"
+ln -s "$test_root/generation" "$home_result"
 
 # Missing, broken, or stale previews must never mutate the Home profile.
-rm "$XDG_STATE_HOME/nixos/result-home"
+rm "$home_result"
+ln -s "$test_root/generation" "$XDG_STATE_HOME/nixos/result-home"
+if bash scripts/home-switch.sh >"$test_root/output" 2>&1; then
+  fail 'legacy shared Home build was activated'
+fi
 if bash scripts/home-switch.sh >"$test_root/output" 2>&1; then
   fail 'missing Home build was activated'
 fi
-ln -s "$test_root/missing-generation" "$XDG_STATE_HOME/nixos/result-home"
+ln -s "$test_root/missing-generation" "$home_result"
 if bash scripts/home-switch.sh >"$test_root/output" 2>&1; then
   fail 'broken Home build was activated'
 fi
-rm "$XDG_STATE_HOME/nixos/result-home"
-ln -s "$test_root/generation" "$XDG_STATE_HOME/nixos/result-home"
+rm "$home_result"
+ln -s "$test_root/generation" "$home_result"
 export TEST_EXPECTED="$test_root/other-generation"
 if bash scripts/home-switch.sh >"$test_root/output" 2>&1; then
   fail 'stale Home build was activated'
@@ -112,8 +139,12 @@ TEST_USER=$(id -un)
 export TEST_USER
 
 # NixOS uses the same saved-build check while retaining its hostname guard.
-ln -s "$test_root/generation" "$XDG_STATE_HOME/nixos/result-system"
 export NIXOS_CONFIG=host-a
+ln -s "$test_root/generation" "$XDG_STATE_HOME/nixos/result-system"
+if just switch >"$test_root/output" 2>&1; then
+  fail 'legacy shared NixOS build was activated'
+fi
+ln -s "$test_root/generation" "$XDG_STATE_HOME/nixos/result-system-host-a"
 export TEST_SYSTEM_EXPECTED="$test_root/other-generation"
 if just switch >"$test_root/output" 2>&1; then
   fail 'stale NixOS build was activated'
@@ -135,5 +166,66 @@ grep -Fq "$TEST_SOURCES" <<<"$settings" || fail 'desired input sources missing'
 grep -Fq "$TEST_ACTIVE_SOURCES" <<<"$settings" || fail 'active input sources missing'
 [[ "$settings" != *secret* ]] || fail 'settings preview exposed unrelated values'
 [[ $(wc -l <"$TEST_LOG") -eq 3 ]] || fail 'settings preview activated a generation'
+
+# Saved previews for different NixOS outputs must not replace one another.
+mkdir -p "$test_root/other-generation"
+export NIXOS_CONFIG=host-a TEST_HOST=host-a TEST_SYSTEM_EXPECTED="$test_root/generation"
+just build >"$test_root/output" 2>&1 || fail 'build system output A'
+export NIXOS_CONFIG=host-b TEST_HOST=host-b TEST_SYSTEM_EXPECTED="$test_root/other-generation"
+just build >"$test_root/output" 2>&1 || fail 'build system output B'
+export NIXOS_CONFIG=host-a TEST_HOST=host-a TEST_SYSTEM_EXPECTED="$test_root/generation"
+just switch >"$test_root/output" 2>&1 || fail 'saved system output A was replaced by B'
+grep -Fxq "system nixos-rebuild switch --no-reexec --store-path $TEST_SYSTEM_EXPECTED" "$TEST_LOG" || fail 'system output A activated the wrong build'
+export NIXOS_CONFIG=host-b TEST_HOST=host-b TEST_SYSTEM_EXPECTED="$test_root/other-generation"
+just switch >"$test_root/output" 2>&1 || fail 'saved system output B was replaced by A'
+grep -Fxq "system nixos-rebuild switch --no-reexec --store-path $TEST_SYSTEM_EXPECTED" "$TEST_LOG" || fail 'system output B activated the wrong build'
+
+status=$(NIXOS_CONFIG=host-a TEST_SYSTEM_EXPECTED="$test_root/generation" bash scripts/status.sh) || fail 'status for system output A'
+grep -A2 -Fx 'NixOS (host-a)' <<<"$status" | grep -Fxq "  Saved preview build: $test_root/generation" || fail 'status ignored system output A'
+status=$(NIXOS_CONFIG=host-b TEST_SYSTEM_EXPECTED="$test_root/other-generation" bash scripts/status.sh) || fail 'status for system output B'
+grep -A2 -Fx 'NixOS (host-b)' <<<"$status" | grep -Fxq "  Saved preview build: $test_root/other-generation" || fail 'status ignored system output B'
+[[ $(wc -l <"$TEST_LOG") -eq 5 ]] || fail 'status activated a generation'
+
+# Saved previews for different Home outputs must not replace one another.
+cp -a "$test_root/generation/." "$test_root/other-generation/"
+export TEST_HOME_NAMES=$'test-user@elsewhere\ntest-user@host-b'
+export HOME_CONFIG=test-user@elsewhere TEST_EXPECTED="$test_root/generation"
+just home-build >"$test_root/output" 2>&1 || fail 'build Home output A'
+export HOME_CONFIG=test-user@host-b TEST_EXPECTED="$test_root/other-generation"
+just home-build >"$test_root/output" 2>&1 || fail 'build Home output B'
+export HOME_CONFIG=test-user@elsewhere TEST_EXPECTED="$test_root/generation"
+bash scripts/home-switch.sh >"$test_root/output" 2>&1 || fail 'saved Home output A was replaced by B'
+grep -Fxq "profile --profile $XDG_STATE_HOME/nix/profiles/home-manager --set $TEST_EXPECTED" "$TEST_LOG" || fail 'Home output A activated the wrong build'
+export HOME_CONFIG=test-user@host-b TEST_EXPECTED="$test_root/other-generation"
+bash scripts/home-switch.sh >"$test_root/output" 2>&1 || fail 'saved Home output B was replaced by A'
+grep -Fxq "profile --profile $XDG_STATE_HOME/nix/profiles/home-manager --set $TEST_EXPECTED" "$TEST_LOG" || fail 'Home output B activated the wrong build'
+
+status=$(HOME_CONFIG=test-user@elsewhere TEST_EXPECTED="$test_root/generation" bash scripts/status.sh) || fail 'status for Home output A'
+grep -A2 -Fx 'Home Manager (test-user@elsewhere)' <<<"$status" | grep -Fxq "  Saved preview build: $test_root/generation" || fail 'status ignored Home output A'
+status=$(HOME_CONFIG=test-user@host-b TEST_EXPECTED="$test_root/other-generation" bash scripts/status.sh) || fail 'status for Home output B'
+grep -A2 -Fx 'Home Manager (test-user@host-b)' <<<"$status" | grep -Fxq "  Saved preview build: $test_root/other-generation" || fail 'status ignored Home output B'
+[[ $(wc -l <"$TEST_LOG") -eq 9 ]] || fail 'status activated a Home generation'
+
+# Preview commands must compare the selected output's build, not a shared link.
+export NIXOS_CONFIG=host-a TEST_HOST=host-a TEST_SYSTEM_EXPECTED="$test_root/generation" TEST_DIFF_EXPECTED="$test_root/generation"
+just preview >"$test_root/output" 2>&1 || fail 'preview system output A'
+export NIXOS_CONFIG=host-b TEST_HOST=host-b TEST_SYSTEM_EXPECTED="$test_root/other-generation" TEST_DIFF_EXPECTED="$test_root/other-generation"
+just preview >"$test_root/output" 2>&1 || fail 'preview system output B'
+ln -s "$test_root/generation" "$XDG_STATE_HOME/nix/profiles/home-manager"
+export HOME_CONFIG=test-user@host-b TEST_EXPECTED="$test_root/other-generation" TEST_DIFF_EXPECTED="$test_root/other-generation"
+just home-preview >"$test_root/output" 2>&1 || fail 'preview Home output B'
+[[ $(wc -l <"$TEST_DIFF_LOG") -eq 3 ]] || fail 'preview missed a closure comparison'
+[[ $(wc -l <"$TEST_LOG") -eq 9 ]] || fail 'preview activated a generation'
+
+# Equal desired paths do not let one output borrow another's saved preview.
+rm "$XDG_STATE_HOME/nixos/result-home-test-user@host-b"
+export HOME_CONFIG=test-user@host-b TEST_EXPECTED="$test_root/generation"
+if bash scripts/home-switch.sh >"$test_root/output" 2>&1; then
+  fail 'Home output B borrowed another saved preview'
+fi
+[[ $(wc -l <"$TEST_LOG") -eq 9 ]] || fail 'missing output-specific preview touched the profile'
+just home-build >"$test_root/output" 2>&1 || fail 'build Home output B with equal desired path'
+bash scripts/home-switch.sh >"$test_root/output" 2>&1 || fail 'Home output B cannot keep its own equal-path preview'
+[[ $(wc -l <"$TEST_LOG") -eq 11 ]] || fail 'Home output B did not activate its own saved build'
 
 printf 'Workflow tests passed.\n'

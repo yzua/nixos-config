@@ -6,7 +6,7 @@ source scripts/config.sh
 source scripts/saved-preview-build.sh
 select_home
 
-result="${XDG_STATE_HOME:-$HOME/.local/state}/nixos/result-home"
+result=$(saved_preview_link home "$HOME_CONFIG")
 require_saved_preview_build "$home_ref.activationPackage.outPath" "$result" home-preview >/dev/null
 profile=$(home_profile)
 if [[ -e "$profile" ]]; then

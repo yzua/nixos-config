@@ -50,13 +50,15 @@ status:
 
 # Build a system closure without activating it.
 build:
-    mkdir -p "${XDG_STATE_HOME:-$HOME/.local/state}/nixos"
-    @source scripts/config.sh; select_system; \
-      nix build --no-write-lock-file "$system_ref.config.system.build.toplevel" --out-link "${XDG_STATE_HOME:-$HOME/.local/state}/nixos/result-system"
+    @source scripts/config.sh; source scripts/saved-preview-build.sh; select_system; \
+      result="$(saved_preview_link system "$NIXOS_CONFIG")"; \
+      mkdir -p "$(dirname "$result")"; \
+      nix build --no-write-lock-file "$system_ref.config.system.build.toplevel" --out-link "$result"
 
 # Compare the built system with the one currently running.
 preview: build
-    nix store diff-closures /run/current-system "${XDG_STATE_HOME:-$HOME/.local/state}/nixos/result-system"
+    @source scripts/config.sh; source scripts/saved-preview-build.sh; select_system; \
+      nix store diff-closures /run/current-system "$(saved_preview_link system "$NIXOS_CONFIG")"
 
 # Activate exactly the built closure; run `just preview` and review it first.
 switch:
@@ -70,15 +72,16 @@ switch:
         }; \
         printf 'Opted in to hostname change: %s -> %s\n' "$current_host" "$configured_host"; \
       fi; \
-      result="${XDG_STATE_HOME:-$HOME/.local/state}/nixos/result-system"; \
+      result="$(saved_preview_link system "$NIXOS_CONFIG")"; \
       actual="$(require_saved_preview_build "$system_ref.config.system.build.toplevel.outPath" "$result" preview)"; \
       sudo nixos-rebuild switch --no-reexec --store-path "$actual"
 
 # Build the independent Home Manager activation package without activating it.
 home-build:
-    mkdir -p "${XDG_STATE_HOME:-$HOME/.local/state}/nixos"
-    @source scripts/config.sh; select_home; \
-      nix build --no-write-lock-file "$home_ref.activationPackage" --out-link "${XDG_STATE_HOME:-$HOME/.local/state}/nixos/result-home"
+    @source scripts/config.sh; source scripts/saved-preview-build.sh; select_home; \
+      result="$(saved_preview_link home "$HOME_CONFIG")"; \
+      mkdir -p "$(dirname "$result")"; \
+      nix build --no-write-lock-file "$home_ref.activationPackage" --out-link "$result"
 
 # Compare with a prior Home Manager profile if one exists.
 home-preview: home-build

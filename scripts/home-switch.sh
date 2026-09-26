@@ -14,7 +14,7 @@ if [[ "$configured_user" != "$(id -un)" || "$configured_home" != "$HOME" ]]; the
   exit 1
 fi
 
-result="${XDG_STATE_HOME:-$HOME/.local/state}/nixos/result-home"
+result=$(saved_preview_link home "$HOME_CONFIG")
 actual=$(require_saved_preview_build "$home_ref.activationPackage.outPath" "$result" home-preview)
 if [[ ! -x "$actual/activate" || ! -f "$actual/gen-version" || "$(cat "$actual/gen-version")" != 1 ]]; then
   echo 'Saved Home generation does not support driver-version 1; refusing to switch.' >&2

@@ -19,6 +19,11 @@ not activate; review them before running `just home-switch` (without sudo) or
 `just switch`. If moving apps to Home Manager, preview and switch **Home Manager
 first**, then preview and switch NixOS. Previews may download or build packages.
 
+Each selected NixOS or Home Manager output keeps its own saved preview build.
+Set `NIXOS_CONFIG` or `HOME_CONFIG` to select an output when needed. Older shared
+`result-system` and `result-home` links are ignored; run the corresponding
+preview again before switching after adopting this workflow.
+
 Stage new `.nix` files before checking: Git flakes cannot see untracked files.
 Run `just --list` for other commands.
 

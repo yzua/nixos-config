@@ -6,7 +6,6 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 source scripts/config.sh
 source scripts/saved-preview-build.sh
 
-state_home="${XDG_STATE_HOME:-$HOME/.local/state}"
 evaluation_errors=0
 
 show_status() {
@@ -40,12 +39,12 @@ show_status() {
 select_system
 show_status "NixOS ($NIXOS_CONFIG)" \
   "$system_ref.config.system.build.toplevel.outPath" \
-  /run/current-system "$state_home/nixos/result-system" preview
+  /run/current-system "$(saved_preview_link system "$NIXOS_CONFIG")" preview
 echo
 select_home
 show_status "Home Manager ($HOME_CONFIG)" \
   "$home_ref.activationPackage.outPath" \
-  "$(home_profile)" "$state_home/nixos/result-home" home-preview
+  "$(home_profile)" "$(saved_preview_link home "$HOME_CONFIG")" home-preview
 
 if ((evaluation_errors > 0)); then
   exit 1
