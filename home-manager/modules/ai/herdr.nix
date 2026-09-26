@@ -1,8 +1,11 @@
-# Keep Herdr's desktop preferences declarative without managing its sessions or integrations.
+# Configure Herdr preferences and provide the runtime for its Codex integration.
 
-_:
+{ pkgs, ... }:
 
 {
+  # The bundled Codex SessionStart hook silently skips reporting without python3.
+  home.packages = [ pkgs.python3 ];
+
   xdg.configFile."herdr/config.toml".text = ''
     onboarding = false
 
