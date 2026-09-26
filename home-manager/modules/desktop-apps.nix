@@ -8,6 +8,5 @@
     pkgs.obs-studio
     pkgs.sqlitebrowser
     pkgs.telegram-desktop
-    pkgs.vscode
   ];
 }

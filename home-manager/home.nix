@@ -18,6 +18,7 @@
     ./modules/shell.nix
     ./modules/skills.nix
     ./modules/vesktop.nix
+    ./modules/vscode
   ];
 
   home.username = homeProfile.username;
