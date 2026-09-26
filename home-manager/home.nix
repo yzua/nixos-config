@@ -12,6 +12,7 @@ in
     ./modules/desktop-apps.nix
     ./modules/firefox.nix
     ./modules/gaming.nix
+    ./modules/ghostty.nix
     ./modules/git.nix
     ./modules/gnome.nix
     ./modules/keepassxc.nix
