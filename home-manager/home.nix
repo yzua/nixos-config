@@ -11,6 +11,7 @@ in
     ./modules/cli.nix
     ./modules/desktop-apps.nix
     ./modules/firefox.nix
+    ./modules/gaming.nix
     ./modules/git.nix
     ./modules/gnome.nix
     ./modules/keepassxc.nix

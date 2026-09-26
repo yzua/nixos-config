@@ -29,6 +29,18 @@ Run `just --list` for other commands.
 - `home-manager/home.nix` and `home-manager/modules/`: user apps and preferences.
 - `justfile` and `scripts/`: checks, previews, and guarded switches.
 
+## Games
+
+The opt-in `modules/nixos/gaming.nix` enables Steam and GameMode. Home Manager
+installs Lutris without a second Steam inside its runtime. MangoHud is available
+in both Steam and Lutris, but is not enabled for every game. In Steam Launch
+Options, use `mangohud %command%` for the performance overlay,
+`gamemoderun %command%` for GameMode, or `mangohud gamemoderun %command%` for
+both. In Lutris, enable advanced System options and set the game's Command
+prefix to `mangohud`. Configure game runners and accounts in Lutris; Steam
+manages its own Proton versions and game downloads. Gamescope, GE-Proton,
+system-wide Wine, and Steam LAN firewall ports are not enabled by default.
+
 ## User settings
 
 - **Firefox** (`home-manager/modules/firefox.nix`): changing a profile path

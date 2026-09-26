@@ -3,9 +3,11 @@
 {
   imports = [
     ./hardware-configuration.nix
+    ./graphics.nix
     ../../modules/nixos/base.nix
     ../../modules/nixos/development.nix
     ../../modules/nixos/gnome.nix
+    ../../modules/nixos/gaming.nix
     ../../modules/nixos/mullvad-vpn.nix
     ../../modules/nixos/numtide-cache.nix
   ];
