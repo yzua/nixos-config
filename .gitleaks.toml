@@ -1,0 +1,3 @@
+# Opt this repository into staged secret scanning before commits.
+[extend]
+useDefault = true

@@ -1,4 +1,4 @@
-# Configure user Git identity, signing, and a global conventional commit message hook.
+# Configure user Git identity, signing, and opt-in secret scanning hooks.
 
 # Keep account-specific identity values in the importing profile.
 { gitIdentity }:
@@ -41,6 +41,23 @@
         contents.user.email = gitIdentity.githubEmail;
       }
     ];
+
+    hooks.pre-commit = pkgs.writeShellScript "git-pre-commit" ''
+      set -eu
+
+      # A repository opts in by placing a Gitleaks config at its root.
+      repo_root="$(git rev-parse --show-toplevel)"
+      if [ -f "$repo_root/.gitleaks.toml" ]; then
+        ${pkgs.gitleaks}/bin/gitleaks git --staged --no-banner --redact \
+          --config "$repo_root/.gitleaks.toml" "$repo_root"
+      fi
+
+      # A global hooksPath otherwise hides the repository's own hook.
+      local_hook="$(git rev-parse --git-common-dir)/hooks/pre-commit"
+      if [ -x "$local_hook" ]; then
+        "$local_hook" "$@"
+      fi
+    '';
 
     hooks.commit-msg = pkgs.writeShellScript "git-conventional-commit-msg" ''
       set -eu

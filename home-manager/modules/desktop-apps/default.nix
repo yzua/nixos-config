@@ -9,7 +9,7 @@
     ./vesktop.nix
   ];
 
-  # These apps need no extra extensions or OBS plugins.
+  # These apps need no extra extensions.
   home.packages = [
     pkgs.google-chrome
     pkgs.obs-studio
