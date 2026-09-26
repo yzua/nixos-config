@@ -4,8 +4,11 @@
 saved_preview_link() {
   local kind="$1" output="$2"
   case "$kind" in
-    system | home) printf '%s/nixos/result-%s-%s\n' "${XDG_STATE_HOME:-$HOME/.local/state}" "$kind" "$output" ;;
-    *) printf 'Unsupported preview kind: %s\n' "$kind" >&2; return 1 ;;
+  system | home) printf '%s/nixos/result-%s-%s\n' "${XDG_STATE_HOME:-$HOME/.local/state}" "$kind" "$output" ;;
+  *)
+    printf 'Unsupported preview kind: %s\n' "$kind" >&2
+    return 1
+    ;;
   esac
 }
 
