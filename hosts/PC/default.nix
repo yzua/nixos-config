@@ -10,6 +10,7 @@
     ../../modules/nixos/gaming.nix
     ../../modules/nixos/mullvad-vpn.nix
     ../../modules/nixos/numtide-cache.nix
+    ../../modules/nixos/tor.nix
   ];
 
   boot.loader.systemd-boot.enable = true;

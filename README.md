@@ -41,6 +41,20 @@ prefix to `mangohud`. Configure game runners and accounts in Lutris; Steam
 manages its own Proton versions and game downloads. Gamescope, GE-Proton,
 system-wide Wine, and Steam LAN firewall ports are not enabled by default.
 
+## Tor
+
+`modules/nixos/tor.nix` enables a Tor client on the local SOCKS port (9050) and
+the `torsocks` command. Only applications explicitly using that proxy go through
+Tor; this does not change system DNS, transparently route traffic, or guarantee
+that other applications use Tor. The same module marks the Tor service
+account's outbound traffic for Mullvad's split-tunnel routing; it goes through
+the regular network even when Mullvad is connected. This also means the local
+network/ISP can see that Tor is connecting to entry relays,
+and it can still connect while Mullvad blocks other traffic. DNS handled by
+other processes is not part of this exclusion. Check the routing on a live
+system after switching, especially after updating Mullvad. For anonymous web
+browsing, use Tor Browser rather than pointing a regular browser at this proxy.
+
 ## User settings
 
 - **Firefox** (`home-manager/modules/firefox.nix`): changing a profile path
