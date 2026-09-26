@@ -58,7 +58,9 @@ build:
 # Compare the built system with the one currently running.
 preview: build
     @source scripts/config.sh; source scripts/saved-preview-build.sh; select_system; \
-      nix store diff-closures /run/current-system "$(saved_preview_link system "$NIXOS_CONFIG")"
+      result="$(saved_preview_link system "$NIXOS_CONFIG")"; \
+      actual="$(require_saved_preview_build "$system_ref.config.system.build.toplevel.outPath" "$result" preview)"; \
+      nix store diff-closures /run/current-system "$actual"
 
 # Activate exactly the built closure; run `just preview` and review it first.
 switch:

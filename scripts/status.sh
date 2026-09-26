@@ -10,9 +10,9 @@ evaluation_errors=0
 
 show_status() {
   local label="$1" output="$2" active_link="$3" built_link="$4" preview="$5"
-  local active built desired
+  local active built desired saved_valid=1
   active=$(generation_target "$active_link")
-  built=$(generation_target "$built_link")
+  built=$(saved_preview_target "$built_link") || saved_valid=0
 
   printf '%s\n' "$label"
   printf '  Active: %s\n' "$active"
@@ -25,11 +25,11 @@ show_status() {
   fi
   printf '  Desired from flake: %s\n' "$desired"
 
-  if [[ "$active" == "$desired" && "$built" == "$desired" ]]; then
+  if [[ "$active" == "$desired" && "$saved_valid" == 1 && "$built" == "$desired" ]]; then
     echo '  State: active and saved build match the flake.'
   elif [[ "$active" == "$desired" ]]; then
     printf '  State: active matches the flake; saved build is missing/stale (run just %s before a future switch).\n' "$preview"
-  elif [[ "$built" == "$desired" ]]; then
+  elif [[ "$saved_valid" == 1 && "$built" == "$desired" ]]; then
     printf '  State: saved build matches the flake, but is NOT active. Review just %s before switching.\n' "$preview"
   else
     printf '  State: neither active nor saved build matches the flake (run just %s).\n' "$preview"

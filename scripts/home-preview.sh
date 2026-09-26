@@ -7,15 +7,15 @@ source scripts/saved-preview-build.sh
 select_home
 
 result=$(saved_preview_link home "$HOME_CONFIG")
-require_saved_preview_build "$home_ref.activationPackage.outPath" "$result" home-preview >/dev/null
+actual=$(require_saved_preview_build "$home_ref.activationPackage.outPath" "$result" home-preview)
 profile=$(home_profile)
 if [[ -e "$profile" ]]; then
-  nix store diff-closures "$profile" "$result"
+  nix store diff-closures "$profile" "$actual"
 else
   echo 'No prior Home Manager profile; this would be the first activation'
 fi
 
-files=$(readlink -f "$result/home-files")
+files=$(readlink -f "$actual/home-files")
 old_files=''
 if [[ -e "$profile/home-files" ]]; then
   old_files=$(readlink -f "$profile/home-files")
@@ -29,6 +29,13 @@ while IFS= read -r path; do
     fi
   fi
 done < <(find "$files" -type l -printf '%P\n')
+if [[ -n "$old_files" ]]; then
+  while IFS= read -r path; do
+    if [[ ! -L "$files/$path" ]]; then
+      printf 'No longer managed: ~/%s\n' "$path"
+    fi
+  done < <(find "$old_files" -type l -printf '%P\n' | sort)
+fi
 
 # Evaluate one known non-secret preference, not the entire dconf tree. Other
 # Home outputs without this setting should still be previewable.

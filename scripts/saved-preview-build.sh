@@ -22,19 +22,35 @@ generation_target() {
   fi
 }
 
+saved_preview_target() {
+  if [[ -L "$1" ]]; then
+    if [[ -e "$1" ]]; then
+      readlink -f "$1"
+    else
+      printf 'broken symlink (%s)\n' "$1"
+      return 1
+    fi
+  elif [[ -e "$1" ]]; then
+    printf 'not a symlink (%s)\n' "$1"
+    return 1
+  else
+    printf 'missing (%s)\n' "$1"
+    return 1
+  fi
+}
+
 desired_generation() {
   nix eval --raw --no-write-lock-file "$1"
 }
 
 require_saved_preview_build() {
   local output="$1" result="$2" preview="$3" expected actual
-  if [[ ! -L "$result" || ! -e "$result" ]]; then
+  if ! actual=$(saved_preview_target "$result"); then
     printf 'No valid saved preview build; run just %s first\n' "$preview" >&2
     return 1
   fi
 
   expected=$(desired_generation "$output") || return 1
-  actual=$(readlink -f "$result") || return 1
   if [[ "$actual" != "$expected" ]]; then
     printf 'Saved preview build is stale; run just %s first\n' "$preview" >&2
     return 1

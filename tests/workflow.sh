@@ -26,6 +26,9 @@ case "$*" in
     printf 'Missing build out-link\n' >&2
     exit 1 ;;
   store\ diff-closures*)
+    if [[ -n "${TEST_RETARGET_ON_DIFF:-}" ]]; then
+      ln -sfn "$TEST_RETARGET_ON_DIFF" "$TEST_RETARGET_LINK"
+    fi
     [[ $(readlink -f "$4") == "$TEST_DIFF_EXPECTED" ]] || {
       printf 'Compared the wrong saved build: %s\n' "$4" >&2
       exit 1
@@ -164,6 +167,7 @@ grep -Fq 'Managed home files:' <<<"$settings" || fail 'managed files missing fro
 grep -Fq 'No prior Home Manager profile' <<<"$settings" || fail 'initial profile not reported'
 grep -Fq "$TEST_SOURCES" <<<"$settings" || fail 'desired input sources missing'
 grep -Fq "$TEST_ACTIVE_SOURCES" <<<"$settings" || fail 'active input sources missing'
+[[ "$settings" != *'No longer managed:'* ]] || fail 'first Home preview invented a prior file'
 [[ "$settings" != *secret* ]] || fail 'settings preview exposed unrelated values'
 [[ $(wc -l <"$TEST_LOG") -eq 3 ]] || fail 'settings preview activated a generation'
 
@@ -206,6 +210,30 @@ status=$(HOME_CONFIG=test-user@host-b TEST_EXPECTED="$test_root/other-generation
 grep -A2 -Fx 'Home Manager (test-user@host-b)' <<<"$status" | grep -Fxq "  Saved preview build: $test_root/other-generation" || fail 'status ignored Home output B'
 [[ $(wc -l <"$TEST_LOG") -eq 9 ]] || fail 'status activated a Home generation'
 
+# Status must not count a plain directory as a saved preview build, even when
+# that directory matches the desired generation's path.
+invalid_result="$XDG_STATE_HOME/nixos/result-home-test-user@elsewhere"
+rm "$invalid_result"
+mkdir "$invalid_result"
+status=$(HOME_CONFIG=test-user@elsewhere TEST_EXPECTED="$invalid_result" bash scripts/status.sh) || fail 'status for invalid Home preview'
+grep -Fq "  Saved preview build: not a symlink ($invalid_result)" <<<"$status" || fail 'status accepted a directory as a saved preview'
+grep -Fq 'State: neither active nor saved build matches the flake' <<<"$status" || fail 'invalid Home preview matched desired generation'
+ln -s "$invalid_result" "$XDG_STATE_HOME/nix/profiles/home-manager"
+status=$(HOME_CONFIG=test-user@elsewhere TEST_EXPECTED="$invalid_result" bash scripts/status.sh) || fail 'status with active generation and invalid saved preview'
+grep -Fq 'State: active matches the flake; saved build is missing/stale' <<<"$status" || fail 'active generation concealed an invalid saved preview'
+rm "$XDG_STATE_HOME/nix/profiles/home-manager"
+if HOME_CONFIG=test-user@elsewhere TEST_EXPECTED="$invalid_result" bash scripts/home-switch.sh >"$test_root/output" 2>&1; then
+  fail 'plain directory was activated as a Home preview'
+fi
+[[ $(wc -l <"$TEST_LOG") -eq 9 ]] || fail 'invalid Home preview touched the profile'
+rmdir "$invalid_result"
+ln -s "$test_root/missing-generation" "$invalid_result"
+status=$(HOME_CONFIG=test-user@elsewhere TEST_EXPECTED="$test_root/missing-generation" bash scripts/status.sh) || fail 'status for broken Home preview'
+grep -Fq "  Saved preview build: broken symlink ($invalid_result)" <<<"$status" || fail 'status accepted a broken saved preview'
+grep -Fq 'State: neither active nor saved build matches the flake' <<<"$status" || fail 'broken Home preview matched desired generation'
+rm "$invalid_result"
+ln -s "$test_root/generation" "$invalid_result"
+
 # Preview commands must compare the selected output's build, not a shared link.
 export NIXOS_CONFIG=host-a TEST_HOST=host-a TEST_SYSTEM_EXPECTED="$test_root/generation" TEST_DIFF_EXPECTED="$test_root/generation"
 just preview >"$test_root/output" 2>&1 || fail 'preview system output A'
@@ -216,6 +244,39 @@ export HOME_CONFIG=test-user@host-b TEST_EXPECTED="$test_root/other-generation" 
 just home-preview >"$test_root/output" 2>&1 || fail 'preview Home output B'
 [[ $(wc -l <"$TEST_DIFF_LOG") -eq 3 ]] || fail 'preview missed a closure comparison'
 [[ $(wc -l <"$TEST_LOG") -eq 9 ]] || fail 'preview activated a generation'
+
+# Even if a saved link changes during a diff, both previews must report the
+# validated generation rather than following the link again.
+export NIXOS_CONFIG=host-a TEST_HOST=host-a TEST_SYSTEM_EXPECTED="$test_root/generation" TEST_DIFF_EXPECTED="$test_root/generation"
+export TEST_RETARGET_LINK="$XDG_STATE_HOME/nixos/result-system-host-a" TEST_RETARGET_ON_DIFF="$test_root/other-generation"
+just preview >"$test_root/output" 2>&1 || fail 'system preview followed a changed saved link'
+ln -sfn "$test_root/generation" "$TEST_RETARGET_LINK"
+
+ln -s "$test_root/only-in-saved-build" "$test_root/other-generation/home-files/pinned-only"
+export HOME_CONFIG=test-user@host-b TEST_EXPECTED="$test_root/other-generation" TEST_DIFF_EXPECTED="$test_root/other-generation"
+export TEST_RETARGET_LINK="$XDG_STATE_HOME/nixos/result-home-$HOME_CONFIG" TEST_RETARGET_ON_DIFF="$test_root/generation"
+preview=$(bash scripts/home-preview.sh) || fail 'Home preview followed a changed saved link'
+grep -Fq '  ~/pinned-only' <<<"$preview" || fail 'Home preview read files from a changed saved link'
+ln -sfn "$test_root/other-generation" "$TEST_RETARGET_LINK"
+unset TEST_RETARGET_LINK TEST_RETARGET_ON_DIFF
+
+# Compare the active profile's managed files with the saved build. A missing
+# link is no longer managed, while a link retained in both must not be listed.
+ln -s "$test_root/old-content" "$test_root/generation/home-files/removed"
+ln -s "$test_root/old-content" "$test_root/generation/home-files/kept"
+ln -s "$test_root/new-content" "$test_root/other-generation/home-files/kept"
+mkdir -p "$test_root/generation/home-files/.config/app" "$test_root/other-generation/home-files/.config/app"
+ln -s "$test_root/old-content" "$test_root/generation/home-files/.config/app/removed.conf"
+ln -s "$test_root/old-content" "$test_root/generation/home-files/.config/app/kept.conf"
+ln -s "$test_root/new-content" "$test_root/other-generation/home-files/.config/app/kept.conf"
+preview=$(bash scripts/home-preview.sh) || fail 'Home managed-file delta preview'
+grep -Fq 'No longer managed: ~/removed' <<<"$preview" || fail 'Home preview omitted a formerly managed file'
+grep -Fq 'No longer managed: ~/.config/app/removed.conf' <<<"$preview" || fail 'Home preview omitted a nested formerly managed file'
+[[ "$preview" != *'No longer managed: ~/kept'* ]] || fail 'Home preview marked a retained file as removed'
+[[ "$preview" != *'No longer managed: ~/.config/app/kept.conf'* ]] || fail 'Home preview marked a nested retained file as removed'
+preview=$(TEST_SOURCES='' bash scripts/home-preview.sh) || fail 'Home managed-file preview without GNOME sources'
+grep -Fq 'No longer managed: ~/.config/app/removed.conf' <<<"$preview" || fail 'GNOME-free Home preview omitted managed-file changes'
+grep -Fq 'No GNOME input sources declared by this Home output.' <<<"$preview" || fail 'GNOME-free Home preview omitted the settings notice'
 
 # Equal desired paths do not let one output borrow another's saved preview.
 rm "$XDG_STATE_HOME/nixos/result-home-test-user@host-b"
