@@ -1,14 +1,54 @@
 # VS Code with Nix-managed extensions and editor preferences.
 
-{ pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 let
   extensions = pkgs.vscode-extensions;
+  settings = (pkgs.formats.json { }).generate "vscode-settings" (
+    import ./settings.nix { inherit pkgs; }
+  );
+  settingsPath = "${config.xdg.configHome}/Code/User/settings.json";
+  backupRoot = "${config.xdg.stateHome}/nixos";
 in
 {
   # The editor font is installed for this user rather than assumed to exist.
   home.packages = [ pkgs.jetbrains-mono ];
   fonts.fontconfig.enable = true;
+
+  # Home Manager's userSettings option links settings.json into the read-only
+  # store. Extensions write to that file, so install a writable Nix baseline
+  # after Home Manager removes the previous generation's managed symlink.
+  home.activation.vscodeWritableSettings = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    target=${lib.escapeShellArg settingsPath}
+    if [ -v DRY_RUN ]; then
+      echo "Would install writable VS Code settings at $target after linking"
+    else
+      if [ -L "$target" ] || { [ -e "$target" ] && [ ! -f "$target" ]; }; then
+        echo "VS Code settings path is not a regular file: $target" >&2
+        exit 1
+      fi
+
+      if [ ! -f "$target" ] || ! cmp -s ${settings} "$target"; then
+        mkdir -p "$(dirname "$target")"
+        if [ -f "$target" ]; then
+          mkdir -p ${lib.escapeShellArg backupRoot}
+          backupDir="$(mktemp -d ${lib.escapeShellArg "${backupRoot}/vscode-settings.XXXXXXXX"})"
+          cp -p "$target" "$backupDir/settings.json"
+          echo "Backed up previous VS Code settings to $backupDir/settings.json"
+        fi
+        tmp="$(mktemp "$(dirname "$target")/.settings.json.XXXXXXXX")"
+        cp ${settings} "$tmp"
+        chmod 600 "$tmp"
+        mv -f "$tmp" "$target"
+      fi
+      chmod 600 "$target"
+    fi
+  '';
 
   programs.vscode = {
     enable = true;
@@ -16,10 +56,6 @@ in
     mutableExtensionsDir = false;
 
     profiles.default = {
-      enableUpdateCheck = false;
-      enableExtensionUpdateCheck = false;
-      userSettings = import ./settings.nix { inherit pkgs; };
-
       # Use Nixpkgs' pinned VSIXes instead of maintaining Marketplace hashes.
       extensions = [
         # Nix and project environments.

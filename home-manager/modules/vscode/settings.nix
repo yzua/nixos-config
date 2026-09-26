@@ -135,7 +135,10 @@ in
   ];
 
   # The package and extensions update through Nix, never from within Code.
+  "update.mode" = "none";
+  "extensions.autoCheckUpdates" = false;
   "extensions.autoUpdate" = false;
+  "vsicons.dontShowNewVersionMessage" = true;
   "update.showReleaseNotes" = false;
   "settingsSync.enable" = false;
   "telemetry.telemetryLevel" = "off";
