@@ -9,15 +9,12 @@ From the repo root, with Nix flakes and `just` available (or enter the
 project's tool shell with `nix develop`):
 
 ```sh
-just check          # headers, flake evaluation, and duplicate package declarations
+just check          # warn about untracked Nix files and evaluate the flake
 just status         # active vs. saved preview vs. desired generations
 ```
 
-Neither command builds or activates. `just check` warns about untracked `.nix`
-files, checks purpose headers, runs `nix flake check --no-build` and detects
-duplicates in package lists declared by this repo (not packages supplied by
-NixOS/Home Manager modules). Stage new `.nix` files before evaluation: Git
-flakes do not see untracked files.
+Neither command builds or activates. Stage new `.nix` files before evaluation:
+Git flakes do not see untracked files.
 
 ## Preview and activation
 
@@ -26,7 +23,8 @@ just home-preview   # build and compare the Home Manager activation
 just preview        # build and compare the NixOS system closure
 ```
 
-Previews may download or build packages, but do not activate anything. The Home
+Previews may download or build packages, but do not activate anything. A
+successful preview saves the build that its switch command will use. The Home
 preview also lists managed files, existing-path conflicts, no-longer-managed
 files, and declared GNOME input sources; it is **not** a complete dconf diff.
 Review the relevant preview, then explicitly run `just home-switch` (as the
@@ -44,11 +42,9 @@ before switching after adopting this workflow. Unqualified `nixos-rebuild`
 uses `/etc/nixos`, not this flake.
 
 Home preview and status refuse an output belonging to another user or home
-directory rather than compare it with the caller's active state; `just home-build`
-can still build it when `HOME_CONFIG` is explicit. When selecting a default
-Home output, an explicit `NIXOS_CONFIG` uses its configured hostname, not its
-output name. An automatically selected NixOS output does not override the
-running hostname.
+directory rather than compare it with the caller's active state. The sole NixOS
+or Home output is selected automatically; when a flake has several, set
+`NIXOS_CONFIG` or `HOME_CONFIG` explicitly.
 
 ## Development checks
 

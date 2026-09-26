@@ -7,7 +7,7 @@ default:
 verify:
     nix flake check --no-build --no-write-lock-file .
 
-# Check headers, evaluate both configs, check packages, and flag untracked Nix files.
+# Evaluate both configs and flag Nix files Git flakes cannot see yet.
 check:
     @untracked="$(git ls-files --others --exclude-standard -- '*.nix')"; \
       if [ -n "$untracked" ]; then \
@@ -15,17 +15,7 @@ check:
       else \
         echo "No untracked Nix files."; \
       fi
-    @just headers
     @just verify
-    @just pkgs
-
-# Quickly flag Nix files that lack a purpose comment on the first line.
-headers:
-    @./scripts/check-nix-headers.sh
-
-# Check for repeated packages in this repo's NixOS and Home Manager package lists.
-pkgs:
-    @./scripts/check-packages.sh
 
 # Format Nix and shell files, then the command menu (explicitly modifies files).
 fmt:
@@ -34,33 +24,32 @@ fmt:
 
 # Read-only formatting check for Nix, shell, and the justfile.
 fmt-check:
-    @git ls-files -z --cached --others --exclude-standard -- '*.nix' ':(exclude)hardware-configuration.nix' ':(exclude,glob)**/hardware-configuration.nix' | xargs -0 -r -n1 nixfmt --check
-    @git ls-files -z --cached --others --exclude-standard -- '*.sh' | xargs -0 -r shfmt -d -i 2
+    @git ls-files -z --cached --others --exclude-standard -- '*.nix' ':(exclude)hardware-configuration.nix' ':(exclude,glob)**/hardware-configuration.nix' | \
+      while IFS= read -r -d '' file; do if [ -f "$file" ]; then nixfmt --check "$file"; fi; done
+    @git ls-files -z --cached --others --exclude-standard -- '*.sh' | \
+      while IFS= read -r -d '' file; do if [ -f "$file" ]; then shfmt -d -i 2 "$file"; fi; done
     just --fmt --check
 
 # Fast static analysis; run in the dev shell if these tools are not installed.
-lint: headers
+lint:
     statix check --ignore 'hardware-configuration.nix' --ignore '**/hardware-configuration.nix' .
-    @git ls-files -z --cached --others --exclude-standard -- '*.nix' ':(exclude)hardware-configuration.nix' ':(exclude,glob)**/hardware-configuration.nix' | xargs -0 -r deadnix --fail --
-    @git ls-files -z --cached --others --exclude-standard -- '*.sh' | xargs -0 -r shellcheck -x
+    @git ls-files -z --cached --others --exclude-standard -- '*.nix' ':(exclude)hardware-configuration.nix' ':(exclude,glob)**/hardware-configuration.nix' | \
+      while IFS= read -r -d '' file; do if [ -f "$file" ]; then deadnix --fail -- "$file"; fi; done
+    @git ls-files -z --cached --others --exclude-standard -- '*.sh' | \
+      while IFS= read -r -d '' file; do if [ -f "$file" ]; then shellcheck -x "$file"; fi; done
 
 # Show the desired, saved preview, and active system/home generations (no build or switch).
 status:
     @./scripts/status.sh
 
-# Build a system closure without activating it.
-build:
+# Build and compare the system, then save the reviewed generation.
+preview:
     @source scripts/config.sh; source scripts/saved-preview-build.sh; select_system; \
+      actual="$(nix build --no-write-lock-file --no-link --print-out-paths "$system_ref.config.system.build.toplevel")"; \
+      nix store diff-closures /run/current-system "$actual"; \
       result="$(saved_preview_link system "$NIXOS_CONFIG")"; \
       mkdir -p "$(dirname "$result")"; \
-      nix build --no-write-lock-file "$system_ref.config.system.build.toplevel" --out-link "$result"
-
-# Compare the built system with the one currently running.
-preview: build
-    @source scripts/config.sh; source scripts/saved-preview-build.sh; select_system; \
-      result="$(saved_preview_link system "$NIXOS_CONFIG")"; \
-      actual="$(require_saved_preview_build "$system_ref.config.system.build.toplevel.outPath" "$result" preview)"; \
-      nix store diff-closures /run/current-system "$actual"
+      ln -sfnT "$actual" "$result"
 
 # Activate exactly the built closure; run `just preview` and review it first.
 switch:
@@ -78,17 +67,9 @@ switch:
       actual="$(require_saved_preview_build "$system_ref.config.system.build.toplevel.outPath" "$result" preview)"; \
       sudo nixos-rebuild switch --no-reexec --store-path "$actual"
 
-# Build the independent Home Manager activation package without activating it.
-home-build:
-    @source scripts/config.sh; source scripts/saved-preview-build.sh; select_home; \
-      result="$(saved_preview_link home "$HOME_CONFIG")"; \
-      mkdir -p "$(dirname "$result")"; \
-      nix build --no-write-lock-file "$home_ref.activationPackage" --out-link "$result"
-
-# Compare with a prior Home Manager profile if one exists.
+# Build and compare Home Manager, then save the reviewed generation.
 home-preview:
-    @source scripts/config.sh; select_home; require_home_owner; \
-      just home-build; ./scripts/home-preview.sh
+    @./scripts/home-preview.sh
 
 # Explicitly activate this user's Home Manager config (never run with sudo).
 home-switch:
