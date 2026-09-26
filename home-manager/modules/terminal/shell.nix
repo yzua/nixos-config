@@ -10,7 +10,6 @@ let
     "....." = "cd ../../../..";
     # Opt-in full-access launches; plain CLI names remain available for subcommands.
     cx = "codex --yolo";
-    hd = "herdr";
     j = "just";
     killall = "pkill -f";
     ll = "ls -lah";
@@ -44,6 +43,21 @@ in
         && command -v tmux >/dev/null 2>&1; then
         tmux new-session -A -s main
       fi
+
+      # Herdr manages persistent panes itself. Its palette replies can leak
+      # into a child prompt when the client runs inside tmux 3.6.
+      herdr() {
+        if [[ $# -eq 0 && -n ''${TMUX-} && -z ''${SSH_CONNECTION-} && -n ''${WAYLAND_DISPLAY-} ]] \
+          && command -v ghostty >/dev/null 2>&1; then
+          env -u TMUX -u TMUX_PANE \
+            -u HERDR_ENV -u HERDR_PANE_ID -u HERDR_SOCKET_PATH \
+            -u HERDR_STARTUP_CWD -u HERDR_TAB_ID -u HERDR_WORKSPACE_ID \
+            -u HERDR_BIN_PATH ghostty -e "$(whence -p herdr)"
+        else
+          command herdr "$@"
+        fi
+      }
+      hd() { herdr "$@"; }
     '';
   };
 
@@ -118,7 +132,8 @@ in
     baseIndex = 1;
     terminal = "tmux-256color";
     historyLimit = 10000;
-    focusEvents = true;
+    # Focus reports trigger repeated palette queries in nested terminal apps.
+    focusEvents = false;
     # Use Shift-drag for Ghostty text selection while tmux handles the mouse.
     mouse = true;
     extraConfig = ''
