@@ -8,13 +8,18 @@ let
     "..." = "cd ../..";
     "...." = "cd ../../..";
     "....." = "cd ../../../..";
+    # Opt-in full-access launches; plain CLI names remain available for subcommands.
+    cx = "codex --yolo";
     hd = "herdr";
     j = "just";
     killall = "pkill -f";
     ll = "ls -lah";
     mf = "microfetch";
     myip = "curl -s https://am.i.mullvad.net/ip";
+    oc = "opencode --auto";
     open = "xdg-open";
+    # Pi's tools already run without approval; this skips project trust for the run.
+    p = "pi --approve";
   };
   # Keep account-owned CLIs available in either interactive shell without
   # placing their mutable contents in the Nix store.
