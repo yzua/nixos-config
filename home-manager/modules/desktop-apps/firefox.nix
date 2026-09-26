@@ -128,6 +128,14 @@ let
   };
 in
 {
+  stylix.targets.firefox = {
+    profileNames = [
+      "personal"
+      "work"
+    ];
+    firefoxGnomeTheme.enable = true;
+  };
+
   programs.firefox = {
     enable = true;
     profiles = {

@@ -9,6 +9,10 @@
       url = "github:nix-community/home-manager/release-26.05";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    stylix = {
+      url = "github:nix-community/stylix/release-26.05";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     sops-nix = {
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -33,6 +37,7 @@
     {
       nixpkgs,
       home-manager,
+      stylix,
       sops-nix,
       nixcord,
       llm-agents,
@@ -89,6 +94,7 @@
         };
         modules = [
           ./home-manager/home.nix
+          stylix.homeModules.stylix
           sops-nix.homeManagerModules.sops
         ];
       };

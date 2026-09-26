@@ -16,10 +16,6 @@ let
   backupRoot = "${config.xdg.stateHome}/nixos";
 in
 {
-  # The editor font is installed for this user rather than assumed to exist.
-  home.packages = [ pkgs.jetbrains-mono ];
-  fonts.fontconfig.enable = true;
-
   # Home Manager's userSettings option links settings.json into the read-only
   # store. Extensions write to that file, so install a writable Nix baseline
   # after Home Manager removes the previous generation's managed symlink.

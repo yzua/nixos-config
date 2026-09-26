@@ -12,6 +12,7 @@
     ./modules/mime.nix
     ./modules/secrets.nix
     ./modules/terminal
+    ./modules/theme.nix
     ./modules/vscode
   ];
 

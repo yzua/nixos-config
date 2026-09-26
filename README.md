@@ -59,6 +59,17 @@ changes to preview/switch scripts, run `bash tests/workflow.sh` too: it mocks
 Nix and activation, so it needs neither a real build nor a switch. The workflow
 tests are not part of `just check`. Use `just --list` for other recipes.
 
+## Appearance
+
+The standalone Home Manager profile uses Stylix's `release-26.05` module for
+Gruvbox Dark Soft, Inter for desktop text, Noto Serif for documents, JetBrains
+Mono for terminals, and Noto Color Emoji. Edit `home-manager/modules/theme.nix`
+to change the palette or fonts, then run `just check` and `just home-preview`
+before `just home-switch`. The user GNOME shell, GTK apps, Firefox's Personal
+and Work profiles, Ghostty, and the configured terminal tools receive the
+palette. VS Code keeps its existing Gruvbox Dark Soft extension and writable
+settings. GDM is not themed by this user-level module.
+
 ## Layout
 
 - `flake.nix` and `flake.lock`: outputs and pinned dependencies.
