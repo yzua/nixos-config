@@ -1,4 +1,4 @@
-# Opt-in GNOME desktop stack: input method, login, printing, and audio.
+# Opt-in GNOME desktop stack: input method, login, and printing.
 
 {
   # GNOME uses IBus for input management; the English/Arabic XKB sources
@@ -18,13 +18,4 @@
   };
 
   services.printing.enable = true;
-
-  services.pulseaudio.enable = false;
-  security.rtkit.enable = true;
-  services.pipewire = {
-    enable = true;
-    alsa.enable = true;
-    alsa.support32Bit = true;
-    pulse.enable = true;
-  };
 }

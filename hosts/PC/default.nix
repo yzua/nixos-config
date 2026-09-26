@@ -5,6 +5,7 @@
     ./hardware-configuration.nix
     ./graphics.nix
     ../../modules/nixos/base.nix
+    ../../modules/nixos/audio.nix
     ../../modules/nixos/development.nix
     ../../modules/nixos/gnome.nix
     ../../modules/nixos/gaming.nix

@@ -34,6 +34,21 @@ Run `just --list` for other commands.
 - `home-manager/home.nix` and `home-manager/modules/`: user apps and preferences.
 - `justfile` and `scripts/`: checks, previews, and guarded switches.
 
+## Audio
+
+`modules/nixos/audio.nix` keeps PipeWire separate from GNOME and adds RNNoise
+microphone suppression. WirePlumber inserts the filter for recordings from the
+default input; select the physical mic in GNOME Sound rather than choosing a
+separate virtual device. It is available each session but only processes audio
+while the mic is in use. Apps recording outside PipeWire, or targeting a
+different non-default mic, may bypass it.
+
+After reviewing `just preview` and explicitly running `just switch`, log out
+and back in (or restart the user PipeWire service, which interrupts audio) to
+load the filter. Check `wpctl status` and make a test recording. If speech is
+cut off, lower `VAD Threshold (%)` in the audio module; avoid stacking another
+noise-suppression effect in the calling app.
+
 ## Games
 
 The opt-in `modules/nixos/gaming.nix` enables Steam and GameMode. Home Manager
