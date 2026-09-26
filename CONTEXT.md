@@ -13,3 +13,6 @@ The generation currently described by the selected flake output, whether or not 
 
 **Active generation**:
 The generation currently selected for the running system or the caller's Home Manager profile; it may differ from both the desired generation and the saved preview build.
+
+**Home output owner**:
+The user and home directory declared by a selected Home Manager output. Only that matching caller can meaningfully compare the output with their active Home Manager generation, files, and session settings, or activate it. Building the output alone does not require this match.

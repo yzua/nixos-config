@@ -43,6 +43,13 @@ Older shared `result-system`/`result-home` links are ignored: preview again
 before switching after adopting this workflow. Unqualified `nixos-rebuild`
 uses `/etc/nixos`, not this flake.
 
+Home preview and status refuse an output belonging to another user or home
+directory rather than compare it with the caller's active state; `just home-build`
+can still build it when `HOME_CONFIG` is explicit. When selecting a default
+Home output, an explicit `NIXOS_CONFIG` uses its configured hostname, not its
+output name. An automatically selected NixOS output does not override the
+running hostname.
+
 ## Development checks
 
 In the project dev shell (`nix develop`), run `just fmt-check` and `just lint`

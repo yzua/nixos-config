@@ -5,6 +5,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 source scripts/config.sh
 source scripts/saved-preview-build.sh
 select_home
+require_home_owner
 
 result=$(saved_preview_link home "$HOME_CONFIG")
 actual=$(require_saved_preview_build "$home_ref.activationPackage.outPath" "$result" home-preview)

@@ -6,13 +6,7 @@ source scripts/config.sh
 source scripts/saved-preview-build.sh
 
 select_home
-configured_user=$(nix eval --raw --no-write-lock-file "$home_ref.config.home.username")
-configured_home=$(nix eval --raw --no-write-lock-file "$home_ref.config.home.homeDirectory")
-if [[ "$configured_user" != "$(id -un)" || "$configured_home" != "$HOME" ]]; then
-  printf 'Home output %s belongs to %s (%s), not %s (%s). Refusing to switch.\n' \
-    "$HOME_CONFIG" "$configured_user" "$configured_home" "$(id -un)" "$HOME" >&2
-  exit 1
-fi
+require_home_owner
 
 result=$(saved_preview_link home "$HOME_CONFIG")
 actual=$(require_saved_preview_build "$home_ref.activationPackage.outPath" "$result" home-preview)

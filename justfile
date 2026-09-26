@@ -86,8 +86,9 @@ home-build:
       nix build --no-write-lock-file "$home_ref.activationPackage" --out-link "$result"
 
 # Compare with a prior Home Manager profile if one exists.
-home-preview: home-build
-    @./scripts/home-preview.sh
+home-preview:
+    @source scripts/config.sh; select_home; require_home_owner; \
+      just home-build; ./scripts/home-preview.sh
 
 # Explicitly activate this user's Home Manager config (never run with sudo).
 home-switch:

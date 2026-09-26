@@ -42,6 +42,7 @@ show_status "NixOS ($NIXOS_CONFIG)" \
   /run/current-system "$(saved_preview_link system "$NIXOS_CONFIG")" preview
 echo
 select_home
+require_home_owner
 show_status "Home Manager ($HOME_CONFIG)" \
   "$home_ref.activationPackage.outPath" \
   "$(home_profile)" "$(saved_preview_link home "$HOME_CONFIG")" home-preview

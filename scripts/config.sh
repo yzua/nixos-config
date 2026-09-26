@@ -25,6 +25,10 @@ select_system() {
   fi
 
   candidate="${NIXOS_CONFIG:-}"
+  if [[ -z "${system_selection_explicit+x}" ]]; then
+    system_selection_explicit=0
+    [[ -z "$candidate" ]] || system_selection_explicit=1
+  fi
   if [[ -z "$candidate" ]]; then
     if has_output "$(hostname)" "$names"; then
       candidate=$(hostname)
@@ -56,13 +60,17 @@ select_home() {
   candidate="${HOME_CONFIG:-}"
   if [[ -z "$candidate" ]]; then
     # Home-only recipes must not require a NixOS output. An explicit system
-    # selection still supplies the host when the caller needs both outputs.
+    # selection supplies its configured hostname when both outputs are needed.
     host=$(hostname)
-    if [[ -n "${NIXOS_CONFIG:-}" ]]; then
+    if [[ -n "${NIXOS_CONFIG:-}" && "${system_selection_explicit:-1}" == 1 ]]; then
       if [[ -z "${system_ref:-}" ]]; then
         select_system || return 1
       fi
-      host="$NIXOS_CONFIG"
+      host=$(nix eval --raw --no-write-lock-file "$system_ref.config.networking.hostName") || return 1
+      if [[ -z "$host" ]]; then
+        printf 'Selected NixOS output %s has no hostname; set HOME_CONFIG explicitly.\n' "$NIXOS_CONFIG" >&2
+        return 1
+      fi
     fi
     conventional="$(id -un)@${host}"
     if has_output "$conventional" "$names"; then
@@ -95,4 +103,15 @@ select_home() {
   # shellcheck disable=SC2034
   home_ref=".#homeConfigurations.\"${HOME_CONFIG}\""
   export HOME_CONFIG
+}
+
+require_home_owner() {
+  local configured_user configured_home
+  configured_user=$(nix eval --raw --no-write-lock-file "$home_ref.config.home.username") || return 1
+  configured_home=$(nix eval --raw --no-write-lock-file "$home_ref.config.home.homeDirectory") || return 1
+  if [[ "$configured_user" != "$(id -un)" || "$configured_home" != "$HOME" ]]; then
+    printf "Home output %s belongs to %s (%s), not %s (%s); refusing to use the caller's Home Manager state.\n" \
+      "$HOME_CONFIG" "$configured_user" "$configured_home" "$(id -un)" "$HOME" >&2
+    return 1
+  fi
 }
