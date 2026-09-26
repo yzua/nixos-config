@@ -4,6 +4,10 @@
 
 let
   githubEmail = "260740417+yzua@users.noreply.github.com";
+  localCliPath = ''
+    export PATH="$HOME/.npm-global/bin:$PATH"
+    export PATH="$HOME/.opencode/bin:$PATH"
+  '';
 in
 {
   imports = [
@@ -42,12 +46,10 @@ in
   home.username = "yz";
   home.homeDirectory = "/home/yz";
   home.stateVersion = "26.05";
-  # Preserve the PATH order from this account's existing .bashrc when Home
-  # Manager takes ownership of it; do not package the mutable binaries in Nix.
-  programs.bash.bashrcExtra = ''
-    export PATH="$HOME/.npm-global/bin:$PATH"
-    export PATH="$HOME/.opencode/bin:$PATH"
-  '';
+  # Keep account-owned CLIs available in either interactive shell without
+  # placing their mutable contents in the Nix store.
+  programs.bash.bashrcExtra = localCliPath;
+  programs.zsh.initContent = localCliPath;
   home.packages = [
     pkgs.gh
     pkgs.telegram-desktop

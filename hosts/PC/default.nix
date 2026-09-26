@@ -1,5 +1,7 @@
 # PC host entry point: hardware, boot, account, and shared NixOS modules.
 
+{ pkgs, ... }:
+
 {
   imports = [
     ./hardware-configuration.nix
@@ -22,9 +24,14 @@
   # Etc/GMT signs are reversed: GMT-3 is a fixed UTC+03:00, with no DST.
   time.timeZone = "Etc/GMT-3";
 
+  # Zsh is this account's login shell; expose system package completions to it.
+  programs.zsh.enable = true;
+  environment.pathsToLink = [ "/share/zsh" ];
+
   users.users."yz" = {
     isNormalUser = true;
     description = "yz";
+    shell = pkgs.zsh;
     extraGroups = [
       "networkmanager"
       "wheel"
