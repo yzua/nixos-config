@@ -43,19 +43,41 @@ desired_generation() {
   nix eval --raw --no-write-lock-file "$1"
 }
 
+# Status and activation share one verdict for the selected output's saved build.
+# Leave the diagnostic target available even when the link is invalid.
+inspect_saved_preview_build() {
+  local output="$1" result="$2"
+  if saved_preview_build_target=$(saved_preview_target "$result"); then
+    saved_preview_build_state=stale
+  else
+    saved_preview_build_state=invalid
+  fi
+  saved_preview_build_desired=$(desired_generation "$output") || return 1
+  if [[ "$saved_preview_build_state" == stale && "$saved_preview_build_target" == "$saved_preview_build_desired" ]]; then
+    saved_preview_build_state=current
+  fi
+}
+
 require_saved_preview_build() {
-  local output="$1" result="$2" preview="$3" expected actual
-  if ! actual=$(saved_preview_target "$result"); then
+  local output="$1" result="$2" preview="$3"
+  if ! inspect_saved_preview_build "$output" "$result"; then
+    [[ "$saved_preview_build_state" == invalid ]] || return 1
+  fi
+  case "$saved_preview_build_state" in
+  invalid)
     printf 'No valid saved preview build; run just %s first\n' "$preview" >&2
     return 1
-  fi
-
-  expected=$(desired_generation "$output") || return 1
-  if [[ "$actual" != "$expected" ]]; then
+    ;;
+  stale)
     printf 'Saved preview build is stale; run just %s first\n' "$preview" >&2
     return 1
-  fi
-  printf '%s\n' "$actual"
+    ;;
+  current) printf '%s\n' "$saved_preview_build_target" ;;
+  *)
+    printf 'Cannot determine saved preview build state\n' >&2
+    return 1
+    ;;
+  esac
 }
 
 home_profile() {

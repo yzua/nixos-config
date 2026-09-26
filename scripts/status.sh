@@ -10,26 +10,26 @@ evaluation_errors=0
 
 show_status() {
   local label="$1" output="$2" active_link="$3" built_link="$4" preview="$5"
-  local active built desired saved_valid=1
+  local active desired_available=1
   active=$(generation_target "$active_link")
-  built=$(saved_preview_target "$built_link") || saved_valid=0
+  inspect_saved_preview_build "$output" "$built_link" || desired_available=0
 
   printf '%s\n' "$label"
   printf '  Active: %s\n' "$active"
-  printf '  Saved preview build: %s\n' "$built"
+  printf '  Saved preview build: %s\n' "$saved_preview_build_target"
 
-  if ! desired=$(desired_generation "$output"); then
+  if [[ "$desired_available" == 0 ]]; then
     printf '  Desired: unavailable (flake evaluation failed; check new .nix files with just check)\n'
     evaluation_errors=$((evaluation_errors + 1))
     return
   fi
-  printf '  Desired from flake: %s\n' "$desired"
+  printf '  Desired from flake: %s\n' "$saved_preview_build_desired"
 
-  if [[ "$active" == "$desired" && "$saved_valid" == 1 && "$built" == "$desired" ]]; then
+  if [[ "$active" == "$saved_preview_build_desired" && "$saved_preview_build_state" == current ]]; then
     echo '  State: active and saved build match the flake.'
-  elif [[ "$active" == "$desired" ]]; then
+  elif [[ "$active" == "$saved_preview_build_desired" ]]; then
     printf '  State: active matches the flake; saved build is missing/stale (run just %s before a future switch).\n' "$preview"
-  elif [[ "$saved_valid" == 1 && "$built" == "$desired" ]]; then
+  elif [[ "$saved_preview_build_state" == current ]]; then
     printf '  State: saved build matches the flake, but is NOT active. Review just %s before switching.\n' "$preview"
   else
     printf '  State: neither active nor saved build matches the flake (run just %s).\n' "$preview"

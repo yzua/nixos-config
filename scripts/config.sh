@@ -17,7 +17,7 @@ valid_output_name() {
 }
 
 select_system() {
-  local names candidate
+  local names candidate selection_explicit=0
   names=$(flake_output_names nixosConfigurations) || return 1
   if [[ -z "$names" ]]; then
     echo 'No NixOS outputs in this flake.' >&2
@@ -25,9 +25,10 @@ select_system() {
   fi
 
   candidate="${NIXOS_CONFIG:-}"
-  if [[ -z "${system_selection_explicit+x}" ]]; then
-    system_selection_explicit=0
-    [[ -z "$candidate" ]] || system_selection_explicit=1
+  # Carry inferred selection across child shells. An override to another
+  # output invalidates the marker because it names the inferred output.
+  if [[ -n "$candidate" && "${NIXOS_CONFIG_INFERRED:-}" != "$candidate" ]]; then
+    selection_explicit=1
   fi
   if [[ -z "$candidate" ]]; then
     if has_output "$(hostname)" "$names"; then
@@ -47,6 +48,11 @@ select_system() {
   NIXOS_CONFIG="$candidate"
   system_ref=".#nixosConfigurations.\"${NIXOS_CONFIG}\""
   export NIXOS_CONFIG
+  if [[ "$selection_explicit" == 0 ]]; then
+    export NIXOS_CONFIG_INFERRED="$candidate"
+  else
+    unset NIXOS_CONFIG_INFERRED
+  fi
 }
 
 select_home() {
@@ -62,8 +68,8 @@ select_home() {
     # Home-only recipes must not require a NixOS output. An explicit system
     # selection supplies its configured hostname when both outputs are needed.
     host=$(hostname)
-    if [[ -n "${NIXOS_CONFIG:-}" && "${system_selection_explicit:-1}" == 1 ]]; then
-      if [[ -z "${system_ref:-}" ]]; then
+    if [[ -n "${NIXOS_CONFIG:-}" && "${NIXOS_CONFIG_INFERRED:-}" != "$NIXOS_CONFIG" ]]; then
+      if [[ "${system_ref:-}" != ".#nixosConfigurations.\"${NIXOS_CONFIG}\"" ]]; then
         select_system || return 1
       fi
       host=$(nix eval --raw --no-write-lock-file "$system_ref.config.networking.hostName") || return 1

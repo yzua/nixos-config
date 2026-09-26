@@ -11,11 +11,62 @@ mkdir -p "$test_root/bin" "$test_root/generation/home-files"
 
 cat >"$test_root/bin/nix" <<'SH'
 #!/usr/bin/env bash
+system_fixture() {
+  local arguments="$1" rest name row_name row_path row_host
+  system_target="$TEST_SYSTEM_EXPECTED"
+  system_hostname="$TEST_HOST"
+  [[ -n "${TEST_SYSTEM_OUTPUTS:-}" ]] || return 0
+
+  rest=${arguments#*'.#nixosConfigurations."'}
+  name=${rest%%\"*}
+  while IFS='|' read -r row_name row_path row_host; do
+    if [[ "$row_name" == "$name" ]]; then
+      system_target="$row_path"
+      system_hostname="$row_host"
+      return 0
+    fi
+  done <<<"$TEST_SYSTEM_OUTPUTS"
+  printf 'Unexpected NixOS output: %s\n' "$name" >&2
+  return 1
+}
+
+home_fixture() {
+  local arguments="$1" rest name row_name row_path row_user row_home
+  home_target="$TEST_EXPECTED"
+  home_user="$TEST_USER"
+  home_directory="$TEST_HOME"
+  [[ -n "${TEST_HOME_OUTPUTS:-}" ]] || return 0
+
+  rest=${arguments#*'.#homeConfigurations."'}
+  name=${rest%%\"*}
+  while IFS='|' read -r row_name row_path row_user row_home; do
+    if [[ "$row_name" == "$name" ]]; then
+      home_target="$row_path"
+      [[ -z "$row_user" ]] || home_user="$row_user"
+      [[ -z "$row_home" ]] || home_directory="$row_home"
+      return 0
+    fi
+  done <<<"$TEST_HOME_OUTPUTS"
+  printf 'Unexpected Home output: %s\n' "$name" >&2
+  return 1
+}
+
+fixture_names() {
+  local rows="$1" fallback="$2" name rest
+  if [[ -z "$rows" ]]; then
+    printf '%s\n' "$fallback"
+    return
+  fi
+  while IFS='|' read -r name rest; do
+    printf '%s\n' "$name"
+  done <<<"$rows"
+}
+
 case "$*" in
   build\ --no-write-lock-file*)
     case "$*" in
-      *'.#nixosConfigurations.'*) target="$TEST_SYSTEM_EXPECTED" ;;
-      *'.#homeConfigurations.'*) target="$TEST_EXPECTED" ;;
+      *'.#nixosConfigurations.'*) system_fixture "$*" || exit 1; target="$system_target" ;;
+      *'.#homeConfigurations.'*) home_fixture "$*" || exit 1; target="$home_target" ;;
       *) printf 'Unexpected build: %s\n' "$*" >&2; exit 1 ;;
     esac
     while (($#)); do
@@ -36,14 +87,14 @@ case "$*" in
       exit 1
     }
     printf 'diff %s\n' "$4" >> "$TEST_DIFF_LOG" ;;
-  *--apply*'.#homeConfigurations') printf '%s\n' "$TEST_HOME_NAMES" ;;
-  *--apply*'.#nixosConfigurations') printf '%s\n' "$TEST_SYSTEM_NAMES" ;;
-  *'.config.home.username') printf '%s\n' "$TEST_USER" ;;
-  *'.config.home.homeDirectory') printf '%s\n' "$TEST_HOME" ;;
-  *'.activationPackage.outPath') printf '%s\n' "$TEST_EXPECTED" ;;
+  *--apply*'.#homeConfigurations') fixture_names "${TEST_HOME_OUTPUTS:-}" "$TEST_HOME_NAMES" ;;
+  *--apply*'.#nixosConfigurations') fixture_names "${TEST_SYSTEM_OUTPUTS:-}" "$TEST_SYSTEM_NAMES" ;;
+  *'.config.home.username') home_fixture "$*" || exit 1; printf '%s\n' "$home_user" ;;
+  *'.config.home.homeDirectory') home_fixture "$*" || exit 1; printf '%s\n' "$home_directory" ;;
+  *'.activationPackage.outPath') home_fixture "$*" || exit 1; printf '%s\n' "$home_target" ;;
   *'.config.dconf.settings') printf '%s\n' "$TEST_SOURCES" ;;
-  *'.config.networking.hostName') printf '%s\n' "$TEST_HOST" ;;
-  *'.config.system.build.toplevel.outPath') printf '%s\n' "$TEST_SYSTEM_EXPECTED" ;;
+  *'.config.networking.hostName') system_fixture "$*" || exit 1; printf '%s\n' "$system_hostname" ;;
+  *'.config.system.build.toplevel.outPath') system_fixture "$*" || exit 1; printf '%s\n' "$system_target" ;;
   *) printf 'Unexpected nix call: %s\n' "$*" >&2; exit 1 ;;
 esac
 SH
@@ -58,7 +109,7 @@ printf '%s\n' "$TEST_ACTIVE_SOURCES"
 SH
 cat >"$test_root/bin/hostname" <<'SH'
 #!/usr/bin/env bash
-printf '%s\n' "$TEST_HOST"
+printf '%s\n' "${TEST_RUNNING_HOST:-$TEST_HOST}"
 SH
 cat >"$test_root/bin/sudo" <<'SH'
 #!/usr/bin/env bash
@@ -92,7 +143,7 @@ start_case() {
   export TEST_LOG="$case_root/actions" TEST_DIFF_LOG="$case_root/diffs"
   export TEST_SOURCES="@a(ss) [@(ss) ('xkb','us'),@(ss) ('xkb','ara')]"
   export TEST_ACTIVE_SOURCES="[('xkb', 'us')]"
-  unset NIXOS_CONFIG TEST_DIFF_EXPECTED TEST_RETARGET_LINK TEST_RETARGET_ON_DIFF
+  unset NIXOS_CONFIG NIXOS_CONFIG_INFERRED TEST_RUNNING_HOST TEST_SYSTEM_OUTPUTS TEST_HOME_OUTPUTS TEST_DIFF_EXPECTED TEST_RETARGET_LINK TEST_RETARGET_ON_DIFF
 }
 
 # An explicit Home output is independent of an ambiguous system selection.
@@ -125,6 +176,34 @@ start_case() {
   grep -Fq 'has no hostname' "$case_root/output" || fail 'missing system hostname was not explained'
 )
 
+# An inferred system alias must not become an explicit selection in a new shell.
+(
+  start_case selection-provenance
+  export TEST_SYSTEM_NAMES=alias TEST_HOST=host-b TEST_RUNNING_HOST=host-a
+  export TEST_HOME_NAMES="$TEST_USER@host-a"$'\n'"$TEST_USER@host-b"
+  unset HOME_CONFIG NIXOS_CONFIG NIXOS_CONFIG_INFERRED
+  source scripts/config.sh
+  select_system || fail 'infer system alias'
+  [[ "$NIXOS_CONFIG" == alias ]] || fail 'system alias was not selected'
+  selected=$(bash -c 'source scripts/config.sh; select_home; printf "%s" "$HOME_CONFIG"') || fail 'select Home output in another shell'
+  [[ "$selected" == "$(id -un)@host-a" ]] || fail 'inferred system alias became explicit in another shell'
+)
+
+# Changing an explicit system output must not leave Home selection on its old ref.
+(
+  start_case selection-reselection
+  export TEST_SYSTEM_OUTPUTS="host-a|$case_root/generation|host-a
+host-b|$case_root/generation|host-b"
+  export TEST_HOME_NAMES="$TEST_USER@host-a"$'\n'"$TEST_USER@host-b"
+  export NIXOS_CONFIG=host-a
+  unset HOME_CONFIG
+  source scripts/config.sh
+  select_system || fail 'select first explicit system output'
+  NIXOS_CONFIG="host-b"
+  select_home || fail 'select Home output after changing system output'
+  [[ "$HOME_CONFIG" == "$TEST_USER@host-b" ]] || fail 'Home output followed the old system selection'
+)
+
 # Missing, broken, or stale previews must never mutate the Home profile.
 (
   start_case home-switch
@@ -146,6 +225,10 @@ start_case() {
   rm "$home_result"
   ln -s "$case_root/generation" "$home_result"
   export TEST_EXPECTED="$case_root/other-generation"
+  status=$(bash scripts/status.sh) || fail 'status for stale Home build'
+  grep -Fq "  Saved preview build: $case_root/generation" <<<"$status" || fail 'status lost the saved Home build'
+  grep -Fq "  Desired from flake: $case_root/other-generation" <<<"$status" || fail 'status lost the desired Home generation'
+  grep -Fq 'State: neither active nor saved build matches the flake' <<<"$status" || fail 'status accepted a stale Home build'
   if bash scripts/home-switch.sh >"$case_root/output" 2>&1; then
     fail 'stale Home build was activated'
   fi
@@ -228,6 +311,21 @@ start_case() {
   grep -Fxq "system nixos-rebuild switch --no-reexec --store-path $TEST_SYSTEM_EXPECTED" "$TEST_LOG" || fail 'saved NixOS path not activated'
 )
 
+# A selected NixOS output must not switch a different running host without opt-in.
+(
+  start_case system-host-mismatch
+  export NIXOS_CONFIG=host-a TEST_HOST=host-a TEST_RUNNING_HOST=host-b
+  unset ALLOW_HOST_RENAME
+  ln -s "$case_root/generation" "$XDG_STATE_HOME/nixos/result-system-host-a"
+  if just switch >"$case_root/output" 2>&1; then
+    fail 'NixOS switched a different running host'
+  fi
+  grep -Fq 'Host mismatch: running host-b, selected host-a' "$case_root/output" || fail 'host mismatch was not explained'
+  [[ ! -s "$TEST_LOG" ]] || fail 'host mismatch activated a generation'
+  ALLOW_HOST_RENAME=1 just switch >"$case_root/output" 2>&1 || fail 'deliberate host rename was rejected'
+  grep -Fxq "system nixos-rebuild switch --no-reexec --store-path $TEST_SYSTEM_EXPECTED" "$TEST_LOG" || fail 'host rename activated the wrong build'
+)
+
 # A dconf-only input-source change is observable without activating or
 # printing unrelated values (especially SOPS secrets).
 (
@@ -266,6 +364,19 @@ start_case() {
   [[ $(cat "$TEST_LOG") == "$actions_before" ]] || fail 'status activated a generation'
 )
 
+# The fake Nix executable must distinguish selected outputs from a mutable default.
+(
+  start_case system-output-fixtures
+  mkdir -p "$case_root/other-generation"
+  export TEST_SYSTEM_OUTPUTS="host-a|$case_root/generation|host-a
+host-b|$case_root/other-generation|host-b"
+  export NIXOS_CONFIG=host-a TEST_SYSTEM_EXPECTED="$case_root/other-generation"
+  just build >"$case_root/output" 2>&1 || fail 'build selected system output from fixture'
+  [[ $(readlink -f "$XDG_STATE_HOME/nixos/result-system-host-a") == "$case_root/generation" ]] || fail 'system fixture ignored the selected output'
+  just switch >"$case_root/output" 2>&1 || fail 'switch selected system output from fixture'
+  grep -Fxq "system nixos-rebuild switch --no-reexec --store-path $case_root/generation" "$TEST_LOG" || fail 'system fixture activated the default output'
+)
+
 # Saved previews for different Home outputs must not replace one another.
 (
   start_case home-outputs
@@ -288,6 +399,40 @@ start_case() {
   status=$(HOME_CONFIG=test-user@host-b TEST_EXPECTED="$case_root/other-generation" bash scripts/status.sh) || fail 'status for Home output B'
   grep -A2 -Fx 'Home Manager (test-user@host-b)' <<<"$status" | grep -Fxq "  Saved preview build: $case_root/other-generation" || fail 'status ignored Home output B'
   [[ $(cat "$TEST_LOG") == "$actions_before" ]] || fail 'status activated a Home generation'
+)
+
+# A Home output's saved preview must use its own activation package, not a mutable default.
+(
+  start_case home-output-fixtures
+  cp -a "$case_root/generation" "$case_root/other-generation"
+  export TEST_HOME_OUTPUTS="test-user@elsewhere|$case_root/generation
+test-user@host-b|$case_root/other-generation"
+  export HOME_CONFIG=test-user@elsewhere TEST_EXPECTED="$case_root/other-generation"
+  just home-build >"$case_root/output" 2>&1 || fail 'build selected Home output from fixture'
+  [[ $(readlink -f "$XDG_STATE_HOME/nixos/result-home-$HOME_CONFIG") == "$case_root/generation" ]] || fail 'Home fixture ignored the selected output'
+  bash scripts/home-switch.sh >"$case_root/output" 2>&1 || fail 'switch selected Home output from fixture'
+  grep -Fxq "profile --profile $XDG_STATE_HOME/nix/profiles/home-manager --set $case_root/generation" "$TEST_LOG" || fail 'Home fixture installed the default output'
+  export HOME_CONFIG=test-user@host-b TEST_EXPECTED="$case_root/generation"
+  just home-build >"$case_root/output" 2>&1 || fail 'second Home fixture output could not be selected'
+  [[ $(readlink -f "$XDG_STATE_HOME/nixos/result-home-$HOME_CONFIG") == "$case_root/other-generation" ]] || fail 'second Home fixture used the default generation'
+)
+
+# The output-specific owner must gate comparisons, even when the default owner matches.
+(
+  start_case home-owner-fixtures
+  export TEST_HOME_OUTPUTS="test-user@elsewhere|$case_root/generation|$TEST_USER|$HOME
+test-user@host-b|$case_root/generation|another-user|$HOME"
+  export HOME_CONFIG=test-user@host-b
+  if just home-preview >"$case_root/output" 2>&1; then
+    fail 'foreign Home output was compared using the default owner'
+  fi
+  grep -Fq 'belongs to another-user' "$case_root/output" || fail 'output-specific Home owner was not explained'
+  [[ ! -L "$XDG_STATE_HOME/nixos/result-home-$HOME_CONFIG" ]] || fail 'foreign Home output was built before ownership check'
+  just home-build >"$case_root/output" 2>&1 || fail 'foreign Home output could not be built'
+  if bash scripts/home-switch.sh >"$case_root/output" 2>&1; then
+    fail 'foreign Home output was activated using the default owner'
+  fi
+  [[ ! -s "$TEST_LOG" ]] || fail 'foreign Home output touched the profile'
 )
 
 # Status must not count a plain directory as a saved preview build, even when
