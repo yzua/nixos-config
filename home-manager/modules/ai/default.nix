@@ -1,4 +1,4 @@
-# Install pinned AI applications while leaving their mutable data unmanaged.
+# Install pinned AI applications and import agent settings without managing mutable data.
 
 { aiPackages, pkgs, ... }:
 
@@ -21,15 +21,17 @@ let
   '';
 in
 {
+  imports = [
+    ./herdr.nix
+    ./skills.nix
+  ];
+
   # Executables come from Numtide; settings, logins, and session data remain
   # in the user's home until deliberately migrated one app at a time.
   home.packages = with aiPackages; [
     antigravity-cli
     chatgpt
-    claude-code
-    claude-desktop
     codexCli
-    copilot-cli
     ctx
     executor
     herdr

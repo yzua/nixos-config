@@ -4,20 +4,14 @@
 
 {
   imports = [
-    ./modules/ai.nix
-    ./modules/cli.nix
-    ./modules/desktop-apps.nix
-    ./modules/firefox.nix
+    ./modules/ai
+    ./modules/desktop-apps
     ./modules/gaming.nix
-    ./modules/ghostty.nix
     (import ./modules/git.nix { inherit (homeProfile) gitIdentity; })
     ./modules/gnome.nix
-    ./modules/keepassxc.nix
     ./modules/mime.nix
     ./modules/secrets.nix
-    ./modules/shell.nix
-    ./modules/skills.nix
-    ./modules/vesktop.nix
+    ./modules/terminal
     ./modules/vscode
   ];
 

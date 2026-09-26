@@ -1,8 +1,14 @@
-# Everyday CLI tools without shell-managed packages.
+# Install everyday CLI tools and import terminal and shell configuration.
 
 { pkgs, ... }:
 
 {
+  imports = [
+    ./ghostty.nix
+    ./shell.nix
+  ];
+
+  # Everyday CLI tools without shell-managed packages.
   home.packages = [
     pkgs.ast-grep
     pkgs.bat
