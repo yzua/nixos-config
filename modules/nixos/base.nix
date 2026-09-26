@@ -14,6 +14,11 @@
     "nix-command"
     "flakes"
   ];
+  # Collect unreachable store paths without pruning rollback generations.
+  nix.gc = {
+    automatic = true;
+    dates = "weekly";
+  };
   environment.systemPackages = [
     pkgs.git
     pkgs.just
