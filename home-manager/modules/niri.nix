@@ -33,9 +33,18 @@ in
 
     layout {
       background-color "transparent"
+      struts {
+        top -2
+      }
       focus-ring {
         active-color "${colors.base0D}"
         inactive-color "${colors.base03}"
+      }
+    }
+
+    animations {
+      horizontal-view-movement {
+        off
       }
     }
 
@@ -43,6 +52,11 @@ in
     layer-rule {
       match namespace="^noctalia-wallpaper"
       place-within-backdrop true
+    }
+
+    window-rule {
+      geometry-corner-radius 8
+      clip-to-geometry true
     }
 
     window-rule {
