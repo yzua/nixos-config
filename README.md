@@ -73,6 +73,28 @@ changes to preview/switch scripts, run `bash tests/workflow.sh` too: it mocks
 Nix and activation, so it needs neither a real build nor a switch. The workflow
 tests are not part of `just check`. Use `just --list` for other recipes.
 
+## Browser CLI and agent skills
+
+Home Manager builds globally available JavaScript CLIs from the exact versions
+in `home-manager/pnpm-global-tools/package.json` and its pnpm lockfile. The
+current tool is Chrome DevTools CLI. Nix fetches the locked npm tarball and
+puts `chrome-devtools` on the user PATH; activation does not run a mutable
+global pnpm install. To update a tool, change its exact version, regenerate the
+lockfile with `pnpm install --lockfile-only --ignore-scripts` in that directory,
+verify the registry integrity, and update the pnpm dependency hash in
+`home-manager/modules/ai/pnpm-tools.nix` before previewing Home Manager.
+
+Home Manager runs the installed `skills` CLI during activation to fetch the
+pinned sources in `home-manager/modules/ai/skills.nix` through skills.sh and
+install them globally for every supported agent. Add or update a source there;
+individual skills do not need flake inputs or vendored copies in this repo.
+Skill syncing needs network access when Home Manager activates. The Chrome
+DevTools CLI starts a local MCP daemon internally, but agents use its shell
+commands and need no MCP client configuration. The Nix package points the CLI
+at the profile's Chrome executable when it starts a browser. OfficeCLI comes
+from the existing `llm-agents.nix` package set; its skills.sh source is pinned
+to the matching 1.0.152 release commit.
+
 ## Appearance
 
 The standalone Home Manager profile uses Stylix's `release-26.05` module for

@@ -1,45 +1,41 @@
-# Link pinned skill bundles into agents' global skill directories.
+# Install pinned skills.sh sources globally for every supported agent.
 
-{ lib, mattPocockSkills, ... }:
+{
+  aiPackages,
+  lib,
+  pkgs,
+  ...
+}:
 
 let
-  # Discover all upstream SKILL.md bundles (including newly added ones on a
-  # targeted input update), keeping their companion scripts/assets together.
-  skillFiles = builtins.filter (file: builtins.baseNameOf file == "SKILL.md") (
-    lib.filesystem.listFilesRecursive (mattPocockSkills + "/skills")
-  );
-  skills = map (file: {
-    # The directory name is plain text, not a reference to a store path.
-    name = builtins.unsafeDiscardStringContext (builtins.baseNameOf (builtins.dirOf file));
-    source = builtins.dirOf file;
-  }) skillFiles;
-  skillNames = map (skill: skill.name) skills;
-
-  # Shared by Codex (including the ChatGPT desktop Codex surface), OpenCode,
-  # Pi, and Copilot. Claude Code and Antigravity require their own global dirs.
-  destinations = [
-    ".agents/skills"
-    ".claude/skills"
-    ".gemini/config/skills"
-    ".gemini/antigravity-cli/skills"
-  ];
-in
-{
-  assertions = [
+  skillSources = [
     {
-      assertion = skills != [ ] && builtins.length skillNames == builtins.length (lib.unique skillNames);
-      message = "Matt Pocock's skills must contain SKILL.md files with unique directory names";
+      url = "https://github.com/mattpocock/skills/tree/c55ee46073ed923f86ce59a5eb3b6d895095d1b7";
+      name = "*";
+    }
+    {
+      url = "https://github.com/ChromeDevTools/chrome-devtools-mcp/tree/ae0aaef884c41445d83f86f099ef211f4584b791/skills/chrome-devtools-cli";
+      name = "chrome-devtools-cli";
+    }
+    {
+      url = "https://github.com/iOfficeAI/OfficeCLI/tree/ffa8a0afbe2e9686abd636368e3da38c50f22131";
+      name = "officecli";
     }
   ];
-
-  # Individual links leave manually installed skills and agent configs alone.
-  home.file = lib.listToAttrs (
-    lib.concatMap (
-      destination:
-      map (skill: {
-        name = "${destination}/${skill.name}";
-        value.source = skill.source;
-      }) skills
-    ) destinations
-  );
+  installCommands = lib.concatMapStringsSep "\n" (skill: ''
+    ${lib.getExe aiPackages.skills} add ${lib.escapeShellArg skill.url} \
+      --global --agent '*' --skill ${lib.escapeShellArg skill.name} --yes
+  '') skillSources;
+in
+{
+  # Home Manager removes its old skill links during linkGeneration. The
+  # skills.sh CLI then owns the mutable copies and links for all agents.
+  home.activation.installAgentSkills = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    if [ -v DRY_RUN ]; then
+      echo "Would sync pinned skills.sh sources for all agents"
+    else
+      export PATH=${lib.makeBinPath [ pkgs.gitMinimal ]}:$PATH
+      ${installCommands}
+    fi
+  '';
 }

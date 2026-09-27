@@ -26,11 +26,6 @@
     # Agent CLIs and desktop apps update faster than the stable Nixpkgs branch.
     # Keep this input's tested unstable Nixpkgs pin instead of using `follows`.
     llm-agents.url = "github:numtide/llm-agents.nix";
-    # Skill content only; pin it separately from the agent executables.
-    mattPocockSkills = {
-      url = "github:mattpocock/skills";
-      flake = false;
-    };
   };
 
   outputs =
@@ -41,7 +36,6 @@
       sops-nix,
       nixcord,
       llm-agents,
-      mattPocockSkills,
       ...
     }:
     let
@@ -115,7 +109,7 @@
         extraSpecialArgs = {
           inherit setup;
           aiPackages = llm-agents.packages.${system};
-          inherit mattPocockSkills nixcord;
+          inherit nixcord;
         };
         modules = [
           ./home-manager/home.nix

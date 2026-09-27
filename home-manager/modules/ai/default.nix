@@ -38,6 +38,7 @@ in
 {
   imports = [
     ./herdr.nix
+    ./pnpm-tools.nix
     ./skills.nix
   ];
 
@@ -50,6 +51,7 @@ in
     ctx
     executor
     herdr
+    officecli
     opencodeCli
     opencode2
     pi

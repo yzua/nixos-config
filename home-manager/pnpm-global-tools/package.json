@@ -1,0 +1,9 @@
+{
+  "name": "pnpm-global-tools",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@11.27.0",
+  "dependencies": {
+    "chrome-devtools-mcp": "1.10.1"
+  }
+}

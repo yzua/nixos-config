@@ -236,22 +236,6 @@
         "type": "github"
       }
     },
-    "mattPocockSkills": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1789726349,
-        "narHash": "sha256-L3CpIT2DeI+fUFl9fcygojtQo2DzEen69rMD1XqR1vM=",
-        "owner": "mattpocock",
-        "repo": "skills",
-        "rev": "c55ee46073ed923f86ce59a5eb3b6d895095d1b7",
-        "type": "github"
-      },
-      "original": {
-        "owner": "mattpocock",
-        "repo": "skills",
-        "type": "github"
-      }
-    },
     "nix-darwin": {
       "inputs": {
         "nixpkgs": [
@@ -363,7 +347,6 @@
       "inputs": {
         "home-manager": "home-manager",
         "llm-agents": "llm-agents",
-        "mattPocockSkills": "mattPocockSkills",
         "nixcord": "nixcord",
         "nixpkgs": "nixpkgs_2",
         "sops-nix": "sops-nix",
