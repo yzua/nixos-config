@@ -1,11 +1,9 @@
 # Shared NixOS basics: locale, Nix features, and system-wide tools.
 
-{ pkgs, ... }:
+{ pkgs, setup, ... }:
 
 {
-  # Keep application language, dates, and numbers English on every host;
-  # the Arabic keyboard layout is a Home Manager setting.
-  i18n.defaultLocale = "en_US.UTF-8";
+  i18n.defaultLocale = setup.locale;
 
   programs.nix-ld.enable = true;
 

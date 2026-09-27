@@ -4,6 +4,7 @@
   config,
   lib,
   pkgs,
+  setup,
   ...
 }:
 
@@ -14,11 +15,17 @@ let
 in
 {
   xdg.configFile."niri/config.kdl".text = ''
+    ${lib.optionalString (setup.monitor != null) ''
+      output "${setup.monitor.match}" {
+        mode "${setup.monitor.mode}"
+      }
+    ''}
+
     input {
       keyboard {
         xkb {
-          layout "us,ara"
-          options "grp:caps_toggle"
+          layout "${lib.concatStringsSep "," setup.keyboard.layouts}"
+          options "${setup.keyboard.toggle}"
         }
       }
     }

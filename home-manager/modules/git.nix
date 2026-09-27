@@ -22,7 +22,7 @@
 
     signing = {
       format = "ssh";
-      key = "${config.home.homeDirectory}/.ssh/id_ed25519.pub";
+      key = gitIdentity.signingKey;
       signByDefault = true;
     };
     settings.user = {

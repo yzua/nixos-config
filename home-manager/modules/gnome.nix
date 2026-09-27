@@ -1,6 +1,11 @@
 # Set per-user GNOME input sources and expose Tweaks in both desktop sessions.
 
-{ lib, pkgs, ... }:
+{
+  lib,
+  pkgs,
+  setup,
+  ...
+}:
 
 {
   home.packages = [ pkgs.gnome-tweaks ];
@@ -20,15 +25,12 @@
     terminal = false;
   };
 
-  # English (default) and Arabic, switchable in GNOME with Super+Space.
-  dconf.settings."org/gnome/desktop/input-sources".sources = [
-    (lib.hm.gvariant.mkTuple [
+  # GNOME uses the same layouts declared for Niri in the flake setup.
+  dconf.settings."org/gnome/desktop/input-sources".sources = map (
+    layout:
+    lib.hm.gvariant.mkTuple [
       "xkb"
-      "us"
-    ])
-    (lib.hm.gvariant.mkTuple [
-      "xkb"
-      "ara"
-    ])
-  ];
+      layout
+    ]
+  ) setup.keyboard.layouts;
 }

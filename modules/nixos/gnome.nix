@@ -1,8 +1,9 @@
 # Opt-in GNOME desktop stack: input method, login, and printing.
 
+{ setup, ... }:
+
 {
-  # GNOME uses IBus for input management; the English/Arabic XKB sources
-  # themselves are configured per user in Home Manager.
+  # GNOME uses IBus; the user's XKB sources come from Home Manager.
   i18n.inputMethod = {
     enable = true;
     type = "ibus";
@@ -13,7 +14,7 @@
 
   # Fallback for plain X11; GNOME's active input sources live in Home Manager.
   services.xserver.xkb = {
-    layout = "us";
+    layout = builtins.head setup.keyboard.layouts;
     variant = "";
   };
 }

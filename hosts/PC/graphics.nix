@@ -1,4 +1,6 @@
-# PC's RTX 2070: NVIDIA driver and Wayland graphics support.
+# Graphics driver selected by the flake setup, with 32-bit game support.
+
+{ lib, setup, ... }:
 
 {
   hardware.graphics = {
@@ -6,11 +8,10 @@
     enable32Bit = true;
   };
 
-  services.xserver.videoDrivers = [ "nvidia" ];
+  services.xserver.videoDrivers = setup.graphics.videoDrivers;
 
-  hardware.nvidia = {
-    # The RTX 2070 is Turing; NVIDIA recommends its open kernel modules.
-    open = true;
+  hardware.nvidia = lib.mkIf (builtins.elem "nvidia" setup.graphics.videoDrivers) {
+    open = setup.graphics.nvidiaOpen;
     modesetting.enable = true;
   };
 }

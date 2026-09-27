@@ -1,7 +1,7 @@
 # Flake entry point: pin inputs and expose the system, home, and dev tools.
 
 {
-  description = "NixOS configuration for PC";
+  description = "NixOS and Home Manager workstation configuration";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
@@ -45,18 +45,43 @@
       ...
     }:
     let
-      system = "x86_64-linux";
-      # Share this account's identity between the host and standalone home profile.
-      username = "yz";
-      homeProfile = {
-        inherit username;
+      # Change these values when adapting the flake to another workstation.
+      setup = rec {
+        system = "x86_64-linux";
+        hostName = "PC";
+        username = "yz";
         homeDirectory = "/home/${username}";
+        # Preserve these values for an existing installation.
+        stateVersion = {
+          system = "26.05";
+          home = "26.05";
+        };
+        # Etc/GMT signs are reversed: GMT-3 is a fixed UTC+03:00.
+        timeZone = "Etc/GMT-3";
+        locale = "en_US.UTF-8";
+        keyboard = {
+          layouts = [
+            "us"
+            "ara"
+          ];
+          toggle = "grp:caps_toggle";
+        };
+        monitor = {
+          match = "LG Electronics LG ULTRAWIDE 0x00021DA6";
+          mode = "2560x1080@74.991";
+        };
+        graphics = {
+          videoDrivers = [ "nvidia" ];
+          nvidiaOpen = true;
+        };
         gitIdentity = {
           name = username;
           email = "git.remarry972@simplelogin.com";
           githubEmail = "260740417+yzua@users.noreply.github.com";
+          signingKey = "${homeDirectory}/.ssh/id_ed25519.pub";
         };
       };
+      inherit (setup) system;
       pkgs = import nixpkgs {
         inherit system;
         # Home Manager uses this package set; approve only the requested apps.
@@ -88,7 +113,7 @@
       home = home-manager.lib.homeManagerConfiguration {
         inherit pkgs;
         extraSpecialArgs = {
-          inherit homeProfile;
+          inherit setup;
           aiPackages = llm-agents.packages.${system};
           inherit mattPocockSkills nixcord;
         };
@@ -100,14 +125,14 @@
       };
     in
     {
-      nixosConfigurations.PC = nixpkgs.lib.nixosSystem {
+      nixosConfigurations.${setup.hostName} = nixpkgs.lib.nixosSystem {
         inherit system;
-        specialArgs = { inherit username; };
+        specialArgs = { inherit setup; };
         modules = [ ./hosts/PC/default.nix ];
       };
 
-      homeConfigurations."${username}@PC" = home;
-      checks.${system}."home-${username}-PC" = home.activationPackage;
+      homeConfigurations."${setup.username}@${setup.hostName}" = home;
+      checks.${system}."home-${setup.username}-${setup.hostName}" = home.activationPackage;
 
       formatter.${system} = formatter;
 

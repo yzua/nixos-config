@@ -1,6 +1,6 @@
 # PC host entry point: hardware, boot, account, and shared NixOS modules.
 
-{ pkgs, username, ... }:
+{ pkgs, setup, ... }:
 
 {
   imports = [
@@ -21,19 +21,18 @@
   boot.loader.efi.canTouchEfiVariables = true;
   services.fwupd.enable = true;
 
-  networking.hostName = "PC";
+  networking.hostName = setup.hostName;
   networking.networkmanager.enable = true;
   services.printing.enable = true;
-  # Etc/GMT signs are reversed: GMT-3 is a fixed UTC+03:00, with no DST.
-  time.timeZone = "Etc/GMT-3";
+  time.timeZone = setup.timeZone;
 
   # Zsh is this account's login shell; expose system package completions to it.
   programs.zsh.enable = true;
   environment.pathsToLink = [ "/share/zsh" ];
 
-  users.users.${username} = {
+  users.users.${setup.username} = {
     isNormalUser = true;
-    description = username;
+    description = setup.username;
     shell = pkgs.zsh;
     extraGroups = [
       "networkmanager"
@@ -41,6 +40,5 @@
     ];
   };
 
-  # Keep the version from the initial install; it is not the Nixpkgs release.
-  system.stateVersion = "26.05";
+  system.stateVersion = setup.stateVersion.system;
 }
