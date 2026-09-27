@@ -15,10 +15,25 @@ let
       wrapProgram "$out/bin/codex" --add-flags "--disable daemon_auto_start"
     '';
   };
-  # Numtide's V2 package exposes `opencode2`; provide the usual CLI name too.
-  opencodeCli = pkgs.writeShellScriptBin "opencode" ''
-    exec ${aiPackages.opencode2}/bin/opencode2 "$@"
-  '';
+  # Numtide's V2 package exposes `opencode2`; provide the usual CLI name and
+  # generate matching Zsh completion from that package.
+  opencodeCli = pkgs.symlinkJoin {
+    name = "opencode-cli";
+    paths = [
+      (pkgs.writeShellScriptBin "opencode" ''
+        exec ${aiPackages.opencode2}/bin/opencode2 "$@"
+      '')
+    ];
+    postBuild = ''
+      mkdir -p "$out/share/zsh/site-functions"
+      HOME="$TMPDIR" \
+        XDG_CONFIG_HOME="$TMPDIR/config" \
+        XDG_DATA_HOME="$TMPDIR/data" \
+        XDG_CACHE_HOME="$TMPDIR/cache" \
+        XDG_STATE_HOME="$TMPDIR/state" \
+        ${aiPackages.opencode2}/bin/opencode2 --completions zsh > "$out/share/zsh/site-functions/_opencode"
+    '';
+  };
 in
 {
   imports = [
