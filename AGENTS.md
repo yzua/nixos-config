@@ -2,7 +2,7 @@
 
 ## Workflow
 
-- `flake.nix` wires one NixOS host (`PC`) and a **standalone** Home Manager profile (`yz@PC`). `README.md` documents the workflow; for Firefox profiles, GNOME input sources, MIME defaults, SOPS secrets, audio, gaming, or Tor, read the corresponding feature modules before changing behavior. Firefox profile paths do not migrate browser data.
+- `flake.nix` defines the workstation `setup` and wires one NixOS host and a **standalone** Home Manager profile; output names derive from `setup`. `README.md` documents the workflow; for Firefox profiles, GNOME input sources, MIME defaults, SOPS secrets, audio, gaming, or Tor, read the corresponding feature modules before changing behavior. Firefox profile paths do not migrate browser data.
 - Start workflow changes in `justfile`. `scripts/config.sh` selects the sole NixOS/Home output or requires `NIXOS_CONFIG`/`HOME_CONFIG` when there are several. `scripts/saved-preview-build.sh` owns per-output saved builds and freshness checks. Test workflow changes with `bash tests/workflow.sh`, which mocks Nix and activation.
 - `just check` warns about untracked `.nix` files and runs `just verify` (`nix flake check --no-build --no-write-lock-file .`). `just status` only evaluates active, saved, and desired generations. For read-only style checks, run `just fmt-check` and `just lint` from `nix develop`; `just fmt` writes files.
 - Git flakes ignore untracked `.nix` files: stage new modules before evaluation or preview. Start each `.nix` file with a short `#` purpose header; keep the generated hardware file's warning header intact.
@@ -12,14 +12,14 @@
 
 ## Configuration boundaries
 
-- Keep `flake.nix` for inputs, outputs, and tooling. Put hardware, storage, boot, hostname, account, and `system.stateVersion` in `hosts/<host>/`; leave generated hardware files intact. Import reusable NixOS features explicitly from `modules/nixos/` (small `base.nix`, opt-in feature modules).
-- `home-manager/home.nix` owns the account and imports focused `home-manager/modules/`. NixOS owns system services and intentionally system-wide packages; Home Manager owns user apps/preferences. Give each setting one owner. Prefer direct option definitions and feature-named modules; add an enable option, role hierarchy, or host inventory only for real shared behavior.
-- Make **all reusable content** portable: modules, workflows, app settings, templates, tests, and documentation examples. Derive identities, home/device paths, and output names from the selected configuration or caller; if selection is ambiguous, ask for `NIXOS_CONFIG`/`HOME_CONFIG` rather than guess. Concrete identities belong only in the dedicated host/profile and flake wiring; migration history in docs may name this machine, but reusable examples should not.
+- Keep `flake.nix` for inputs, outputs, tooling, and its copy-sensitive `setup` block. Add new fixed host, account, locale, input, display, GPU, or Git values to `setup` and pass them to consuming modules. Keep generated hardware and storage facts in `hosts/<host>/hardware-configuration.nix`, boot configuration in the host module, and reusable NixOS features in explicit `modules/nixos/` imports. Preserve the generated hardware file's warning header.
+- `home-manager/home.nix` applies the account from `setup` and imports focused `home-manager/modules/`. NixOS owns system services and intentionally system-wide packages; Home Manager owns user apps/preferences. Give each setting one owner. Prefer direct option definitions and feature-named modules; add an enable option, role hierarchy, or host inventory only for real shared behavior.
+- Make **all reusable content** portable: modules, workflows, app settings, templates, tests, and documentation examples. Derive identities, home/device paths, and output names from `setup`, the selected configuration, or the caller; if selection is ambiguous, ask for `NIXOS_CONFIG`/`HOME_CONFIG` rather than guess. Migration history in docs may name this machine, but reusable examples should not.
 
 ## Safety constraints
 
 - Before adding/installing a package, check whether configured trusted caches provide it. For substantial local builds, prefer a maintained prebuilt Nixpkgs variant or official binary packaged through Nix when suitable; explain the tradeoff and get approval before building. Add no untrusted caches or unverified binaries silently.
-- Preserve the installed `system.stateVersion` and `home.stateVersion`; change only for a deliberate, reviewed state migration, not a routine dependency update.
+- Preserve the installed `setup.stateVersion.system` and `setup.stateVersion.home`; change only for a deliberate, reviewed state migration, not a routine dependency update.
 - Keep credentials, tokens, passwords, and private keys out of Git and plaintext secrets out of Nix store paths. Discuss secret management before introducing a new approach.
 - Keep dependency edits focused: update `flake.lock` and unrelated inputs only in a separately reviewed dependency change with build previews. If a fixed-output hash mismatches, verify the intended upstream artifact before accepting a new hash.
 - Preserve activation guards: NixOS hostname must match the running host unless a rename is explicitly approved; Home Manager user/home must match the caller. Switch only the saved, still-current preview build; `check` and `status` must never activate.

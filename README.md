@@ -1,6 +1,7 @@
 # NixOS + Home Manager
 
-Personal NixOS flake for `PC` and standalone Home Manager profile `yz@PC`.
+NixOS flake for one workstation and a standalone Home Manager profile. Their
+output names come from the `setup` block in `flake.nix`.
 NixOS owns the machine; Home Manager owns user apps and preferences.
 
 ## Quick start
@@ -15,6 +16,23 @@ just status         # active vs. saved preview vs. desired generations
 
 Neither command builds or activates. Stage new `.nix` files before evaluation:
 Git flakes do not see untracked files.
+
+## Adapting this workstation
+
+Edit the `setup` block in `flake.nix` for the system architecture, hostname,
+account and home path, timezone, locale, keyboard layouts, monitor, graphics
+driver, and Git identity. Set `monitor = null` to use the display's preferred
+mode. Niri accepts a connector or the manufacturer, model, and serial reported
+by `niri msg outputs` as the monitor match. The NixOS and Home Manager output
+names follow the configured host and user automatically.
+
+On another machine, regenerate `hosts/PC/hardware-configuration.nix` for its
+disks and detected hardware, then review the bootloader settings in
+`hosts/PC/default.nix`. The directory name is only a source path; it does not
+set the hostname. Keep the installed system and Home Manager state versions in
+`setup` when updating dependencies. A copied profile also needs its own Git
+signing key and SOPS age key outside the Nix store, plus re-encryption of the
+example SOPS secret for that key.
 
 ## Preview and activation
 
