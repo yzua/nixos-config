@@ -14,6 +14,7 @@ let
   ghostty = lib.getExe pkgs.ghostty;
   noctalia = lib.getExe pkgs.noctalia;
   voxtype = lib.getExe aiPackages.voxtype;
+  voiceAction = lib.getExe (import ./ai/voice/action.nix { inherit aiPackages pkgs; });
 in
 {
   xdg.configFile."niri/config.kdl".text = ''
@@ -83,7 +84,8 @@ in
       Mod+V { spawn "${noctalia}" "msg" "panel-toggle" "clipboard"; }
       Mod+S { spawn "${noctalia}" "msg" "panel-toggle" "control-center"; }
       Mod+D repeat=false { spawn "${voxtype}" "record" "toggle"; }
-      Mod+Shift+D repeat=false { spawn "${voxtype}" "record" "cancel"; }
+      Mod+Shift+D repeat=false { spawn "${voiceAction}"; }
+      Mod+Shift+Escape repeat=false { spawn "${voxtype}" "record" "cancel"; }
       Mod+Shift+Comma { spawn "${noctalia}" "msg" "settings-toggle"; }
       Alt+Tab { spawn "${noctalia}" "msg" "window-switcher"; }
       Mod+Home { spawn "${noctalia}" "msg" "session" "lock"; }
