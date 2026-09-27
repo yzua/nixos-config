@@ -126,6 +126,13 @@
               <family>Noto Sans Symbols 2</family>
             </accept>
           </alias>
+          <alias binding="same">
+            <family>JetBrainsMono Nerd Font</family>
+            <accept>
+              <family>JetBrains Mono</family>
+              <family>Symbols Nerd Font</family>
+            </accept>
+          </alias>
         </fontconfig>
       '';
     };
