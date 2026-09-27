@@ -1,8 +1,10 @@
-# Set per-user GNOME keyboard sources; system-wide IBus lives in NixOS.
+# Set per-user GNOME input sources and install Tweaks; system-wide IBus lives in NixOS.
 
-{ lib, ... }:
+{ lib, pkgs, ... }:
 
 {
+  home.packages = [ pkgs.gnome-tweaks ];
+
   # English (default) and Arabic, switchable in GNOME with Super+Space.
   dconf.settings."org/gnome/desktop/input-sources".sources = [
     (lib.hm.gvariant.mkTuple [
