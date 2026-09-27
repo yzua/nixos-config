@@ -6,6 +6,7 @@
   imports = [
     ./firefox.nix
     ./keepassxc.nix
+    ./netbird.nix
     ./vesktop.nix
   ];
 

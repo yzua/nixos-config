@@ -73,6 +73,17 @@ changes to preview/switch scripts, run `bash tests/workflow.sh` too: it mocks
 Nix and activation, so it needs neither a real build nor a switch. The workflow
 tests are not part of `just check`. Use `just --list` for other recipes.
 
+## NetBird
+
+The NixOS profile installs the NetBird client, desktop UI, and system service.
+After `just preview` and `just switch`, use the NetBird app launcher to open its
+Quick Actions window and join a network. Its controls also live in the system
+tray. The launcher enters the `netbird` group itself because an existing user
+manager may keep its old groups across a desktop logout. For CLI use until the
+user manager restarts, run `sg netbird -c 'netbird up'` or
+`sg netbird -c 'netbird status'`. Mullvad also runs on this host; check both VPN
+connections and routes when using them together.
+
 ## Browser CLI and agent skills
 
 Home Manager builds globally available JavaScript CLIs from the exact versions

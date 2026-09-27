@@ -12,6 +12,7 @@
     ../../modules/nixos/gaming.nix
     ../../modules/nixos/niri.nix
     ../../modules/nixos/mullvad-vpn.nix
+    ../../modules/nixos/netbird.nix
     ../../modules/nixos/numtide-cache.nix
     ../../modules/nixos/tor.nix
     ../../modules/nixos/tor-mullvad-bypass.nix
