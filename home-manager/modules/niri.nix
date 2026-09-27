@@ -57,6 +57,7 @@ in
 
       Mod+Return { spawn "${ghostty}"; }
       Mod+Space { spawn "${noctalia}" "msg" "panel-toggle" "launcher"; }
+      Mod+V { spawn "${noctalia}" "msg" "panel-toggle" "clipboard"; }
       Mod+S { spawn "${noctalia}" "msg" "panel-toggle" "control-center"; }
       Mod+Shift+Comma { spawn "${noctalia}" "msg" "settings-toggle"; }
       Alt+Tab { spawn "${noctalia}" "msg" "window-switcher"; }
@@ -94,10 +95,19 @@ in
       Mod+Ctrl+K { move-window-up; }
       Mod+Ctrl+L { move-column-right; }
 
-      Mod+Shift+Left { focus-monitor-left; }
-      Mod+Shift+Down { focus-monitor-down; }
-      Mod+Shift+Up { focus-monitor-up; }
-      Mod+Shift+Right { focus-monitor-right; }
+      Mod+Shift+Left { move-column-left; }
+      Mod+Shift+Down { move-window-down; }
+      Mod+Shift+Up { move-window-up; }
+      Mod+Shift+Right { move-column-right; }
+      Mod+Shift+H { move-column-left; }
+      Mod+Shift+J { move-window-down; }
+      Mod+Shift+K { move-window-up; }
+      Mod+Shift+L { move-column-right; }
+
+      Mod+Alt+Left { focus-monitor-left; }
+      Mod+Alt+Down { focus-monitor-down; }
+      Mod+Alt+Up { focus-monitor-up; }
+      Mod+Alt+Right { focus-monitor-right; }
       Mod+Shift+Ctrl+Left { move-column-to-monitor-left; }
       Mod+Shift+Ctrl+Down { move-column-to-monitor-down; }
       Mod+Shift+Ctrl+Up { move-column-to-monitor-up; }
@@ -121,6 +131,15 @@ in
       Mod+7 { focus-workspace 7; }
       Mod+8 { focus-workspace 8; }
       Mod+9 { focus-workspace 9; }
+      Mod+Shift+1 { move-window-to-workspace 1; }
+      Mod+Shift+2 { move-window-to-workspace 2; }
+      Mod+Shift+3 { move-window-to-workspace 3; }
+      Mod+Shift+4 { move-window-to-workspace 4; }
+      Mod+Shift+5 { move-window-to-workspace 5; }
+      Mod+Shift+6 { move-window-to-workspace 6; }
+      Mod+Shift+7 { move-window-to-workspace 7; }
+      Mod+Shift+8 { move-window-to-workspace 8; }
+      Mod+Shift+9 { move-window-to-workspace 9; }
       Mod+Ctrl+1 { move-column-to-workspace 1; }
       Mod+Ctrl+2 { move-column-to-workspace 2; }
       Mod+Ctrl+3 { move-column-to-workspace 3; }
@@ -138,16 +157,17 @@ in
       Mod+R { switch-preset-column-width; }
       Mod+Shift+R { switch-preset-column-width-back; }
       Mod+Ctrl+R { reset-window-height; }
-      Mod+F { maximize-column; }
+      Mod+F { toggle-window-floating; }
       Mod+Shift+F { fullscreen-window; }
       Mod+M { maximize-window-to-edges; }
+      Mod+Shift+M { maximize-column; }
+      Mod+Ctrl+M { maximize-window-to-edges; }
       Mod+Ctrl+F { expand-column-to-available-width; }
       Mod+C { center-column; }
       Mod+Minus { set-column-width "-10%"; }
       Mod+Equal { set-column-width "+10%"; }
       Mod+Shift+Minus { set-window-height "-10%"; }
       Mod+Shift+Equal { set-window-height "+10%"; }
-      Mod+V { toggle-window-floating; }
       Mod+Shift+V { switch-focus-between-floating-and-tiling; }
       Mod+W { toggle-column-tabbed-display; }
 

@@ -78,9 +78,14 @@ only in the Niri session.
 In Niri, `Mod` is the Super key. Caps Lock switches between US and Arabic
 (Shift+Caps Lock retains the normal Caps Lock action). `Mod+Enter` opens
 Ghostty, `Mod+Space` opens the app launcher, `Mod+S` opens the control center,
-`Mod+Shift+Comma` opens Noctalia settings, and `Mod+Home` locks.
+`Mod+V` opens clipboard history, `Mod+Shift+Comma` opens Noctalia settings,
+and `Mod+Home` locks. `Mod+F` toggles floating, `Mod+M` maximizes the window
+while keeping the bar visible, and `Mod+Shift+F` toggles fullscreen.
+`Mod+Shift+Arrow` moves the focused window or column, `Mod+Shift+1` through
+`Mod+Shift+9` move the focused window to a workspace, and `Mod+Alt+Arrow`
+focuses another monitor.
 `Mod+Shift+Slash` shows Niri's shortcut overlay. GNOME keeps its own input
-shortcuts. Noctalia's bar groups running app icons by workspace in one taskbar.
+shortcuts. Noctalia's bar shows each window icon in its workspace taskbar group.
 GNOME Tweaks is available in the GNOME session.
 
 The Phinger pointer theme is shared by Niri and GNOME. Niri asks apps to hide

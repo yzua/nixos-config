@@ -66,7 +66,7 @@ in
     widget.taskbar = {
       type = "taskbar";
       group_by_workspace = true;
-      group_single_icon_per_app = true;
+      group_single_icon_per_app = false;
       hide_empty_workspaces = false;
       icon_scale = 1.2;
       show_workspace_label = true;
