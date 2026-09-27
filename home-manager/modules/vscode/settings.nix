@@ -39,7 +39,7 @@ in
   "chat.commandCenter.enabled" = false;
 
   "editor.fontFamily" = "'JetBrains Mono', 'Noto Color Emoji', monospace";
-  "editor.fontSize" = 13;
+  "editor.fontSize" = 14;
   "editor.fontLigatures" = true;
   "editor.minimap.enabled" = false;
   "editor.renderWhitespace" = "boundary";
@@ -64,7 +64,7 @@ in
   "search.exclude" = ignored;
 
   "terminal.integrated.fontFamily" = "'JetBrains Mono'";
-  "terminal.integrated.fontSize" = 13;
+  "terminal.integrated.fontSize" = 14;
   "terminal.integrated.defaultProfile.linux" = "zsh";
   "explorer.sortOrder" = "type";
   "explorer.compactFolders" = false;

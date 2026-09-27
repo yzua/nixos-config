@@ -58,13 +58,42 @@ tests are not part of `just check`. Use `just --list` for other recipes.
 ## Appearance
 
 The standalone Home Manager profile uses Stylix's `release-26.05` module for
-Gruvbox Dark Soft, Inter for desktop text, Noto Serif for documents, JetBrains
-Mono for terminals, and Noto Color Emoji. Edit `home-manager/modules/theme.nix`
-to change the palette or fonts, then run `just check` and `just home-preview`
+Gruvbox Dark Soft, IBM Plex Sans with its matching Arabic face for desktop text,
+Noto Serif and Amiri for documents, JetBrains Mono for terminals, and Noto Color
+Emoji. Noto CJK and Nerd Symbols fill other script and terminal icon gaps.
+Edit `home-manager/modules/theme.nix` to change the palette or fonts, then run
+`just check` and `just home-preview`
 before `just home-switch`. The user GNOME shell, GTK apps, Firefox's Personal
 and Work profiles, Ghostty, and the configured terminal tools receive the
 palette. VS Code keeps its existing Gruvbox Dark Soft extension and writable
 settings. GDM is not themed by this user-level module.
+
+## Desktop sessions
+
+GDM offers both GNOME and Niri. GNOME remains available while Niri is tested.
+The Niri system module installs the session and Xwayland Satellite for X11
+games. Home Manager owns Niri's keyboard and shortcuts and starts Noctalia
+only in the Niri session.
+
+In Niri, `Mod` is the Super key. Caps Lock switches between US and Arabic
+(Shift+Caps Lock retains the normal Caps Lock action). `Mod+Enter` opens
+Ghostty, `Mod+Space` opens the app launcher, `Mod+S` opens the control center,
+`Mod+Shift+Comma` opens Noctalia settings, and `Mod+Home` locks.
+`Mod+Shift+Slash` shows Niri's shortcut overlay. GNOME keeps its own input
+shortcuts.
+
+The Phinger pointer theme is shared by Niri and GNOME. Niri asks apps to hide
+window title bars when they support it; apps with built-in header bars may keep
+them. Ghostty hides its title and tab bars. Use `Ctrl+Shift+T` for a new Ghostty
+tab, `Ctrl+Tab` to move forward, and `Ctrl+Shift+Tab` to move backward.
+
+Edit `home-manager/modules/niri.nix` for compositor settings and
+`home-manager/modules/noctalia.nix` for stable shell settings. Noctalia's GUI
+writes overrides to `${XDG_STATE_HOME:-$HOME/.local/state}/noctalia/settings.toml`;
+those values take precedence over the Nix-managed TOML until cleared. Use
+`noctalia config export` to review choices before moving them into the module.
+Stylix continues to theme applications; Noctalia's application templates are
+disabled.
 
 ## Layout
 

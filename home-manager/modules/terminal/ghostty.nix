@@ -11,6 +11,9 @@
     # Keep prompt/CWD integration without Ghostty's command-text titles.
     settings = {
       "shell-integration-features" = "no-title";
+      # Keep Ghostty free of GTK window chrome and visible tabs.
+      "window-decoration" = "none";
+      "gtk-tabs-location" = "hidden";
       # Copy terminal selections to both the primary and regular clipboard.
       "copy-on-select" = "clipboard";
       "mouse-scroll-multiplier" = "precision:0.75,discrete:1";

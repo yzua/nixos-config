@@ -10,6 +10,7 @@
     ../../modules/nixos/audio.nix
     ../../modules/nixos/gnome.nix
     ../../modules/nixos/gaming.nix
+    ../../modules/nixos/niri.nix
     ../../modules/nixos/mullvad-vpn.nix
     ../../modules/nixos/numtide-cache.nix
     ../../modules/nixos/tor.nix

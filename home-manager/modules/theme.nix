@@ -1,6 +1,11 @@
 # Apply one Gruvbox Dark Soft palette and a coordinated font set to user apps.
 
-{ lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 {
   stylix = {
@@ -12,8 +17,13 @@
 
     fonts = {
       sansSerif = {
-        package = pkgs.inter;
-        name = "Inter";
+        package = pkgs.ibm-plex.override {
+          families = [
+            "sans"
+            "sans-arabic"
+          ];
+        };
+        name = "IBM Plex Sans";
       };
       serif = {
         package = pkgs.noto-fonts;
@@ -28,9 +38,10 @@
         name = "Noto Color Emoji";
       };
       sizes = {
-        desktop = 11;
-        applications = 12;
-        terminal = 13;
+        desktop = 12;
+        applications = 13;
+        terminal = 14;
+        popups = 12;
       };
     };
 
@@ -51,7 +62,87 @@
     };
   };
 
-  fonts.fontconfig.enable = true;
+  home.packages = [
+    pkgs.amiri
+    pkgs.nerd-fonts.symbols-only
+    pkgs.noto-fonts-cjk-sans
+    pkgs.noto-fonts-cjk-serif
+  ];
+
+  fonts.fontconfig = {
+    enable = true;
+    # Follow the selected Latin faces with script-specific glyph fallbacks.
+    defaultFonts = {
+      sansSerif = lib.mkAfter [
+        "IBM Plex Sans Arabic"
+        "Noto Sans CJK JP"
+        "Noto Sans Symbols 2"
+        "Noto Color Emoji"
+      ];
+      serif = lib.mkAfter [
+        "Amiri"
+        "Noto Serif CJK JP"
+        "Noto Color Emoji"
+      ];
+      monospace = lib.mkAfter [
+        "IBM Plex Sans Arabic"
+        "Noto Sans Mono CJK JP"
+        "Symbols Nerd Font Mono"
+        "Noto Sans Symbols 2"
+      ];
+    };
+
+    # Explicit font requests also need Arabic and symbol fallback before DejaVu.
+    configFile.script-fallbacks = {
+      enable = true;
+      priority = 51;
+      text = ''
+        <?xml version="1.0"?>
+        <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+        <fontconfig>
+          <alias binding="same">
+            <family>IBM Plex Sans</family>
+            <accept>
+              <family>IBM Plex Sans Arabic</family>
+              <family>Noto Sans CJK JP</family>
+              <family>Noto Sans Symbols 2</family>
+              <family>Noto Color Emoji</family>
+            </accept>
+          </alias>
+          <alias binding="same">
+            <family>Noto Serif</family>
+            <accept>
+              <family>Amiri</family>
+              <family>Noto Serif CJK JP</family>
+              <family>Noto Color Emoji</family>
+            </accept>
+          </alias>
+          <alias binding="same">
+            <family>JetBrains Mono</family>
+            <accept>
+              <family>IBM Plex Sans Arabic</family>
+              <family>Noto Sans Mono CJK JP</family>
+              <family>Symbols Nerd Font Mono</family>
+              <family>Noto Sans Symbols 2</family>
+            </accept>
+          </alias>
+        </fontconfig>
+      '';
+    };
+  };
+
+  # Use the same crisp pointer in Niri, GTK apps, and the GNOME fallback.
+  home.pointerCursor = {
+    package = pkgs.phinger-cursors;
+    name = "phinger-cursors-light";
+    size = 32;
+    gtk.enable = true;
+  };
+
+  dconf.settings."org/gnome/desktop/interface" = {
+    cursor-theme = config.home.pointerCursor.name;
+    cursor-size = config.home.pointerCursor.size;
+  };
 
   # GNOME only discovers a newly installed extension after the next login.
   # Stylix's immediate reload fails on the first activation in that case.

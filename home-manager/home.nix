@@ -10,6 +10,8 @@
     (import ./modules/git.nix { inherit (homeProfile) gitIdentity; })
     ./modules/gnome.nix
     ./modules/mime.nix
+    ./modules/niri.nix
+    ./modules/noctalia.nix
     ./modules/secrets.nix
     ./modules/terminal
     ./modules/theme.nix
