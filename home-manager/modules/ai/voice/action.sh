@@ -11,6 +11,42 @@ runtime_dir="${XDG_RUNTIME_DIR:?Voice action needs XDG_RUNTIME_DIR}"
 transcript_file="$runtime_dir/voxtype-pi-action.txt"
 marker_file="$runtime_dir/voxtype-pi-action.active"
 lock_file="$runtime_dir/voxtype-pi-action.lock"
+state_home="${XDG_STATE_HOME:-${HOME:?}/.local/state}"
+session_dir="$state_home/voxtype-pi-action"
+session_store="$session_dir/sessions"
+session_id_file="$session_dir/session-id"
+
+umask 077
+mkdir -p -- "$session_store"
+chmod 700 -- "$session_dir" "$session_store"
+exec 8>"$session_dir/session.lock"
+
+new_session() {
+  local temporary_id
+  temporary_id="$(mktemp "$session_dir/session-id.XXXXXX")"
+  cat /proc/sys/kernel/random/uuid >"$temporary_id"
+  mv -- "$temporary_id" "$session_id_file"
+}
+
+if [[ "${1:-toggle}" == reset ]]; then
+  flock 8
+  new_session
+  flock -u 8
+  if [[ -e "$marker_file" ]]; then
+    case "$(voxtype status)" in
+    recording | streaming)
+      voxtype record cancel
+      rm -f -- "$marker_file" "$transcript_file"
+      ;;
+    esac
+  fi
+  notify "Voice action" "Started a new session."
+  exit 0
+fi
+if [[ "${1:-toggle}" != toggle ]]; then
+  printf 'usage: voxtype-pi-action [toggle|reset]\n' >&2
+  exit 2
+fi
 
 exec 9>"$lock_file"
 flock -n 9 || exit 0
@@ -28,6 +64,12 @@ recording | streaming)
     voxtype record cancel
     exit 0
   fi
+  flock 8
+  if [[ ! -s "$session_id_file" ]]; then
+    new_session
+  fi
+  voice_session_id="$(<"$session_id_file")"
+  flock -u 8
   if ! transcript="$(voxtype record stop --wait --timeout 90 --wait-file "$transcript_file")"; then
     rm -f -- "$marker_file" "$transcript_file"
     notify "Voice action" "No usable transcription was produced."
@@ -42,7 +84,7 @@ recording | streaming)
   if response="$(timeout 120s pi \
     --model codex-lb/gpt-6-luna \
     --thinking low \
-    --no-session \
+    --session "$session_store/$voice_session_id.jsonl" \
     --no-context-files \
     --no-extensions \
     --no-skills \

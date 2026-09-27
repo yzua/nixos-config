@@ -64,7 +64,11 @@ int main(int argc, char **argv) {
     if (!status) {
         const float ar = probs.at(whisper_lang_id("ar"));
         const float en = probs.at(whisper_lang_id("en"));
-        std::cout << (ar >= en ? "ar" : "en") << '\n';
+        // Short Arabic requests with English app names can score English higher.
+        // Keep English for clearly English speech, but allow a plausible Arabic
+        // score when it is within a factor of five of English.
+        const bool arabic = ar >= en || (ar >= 0.01f && ar >= 0.2f * en);
+        std::cout << (arabic ? "ar" : "en") << '\n';
     }
     whisper_free_state(state);
     whisper_free(ctx);

@@ -84,7 +84,8 @@ in
       Mod+V { spawn "${noctalia}" "msg" "panel-toggle" "clipboard"; }
       Mod+S { spawn "${noctalia}" "msg" "panel-toggle" "control-center"; }
       Mod+D repeat=false { spawn "${voxtype}" "record" "toggle"; }
-      Mod+Shift+D repeat=false { spawn "${voiceAction}"; }
+      Mod+X repeat=false { spawn "${voiceAction}"; }
+      Mod+Shift+X repeat=false { spawn "${voiceAction}" "reset"; }
       Mod+Shift+Escape repeat=false { spawn "${voxtype}" "record" "cancel"; }
       Mod+Shift+Comma { spawn "${noctalia}" "msg" "settings-toggle"; }
       Alt+Tab { spawn "${noctalia}" "msg" "window-switcher"; }
