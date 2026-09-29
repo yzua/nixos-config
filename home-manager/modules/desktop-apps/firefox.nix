@@ -46,12 +46,6 @@ let
       hash = "sha256-jpHQt+K8dnRoGN2MxTPqUlucPP1DP7pS2kdmqD9Xne0=";
     }
     {
-      name = "random-user-agent-4.3.2";
-      id = "{b43b974b-1d3a-4232-b226-eaa2ac6ebb69}";
-      url = "https://addons.mozilla.org/firefox/downloads/file/4530252/random_user_agent-4.3.2.xpi";
-      hash = "sha256-bqhX83LsPk4goD+Mwhh9EKBoP1hhii8B7PqkmHQk20w=";
-    }
-    {
       name = "canvas-blocker-no-fingerprint-0.2.4";
       id = "{e98b4b87-bc39-439f-a175-b15fbe4a06c0}";
       url = "https://addons.mozilla.org/firefox/downloads/file/4764176/canvas_blocker_no_fingerprint-0.2.4.xpi";
