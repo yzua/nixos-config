@@ -1,12 +1,11 @@
-# Personal Tailscale access for T3 Code without taking over work VPN routes or DNS.
+# Personal Tailscale client that preserves existing VPN routes and DNS.
 
-{ config, ... }:
+{ ... }:
 
 {
   services.tailscale = {
     enable = true;
-    # Keep work split DNS, work routes, and Mullvad's default route in charge.
-    # The NixOS firewall below handles incoming T3 Code traffic on tailscale0.
+    # Keep other VPNs' DNS and routes in charge; let NixOS own the firewall.
     extraSetFlags = [
       "--accept-dns=false"
       "--accept-routes=false"
@@ -15,8 +14,4 @@
       "--ssh=false"
     ];
   };
-
-  # T3 Code listens on port 3773 after Network access is enabled in the app.
-  # Scope the exception to Tailscale, not the LAN or public interfaces.
-  networking.firewall.interfaces.${config.services.tailscale.interfaceName}.allowedTCPPorts = [ 3773 ];
 }
