@@ -5,6 +5,8 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
+    # Steam popup menus need the xwayland-satellite 0.8.3 fix.
+    nixpkgs-xwayland-satellite.url = "github:NixOS/nixpkgs/nixos-unstable";
     home-manager = {
       url = "github:nix-community/home-manager/release-26.05";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -31,6 +33,7 @@
   outputs =
     {
       nixpkgs,
+      nixpkgs-xwayland-satellite,
       home-manager,
       stylix,
       sops-nix,
@@ -121,7 +124,10 @@
     {
       nixosConfigurations.${setup.hostName} = nixpkgs.lib.nixosSystem {
         inherit system;
-        specialArgs = { inherit setup; };
+        specialArgs = {
+          inherit setup;
+          xwaylandSatellite = nixpkgs-xwayland-satellite.legacyPackages.${system}.xwayland-satellite;
+        };
         modules = [ ./hosts/PC/default.nix ];
       };
 
