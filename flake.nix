@@ -152,6 +152,10 @@
           pkgs.statix
           pkgs.deadnix
           pkgs.shellcheck
+          pkgs.biome
+          pkgs.ruff
+          pkgs.rumdl
+          pkgs.python3
         ];
       };
     };

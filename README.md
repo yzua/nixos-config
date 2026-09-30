@@ -34,6 +34,19 @@ and check the system hostname or Home Manager user and home directory.
 When moving apps from NixOS to Home Manager, apply Home Manager first.
 With multiple outputs, select one using `NIXOS_CONFIG` or `HOME_CONFIG`.
 
+Development tools come from the pinned Nixpkgs input; no npm or pip install is
+needed. In `nix develop`, run `just fmt` to format files, `just fmt-check` for a
+read-only formatting check, and `just lint` for static analysis. Biome handles
+the locally owned TypeScript sources; Ruff handles Python formatting, import
+ordering, and common mistakes. Package lockfiles stay outside the formatter.
+Biome keeps its recommended rules with a few style and extension-interop
+exceptions; missing callback returns and unused code still get checked.
+ShellCheck checks Bash; shfmt formats it. Rust-based rumdl checks and formats
+Markdown, including links and structures that affect rendering, without
+requiring line wrapping or headings in prompt fragments. For quick focused
+checks, use `just lint-ts`, `just lint-python`, `just lint-shell`, or
+`just lint-markdown`.
+
 ## Customize
 
 Edit `setup` in `flake.nix` for the host, user, locale, keyboard, display,

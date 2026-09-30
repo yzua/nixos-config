@@ -17,17 +17,24 @@ check:
       fi
     @just verify
 
-# Format Nix and shell files, then the command menu (explicitly modifies files).
+# Format Nix, shell, TypeScript, Python, Markdown, and the command menu (modifies files).
 fmt:
     nix fmt --no-write-lock-file
+    biome format --write .
+    ruff check --select I --fix --no-cache .
+    ruff format --no-cache .
+    rumdl fmt --no-cache .
     just --fmt
 
-# Read-only formatting check for Nix, shell, and the justfile.
+# Read-only formatting check for all supported languages and the justfile.
 fmt-check:
     @git ls-files -z --cached --others --exclude-standard -- '*.nix' ':(exclude)hardware-configuration.nix' ':(exclude,glob)**/hardware-configuration.nix' | \
       while IFS= read -r -d '' file; do if [ -f "$file" ]; then nixfmt --check "$file"; fi; done
     @git ls-files -z --cached --others --exclude-standard -- '*.sh' | \
       while IFS= read -r -d '' file; do if [ -f "$file" ]; then shfmt -d -i 2 "$file"; fi; done
+    biome format .
+    ruff format --check --no-cache .
+    rumdl fmt --check --no-cache .
     just --fmt --check
 
 # Fast static analysis; run in the dev shell if these tools are not installed.
@@ -35,8 +42,27 @@ lint:
     statix check --ignore 'hardware-configuration.nix' --ignore '**/hardware-configuration.nix' .
     @git ls-files -z --cached --others --exclude-standard -- '*.nix' ':(exclude)hardware-configuration.nix' ':(exclude,glob)**/hardware-configuration.nix' | \
       while IFS= read -r -d '' file; do if [ -f "$file" ]; then deadnix --fail -- "$file"; fi; done
+    @just lint-shell
+    @just lint-ts
+    @just lint-python
+    @just lint-markdown
+
+# Fast Bash error checking without running the other language checks.
+lint-shell:
     @git ls-files -z --cached --others --exclude-standard -- '*.sh' | \
       while IFS= read -r -d '' file; do if [ -f "$file" ]; then shellcheck -x "$file"; fi; done
+
+# Fast TypeScript error checking without running the other language checks.
+lint-ts:
+    biome lint --diagnostic-level=warn --error-on-warnings .
+
+# Fast Python error and import checking without running the other language checks.
+lint-python:
+    ruff check --no-cache .
+
+# Fast Markdown checks for syntax, links, and rendering mistakes.
+lint-markdown:
+    rumdl check --no-cache .
 
 # Show the desired, saved preview, and active system/home generations (no build or switch).
 status:

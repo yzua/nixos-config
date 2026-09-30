@@ -6,10 +6,10 @@ import copy
 import fcntl
 import json
 import os
-from pathlib import Path
 import shutil
 import tempfile
 from datetime import datetime, timezone
+from pathlib import Path
 
 
 def read_json(path):
@@ -44,7 +44,9 @@ def initialize(agent_dir, state_dir, defaults):
         settings_path = agent_dir / "settings.json"
         models_path = agent_dir / "models.json"
         if settings_path.is_symlink() or models_path.is_symlink():
-            raise ValueError("Pi settings.json and models.json must be writable files, not managed symlinks")
+            raise ValueError(
+                "Pi settings.json and models.json must be writable files, not managed symlinks"
+            )
         settings = read_json(settings_path)
         models = read_json(models_path)
         if not isinstance(settings, dict) or not isinstance(models, dict):
@@ -55,21 +57,31 @@ def initialize(agent_dir, state_dir, defaults):
         target = defaults["defaultModel"]
         if provider and not any(model.get("id") == target for model in provider.get("models", [])):
             if provider.get("api") != "openai-responses":
-                raise ValueError("The selected custom provider must use openai-responses for GPT-6.1 Sol")
+                raise ValueError(
+                    "The selected custom provider must use openai-responses for GPT-6.1 Sol"
+                )
             candidates = provider.get("models", [])
-            source = next((model for model in candidates if model.get("id") == settings.get("defaultModel")), None)
+            source = next(
+                (model for model in candidates if model.get("id") == settings.get("defaultModel")),
+                None,
+            )
             if source is None:
-                raise ValueError("Configure a model for the selected provider before initializing Pi")
+                raise ValueError(
+                    "Configure a model for the selected provider before initializing Pi"
+                )
             model = copy.deepcopy(source)
-            model.update({
-                "id": target,
-                "name": "GPT-6.1 Sol",
-                "reasoning": True,
-                "thinkingLevelMap": {
-                    "off": None, "minimal": None,
-                    **{level: level for level in ("low", "medium", "high", "xhigh", "max")},
-                },
-            })
+            model.update(
+                {
+                    "id": target,
+                    "name": "GPT-6.1 Sol",
+                    "reasoning": True,
+                    "thinkingLevelMap": {
+                        "off": None,
+                        "minimal": None,
+                        **{level: level for level in ("low", "medium", "high", "xhigh", "max")},
+                    },
+                }
+            )
             # Retain the custom endpoint's existing token limits and compatibility flags.
             provider["models"].append(model)
             model_changed = True

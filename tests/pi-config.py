@@ -3,15 +3,16 @@
 
 import importlib.util
 import json
-from pathlib import Path
 import sys
 import tempfile
 import unittest
-
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.dont_write_bytecode = True
-spec = importlib.util.spec_from_file_location("pi_initialize", ROOT / "home-manager/modules/ai/pi/initialize.py")
+spec = importlib.util.spec_from_file_location(
+    "pi_initialize", ROOT / "home-manager/modules/ai/pi/initialize.py"
+)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
@@ -30,12 +31,18 @@ class InitializeTests(unittest.TestCase):
             "theme": "custom-theme",
             "extensions": ["custom-extension.ts", "+builtin:mcp"],
         }
-        self.models = {"providers": {"test-provider": {
-            "api": "openai-responses",
-            "baseUrl": "https://endpoint.invalid/v1",
-            "headers": {"X-Test": "private-example"},
-            "models": [{"id": "previous-model", "contextWindow": 123456, "maxTokens": 12345}],
-        }}}
+        self.models = {
+            "providers": {
+                "test-provider": {
+                    "api": "openai-responses",
+                    "baseUrl": "https://endpoint.invalid/v1",
+                    "headers": {"X-Test": "private-example"},
+                    "models": [
+                        {"id": "previous-model", "contextWindow": 123456, "maxTokens": 12345}
+                    ],
+                }
+            }
+        }
         self.defaults = {
             "defaultModel": "gpt-6.1-sol",
             "defaultThinkingLevel": "high",
@@ -63,7 +70,9 @@ class InitializeTests(unittest.TestCase):
         provider = self.read("models.json")["providers"]["test-provider"]
         self.assertEqual(provider["baseUrl"], self.models["providers"]["test-provider"]["baseUrl"])
         self.assertEqual(provider["headers"], {"X-Test": "private-example"})
-        self.assertEqual(provider["models"][0], self.models["providers"]["test-provider"]["models"][0])
+        self.assertEqual(
+            provider["models"][0], self.models["providers"]["test-provider"]["models"][0]
+        )
         added = provider["models"][1]
         self.assertEqual(added["contextWindow"], 123456)
         self.assertEqual(added["maxTokens"], 12345)

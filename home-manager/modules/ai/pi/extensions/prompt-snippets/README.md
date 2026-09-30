@@ -34,6 +34,7 @@ description: Keep answers short and to the point
 placement: prepend
 order: 10
 ---
+
 Keep your response concise. Skip preamble and unnecessary explanation.
 ```
 

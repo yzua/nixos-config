@@ -12,7 +12,7 @@
  * (auto-exit is suppressed for that turn via `awaitingAnswer`), and the parent
  * replies with subagent_message — which lands as the subagent's next turn.
  */
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { Box, Text } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
 import { writeFileSync } from "node:fs";
@@ -86,9 +86,7 @@ export interface SubagentErrorInfo {
  * Returns `null` when the latest assistant turn completed normally or was
  * aborted by the user (handled separately by shouldAutoExitOnAgentEnd).
  */
-export function findLatestAssistantError(
-  messages: any[] | undefined,
-): SubagentErrorInfo | null {
+export function findLatestAssistantError(messages: any[] | undefined): SubagentErrorInfo | null {
   if (!messages) return null;
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
@@ -96,7 +94,8 @@ export function findLatestAssistantError(
     if (msg.stopReason !== "error") return null;
     const raw = typeof msg.errorMessage === "string" ? msg.errorMessage.trim() : "";
     return {
-      errorMessage: raw || "Subagent agent loop ended with stopReason=error (no errorMessage field).",
+      errorMessage:
+        raw || "Subagent agent loop ended with stopReason=error (no errorMessage field).",
       stopReason: "error",
     };
   }
@@ -125,7 +124,7 @@ export default function (pi: ExtensionAPI) {
     activityFile: process.env.PI_SUBAGENT_ACTIVITY_FILE,
   });
 
-  function renderWidget(ctx: { ui: { setWidget: Function } }, _theme: any) {
+  function renderWidget(ctx: ExtensionContext) {
     ctx.ui.setWidget(
       "subagent-tools",
       (_tui: any, theme: any) => {
@@ -191,7 +190,7 @@ export default function (pi: ExtensionAPI) {
     toolNames = tools.map((t) => t.name).sort();
     denied = parseDeniedTools(deniedToolsValue);
 
-    renderWidget(ctx, null);
+    renderWidget(ctx);
   });
 
   pi.on("input", () => {
@@ -325,7 +324,7 @@ export default function (pi: ExtensionAPI) {
     description: "Toggle subagent tools widget",
     handler: (ctx) => {
       expanded = !expanded;
-      renderWidget(ctx, null);
+      renderWidget(ctx);
     },
   });
 
@@ -395,5 +394,4 @@ export default function (pi: ExtensionAPI) {
       return new Text(text, 0, 0);
     },
   });
-
 }

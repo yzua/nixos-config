@@ -28,14 +28,15 @@ import {
   closeSurface,
   sleep,
   uniqueId,
-  trackTempFile,
   waitForFile,
   waitForScreen,
   type TestEnv,
 } from "./harness.ts";
 
 const backends = getAvailableBackends();
-const FOCUS_TEST_SHELL_READY_DELAY_MS = Number(process.env.PI_SUBAGENT_SHELL_READY_DELAY_MS ?? "2500");
+const FOCUS_TEST_SHELL_READY_DELAY_MS = Number(
+  process.env.PI_SUBAGENT_SHELL_READY_DELAY_MS ?? "2500",
+);
 
 if (backends.length === 0) {
   console.log("⚠️  tmux is not available — skipping tmux-surface integration tests");
@@ -109,15 +110,9 @@ for (const backend of backends) {
       await sleep(1500);
 
       const screen = readScreen(surface, 50);
-      assert.ok(
-        screen.includes(`SPEC_${marker}`),
-        `Expected special-char output. Got:\n${screen}`,
-      );
+      assert.ok(screen.includes(`SPEC_${marker}`), `Expected special-char output. Got:\n${screen}`);
       // $ should be literal inside single quotes
-      assert.ok(
-        screen.includes("$HOME"),
-        `Expected literal $HOME in output. Got:\n${screen}`,
-      );
+      assert.ok(screen.includes("$HOME"), `Expected literal $HOME in output. Got:\n${screen}`);
     });
 
     it("sends a long command via script file without truncation", async () => {

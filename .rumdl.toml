@@ -1,0 +1,9 @@
+[global]
+# Agent prompts are Markdown fragments, and existing prose uses manual wrapping.
+disable = ["MD013", "MD041"]
+respect-gitignore = true
+cache = false
+
+[per-file-ignores]
+# This role's output template intentionally demonstrates placeholder links.
+"home-manager/modules/ai/pi/extensions/interactive-subagents/agents/researcher.md" = ["MD057"]

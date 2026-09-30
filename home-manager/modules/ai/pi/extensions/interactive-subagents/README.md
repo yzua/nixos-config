@@ -8,7 +8,7 @@ Async subagents for [pi](https://github.com/badlogic/pi-mono), running in tmux p
 
 `subagent()` returns immediately. The sub-agent runs in its own tmux pane — a right split off the parent pi pane, so pane creation never steals keyboard focus. A live widget above the input tracks every running sub-agent, and when one finishes, its result is steered into the main session as a notification that triggers a new turn.
 
-```
+```text
 ╭─ Subagents ──────────────────────────── 2 running ─╮
 │ 00:23  scout      active · bash 7m                 │
 │ 00:45  scout-2    waiting 2m                       │
@@ -150,7 +150,7 @@ Extensions can register additional tools for sub-agents at runtime via `register
 
 `cwd` starts a sub-agent in a directory with its own config, so role-specific setups (CLAUDE.md, skills, extensions) apply:
 
-```
+```text
 project/
 └── agents/
     ├── game-designer/   ← CLAUDE.md, .pi/…

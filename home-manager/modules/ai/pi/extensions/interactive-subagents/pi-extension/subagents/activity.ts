@@ -1,4 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 
 export type SubagentActivityPhase = "starting" | "active" | "waiting" | "done";
@@ -76,7 +83,13 @@ export interface SubagentActivityRecorder {
 const ACTIVITY_UPDATE_THROTTLE_MS = 500;
 const MAX_WRITE_FAILURES = 3;
 const KNOWN_PHASES = new Set<SubagentActivityPhase>(["starting", "active", "waiting", "done"]);
-const KNOWN_SCOPES = new Set<SubagentActivityScope>(["agent", "turn", "provider", "streaming", "tool"]);
+const KNOWN_SCOPES = new Set<SubagentActivityScope>([
+  "agent",
+  "turn",
+  "provider",
+  "streaming",
+  "tool",
+]);
 const KNOWN_EVENTS = new Set<SubagentActivityEvent>([
   "session_start",
   "input",
@@ -111,25 +124,38 @@ function validateFiniteNumber(object: Record<string, unknown>, fieldName: string
   return Number.isFinite(object[fieldName]) ? null : `${fieldName} must be finite`;
 }
 
-function validateOptionalFiniteNumber(object: Record<string, unknown>, fieldName: string): string | null {
+function validateOptionalFiniteNumber(
+  object: Record<string, unknown>,
+  fieldName: string,
+): string | null {
   const value = object[fieldName];
-  return value == null || Number.isFinite(value) ? null : `${fieldName} must be finite when present`;
+  return value == null || Number.isFinite(value)
+    ? null
+    : `${fieldName} must be finite when present`;
 }
 
 function validateInteger(object: Record<string, unknown>, fieldName: string): string | null {
   return Number.isInteger(object[fieldName]) ? null : `${fieldName} must be an integer`;
 }
 
-function validateOptionalInteger(object: Record<string, unknown>, fieldName: string): string | null {
+function validateOptionalInteger(
+  object: Record<string, unknown>,
+  fieldName: string,
+): string | null {
   const value = object[fieldName];
-  return value == null || Number.isInteger(value) ? null : `${fieldName} must be an integer when present`;
+  return value == null || Number.isInteger(value)
+    ? null
+    : `${fieldName} must be an integer when present`;
 }
 
 function validateBoolean(object: Record<string, unknown>, fieldName: string): string | null {
   return typeof object[fieldName] === "boolean" ? null : `${fieldName} must be a boolean`;
 }
 
-function validateOptionalActivityString(object: Record<string, unknown>, fieldName: string): string | null {
+function validateOptionalActivityString(
+  object: Record<string, unknown>,
+  fieldName: string,
+): string | null {
   const value = object[fieldName];
   if (value == null) return null;
   if (typeof value !== "string") return `${fieldName} must be a string when present`;
@@ -145,17 +171,25 @@ function validateActivity(value: unknown, expectedRunningChildId: string): Activ
   const object = requireObject(value);
   if (!object) return invalidActivity("activity must be an object");
   if (object.version !== 1) return invalidActivity("unsupported activity version");
-  if (typeof object.runningChildId !== "string") return invalidActivity("runningChildId must be a string");
+  if (typeof object.runningChildId !== "string")
+    return invalidActivity("runningChildId must be a string");
   if (object.runningChildId !== expectedRunningChildId) return { ok: false, reason: "wrong-id" };
-  if (typeof object.latestEvent !== "string" || !KNOWN_EVENTS.has(object.latestEvent as SubagentActivityEvent)) {
+  if (
+    typeof object.latestEvent !== "string" ||
+    !KNOWN_EVENTS.has(object.latestEvent as SubagentActivityEvent)
+  ) {
     return invalidActivity("unknown latestEvent");
   }
-  if (typeof object.phase !== "string" || !KNOWN_PHASES.has(object.phase as SubagentActivityPhase)) {
+  if (
+    typeof object.phase !== "string" ||
+    !KNOWN_PHASES.has(object.phase as SubagentActivityPhase)
+  ) {
     return invalidActivity("unknown activity phase");
   }
   if (
     object.activeScope != null &&
-    (typeof object.activeScope !== "string" || !KNOWN_SCOPES.has(object.activeScope as SubagentActivityScope))
+    (typeof object.activeScope !== "string" ||
+      !KNOWN_SCOPES.has(object.activeScope as SubagentActivityScope))
   ) {
     return invalidActivity("unknown activeScope");
   }
@@ -199,10 +233,16 @@ export function readSubagentActivityFile(
   return validateActivity(parsed, expectedRunningChildId);
 }
 
-export function writeSubagentActivityFile(activityFile: string, activity: SubagentActivityState): void {
+export function writeSubagentActivityFile(
+  activityFile: string,
+  activity: SubagentActivityState,
+): void {
   const dir = dirname(activityFile);
   mkdirSync(dir, { recursive: true });
-  const tempFile = join(dir, `${activity.runningChildId}.json.${process.pid}.${activity.sequence}.tmp`);
+  const tempFile = join(
+    dir,
+    `${activity.runningChildId}.json.${process.pid}.${activity.sequence}.tmp`,
+  );
 
   try {
     writeFileSync(tempFile, `${JSON.stringify(activity)}\n`, "utf8");
@@ -374,134 +414,202 @@ export function createSubagentActivityRecorder(params: {
   }
 
   function markDone(latestEvent: SubagentActivityEvent): void {
-    record(latestEvent, (current) => {
-      current.phase = "done";
-      clearActiveState(current);
-      delete current.waitingSince;
-    }, "immediate");
+    record(
+      latestEvent,
+      (current) => {
+        current.phase = "done";
+        clearActiveState(current);
+        delete current.waitingSince;
+      },
+      "immediate",
+    );
     disable();
   }
 
   return {
     sessionStart() {
-      record("session_start", (current) => {
-        current.phase = "starting";
-        clearActiveState(current);
-        delete current.waitingSince;
-      }, "immediate");
+      record(
+        "session_start",
+        (current) => {
+          current.phase = "starting";
+          clearActiveState(current);
+          delete current.waitingSince;
+        },
+        "immediate",
+      );
     },
     input() {
       record("input", () => {}, "immediate");
     },
     beforeAgentStart() {
-      record("before_agent_start", (current, observedAt) => {
-        current.agentActive = true;
-        markActive(current, "agent", observedAt);
-      }, "immediate");
+      record(
+        "before_agent_start",
+        (current, observedAt) => {
+          current.agentActive = true;
+          markActive(current, "agent", observedAt);
+        },
+        "immediate",
+      );
     },
     agentStart() {
-      record("agent_start", (current, observedAt) => {
-        current.agentActive = true;
-        markActive(current, "agent", observedAt);
-      }, "immediate");
+      record(
+        "agent_start",
+        (current, observedAt) => {
+          current.agentActive = true;
+          markActive(current, "agent", observedAt);
+        },
+        "immediate",
+      );
     },
     agentEndWaiting() {
-      record("agent_end", (current, observedAt) => {
-        clearActiveState(current);
-        current.phase = "waiting";
-        current.waitingSince = observedAt;
-      }, "immediate");
+      record(
+        "agent_end",
+        (current, observedAt) => {
+          clearActiveState(current);
+          current.phase = "waiting";
+          current.waitingSince = observedAt;
+        },
+        "immediate",
+      );
     },
     agentEndDone() {
       markDone("agent_end");
     },
     turnStart(turnIndex) {
-      record("turn_start", (current, observedAt) => {
-        current.agentActive = true;
-        current.turnActive = true;
-        if (turnIndex != null) current.turnIndex = turnIndex;
-        markActive(current, current.toolActive || current.providerActive ? current.activeScope ?? "turn" : "turn", observedAt);
-      }, "immediate");
+      record(
+        "turn_start",
+        (current, observedAt) => {
+          current.agentActive = true;
+          current.turnActive = true;
+          if (turnIndex != null) current.turnIndex = turnIndex;
+          markActive(
+            current,
+            current.toolActive || current.providerActive ? (current.activeScope ?? "turn") : "turn",
+            observedAt,
+          );
+        },
+        "immediate",
+      );
     },
     turnEnd(turnIndex) {
-      record("turn_end", (current) => {
-        current.turnActive = false;
-        current.providerActive = false;
-        current.toolActive = false;
-        if (turnIndex != null) current.turnIndex = turnIndex;
-        refreshActiveScope(current);
-      }, "immediate");
+      record(
+        "turn_end",
+        (current) => {
+          current.turnActive = false;
+          current.providerActive = false;
+          current.toolActive = false;
+          if (turnIndex != null) current.turnIndex = turnIndex;
+          refreshActiveScope(current);
+        },
+        "immediate",
+      );
     },
     beforeProviderRequest() {
-      record("before_provider_request", (current, observedAt) => {
-        current.providerActive = true;
-        markActive(current, "provider", observedAt, true);
-      }, "immediate");
+      record(
+        "before_provider_request",
+        (current, observedAt) => {
+          current.providerActive = true;
+          markActive(current, "provider", observedAt, true);
+        },
+        "immediate",
+      );
     },
     afterProviderResponse() {
-      record("after_provider_response", (current) => {
-        current.providerActive = false;
-        refreshActiveScope(current);
-      }, "immediate");
+      record(
+        "after_provider_response",
+        (current) => {
+          current.providerActive = false;
+          refreshActiveScope(current);
+        },
+        "immediate",
+      );
     },
     messageUpdate(messageEventType) {
-      record("message_update", (current, observedAt) => {
-        current.agentActive = true;
-        current.turnActive = true;
-        current.messageEventType = messageEventType;
-        if (!current.toolActive) markActive(current, "streaming", observedAt);
-      }, "throttled");
+      record(
+        "message_update",
+        (current, observedAt) => {
+          current.agentActive = true;
+          current.turnActive = true;
+          current.messageEventType = messageEventType;
+          if (!current.toolActive) markActive(current, "streaming", observedAt);
+        },
+        "throttled",
+      );
     },
     toolExecutionStart(toolCallId, toolName) {
-      record("tool_execution_start", (current, observedAt) => {
-        current.toolActive = true;
-        current.toolCallId = toolCallId;
-        current.toolName = toolName;
-        current.toolStartedAt = observedAt;
-        markActive(current, "tool", observedAt, true);
-      }, "immediate");
+      record(
+        "tool_execution_start",
+        (current, observedAt) => {
+          current.toolActive = true;
+          current.toolCallId = toolCallId;
+          current.toolName = toolName;
+          current.toolStartedAt = observedAt;
+          markActive(current, "tool", observedAt, true);
+        },
+        "immediate",
+      );
     },
     toolCall(toolCallId, toolName) {
-      record("tool_call", (current, observedAt) => {
-        current.toolActive = true;
-        current.toolCallId = toolCallId ?? current.toolCallId;
-        current.toolName = toolName ?? current.toolName;
-        markActive(current, "tool", observedAt);
-      }, "immediate");
+      record(
+        "tool_call",
+        (current, observedAt) => {
+          current.toolActive = true;
+          current.toolCallId = toolCallId ?? current.toolCallId;
+          current.toolName = toolName ?? current.toolName;
+          markActive(current, "tool", observedAt);
+        },
+        "immediate",
+      );
     },
     toolExecutionUpdate(toolCallId, toolName) {
-      record("tool_execution_update", (current, observedAt) => {
-        current.toolActive = true;
-        current.toolCallId = toolCallId ?? current.toolCallId;
-        current.toolName = toolName ?? current.toolName;
-        markActive(current, "tool", observedAt);
-      }, "throttled");
+      record(
+        "tool_execution_update",
+        (current, observedAt) => {
+          current.toolActive = true;
+          current.toolCallId = toolCallId ?? current.toolCallId;
+          current.toolName = toolName ?? current.toolName;
+          markActive(current, "tool", observedAt);
+        },
+        "throttled",
+      );
     },
     toolResult(toolCallId, toolName) {
-      record("tool_result", (current) => {
-        current.toolCallId = toolCallId ?? current.toolCallId;
-        current.toolName = toolName ?? current.toolName;
-        refreshActiveScope(current);
-      }, "immediate");
+      record(
+        "tool_result",
+        (current) => {
+          current.toolCallId = toolCallId ?? current.toolCallId;
+          current.toolName = toolName ?? current.toolName;
+          refreshActiveScope(current);
+        },
+        "immediate",
+      );
     },
     toolExecutionEnd(toolCallId, toolName) {
-      record("tool_execution_end", (current, observedAt) => {
-        current.toolActive = false;
-        current.toolCallId = toolCallId ?? current.toolCallId;
-        current.toolName = toolName ?? current.toolName;
-        current.toolEndedAt = observedAt;
-        refreshActiveScope(current);
-      }, "immediate");
+      record(
+        "tool_execution_end",
+        (current, observedAt) => {
+          current.toolActive = false;
+          current.toolCallId = toolCallId ?? current.toolCallId;
+          current.toolName = toolName ?? current.toolName;
+          current.toolEndedAt = observedAt;
+          refreshActiveScope(current);
+        },
+        "immediate",
+      );
     },
     askQuestion() {
       // The subagent paused to ask the orchestrator a question. Park it in the
       // "waiting" phase (do NOT disable the recorder) so the status widget shows
       // it as waiting and recording resumes when the answer arrives.
-      record("ask_question", (current, observedAt) => {
-        clearActiveState(current);
-        current.phase = "waiting";
-        current.waitingSince = observedAt;
-      }, "immediate");
+      record(
+        "ask_question",
+        (current, observedAt) => {
+          clearActiveState(current);
+          current.phase = "waiting";
+          current.waitingSince = observedAt;
+        },
+        "immediate",
+      );
     },
     sessionShutdown(reason) {
       if (reason === "quit") markDone("session_shutdown");
