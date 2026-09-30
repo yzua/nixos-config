@@ -1,8 +1,18 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, unlinkSync } from "node:fs";
-import { join } from "node:path";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmdirSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { randomUUID } from "node:crypto";
+import { dirname, join, resolve } from "node:path";
 import type { SubagentActivityState } from "./activity.ts";
 import {
+  countSessionEntryLines,
   findLastAssistantMessage,
   getNewEntries,
   getSessionId,
@@ -82,12 +92,132 @@ type LaunchPlan = {
     }
 );
 
+export class RunOwnershipError extends Error {}
+
+type SessionOwner = {
+  version: 1;
+  token: string;
+  sessionFile: string;
+  surface: string;
+  mux: string;
+};
+
 /** Own a pane from creation through result delivery, regardless of session policy.
  * Callers prepare the session and sandbox; they never register or watch a run.
  * UI observation stays outside this module, but failures in it cannot leak a pane.
  */
 export class ManagedRuns {
   readonly running = new Map<string, RunningSubagent>();
+  private readonly owners = new WeakMap<RunningSubagent, SessionOwner>();
+
+  // Locks serialize inspection and replacement across runtimes AND processes.
+  // A crash during launch leaves an unknown lock: refuse, never guess it is safe.
+  private lockSession(sessionFile: string): () => void {
+    const lock = `${resolve(sessionFile)}.owner.lock`;
+    mkdirSync(dirname(lock), { recursive: true });
+    try {
+      mkdirSync(lock);
+    } catch {
+      throw new RunOwnershipError(
+        `Cannot safely resume: session ownership is busy or unknown (${lock}).`,
+      );
+    }
+    return () => rmdirSync(lock);
+  }
+
+  private muxIdentity(): string {
+    // The final TMUX field identifies the caller's session, not the server.
+    return (process.env.TMUX ?? "").split(",").slice(0, 2).join(",");
+  }
+
+  private readOwner(sessionFile: string): SessionOwner | undefined {
+    const file = `${resolve(sessionFile)}.owner.json`;
+    try {
+      const owner = JSON.parse(readFileSync(file, "utf8"));
+      if (
+        owner.version !== 1 ||
+        typeof owner.token !== "string" ||
+        !owner.token ||
+        owner.sessionFile !== resolve(sessionFile) ||
+        typeof owner.surface !== "string" ||
+        !/^%\d+$/.test(owner.surface) ||
+        typeof owner.mux !== "string" ||
+        !owner.mux
+      )
+        throw new Error("invalid owner");
+      return owner;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+      throw new RunOwnershipError(
+        `Cannot safely resume: corrupt or unknown session ownership (${file}).`,
+      );
+    }
+  }
+
+  private async claimSession(sessionFile: string, signal: AbortSignal): Promise<() => void> {
+    // Synchronous lock acquisition precedes the first await in any launch.
+    const unlock = this.lockSession(sessionFile);
+    try {
+      const owner = this.readOwner(sessionFile);
+      if (owner) {
+        if (owner.mux !== this.muxIdentity()) {
+          throw new RunOwnershipError(
+            "Cannot safely resume: child belongs to another or unknown tmux server.",
+          );
+        }
+        const probe = new AbortController();
+        const probeSignal = AbortSignal.any([signal, probe.signal]);
+        const timer = setTimeout(() => probe.abort(), 2600);
+        let onAbort: (() => void) | undefined;
+        try {
+          // Probe terminal completion/pane loss only. An error sidecar can be
+          // published before process exit, so it cannot release writer ownership.
+          // Bound the caller even if an external tmux read is slow. A late
+          // probe has no delivery hooks or authority to remove the claim.
+          const exit = await Promise.race([
+            pollForExit(owner.surface, probeSignal, { interval: 50 }),
+            new Promise<never>((_resolve, reject) => {
+              onAbort = () => reject(new Error("Ownership probe aborted"));
+              if (probeSignal.aborted) onAbort();
+              else probeSignal.addEventListener("abort", onAbort, { once: true });
+            }),
+          ]);
+          if (
+            exit.reason !== "sentinel" &&
+            exit.errorMessage !==
+              `Subagent pane ${owner.surface} disappeared before reporting completion.`
+          )
+            throw new Error("cannot establish child exit");
+        } catch {
+          throw new RunOwnershipError(
+            "Cannot safely resume: a surviving child still owns this session, or its exit cannot be established.",
+          );
+        } finally {
+          clearTimeout(timer);
+          if (onAbort) probeSignal.removeEventListener("abort", onAbort);
+        }
+        try {
+          closeSurface(owner.surface);
+        } catch {
+          /* Already closed. */
+        }
+        // Old error sidecars belong to the completed writer, not its successor.
+        const exitFile = `${resolve(sessionFile)}.exit`;
+        if (existsSync(exitFile)) unlinkSync(exitFile);
+        unlinkSync(`${resolve(sessionFile)}.owner.json`);
+      }
+      if (signal.aborted) throw new Error("Aborted while claiming subagent session");
+      return unlock;
+    } catch (error) {
+      unlock();
+      throw error;
+    }
+  }
+
+  /** Dispose supervision without surrendering a child's durable writer claim. */
+  dispose(): void {
+    this.running.clear();
+  }
 
   constructor(
     private readonly hooks: {
@@ -102,19 +232,38 @@ export class ManagedRuns {
 
   async launch(
     candidate: Omit<RunningSubagent, "surface" | "abortController">,
-    policy: ResultPolicy,
+    policy: { kind: "initial" } | { kind: "resume"; sessionId: string },
     prepare: (running: RunningSubagent) => LaunchPlan,
     register?: (running: RunningSubagent) => void,
   ): Promise<RunningSubagent> {
     // Capture this runtime's signal, not whatever a later session installs.
     const moduleSignal = this.hooks.moduleSignal();
-    const surface = createSurface(candidate.name);
-    const running: RunningSubagent = {
-      ...candidate,
-      surface,
-      abortController: new AbortController(),
-    };
+    const unlock = await this.claimSession(candidate.sessionFile, moduleSignal);
+    let running: RunningSubagent | undefined;
+    let resultPolicy: ResultPolicy;
     try {
+      // Sample only after the previous writer has truly exited: any final
+      // detached output is old history, never this follow-up's summary.
+      resultPolicy =
+        policy.kind === "resume"
+          ? { ...policy, entryCountBefore: countSessionEntryLines(candidate.sessionFile) }
+          : policy;
+      const surface = createSurface(candidate.name);
+      running = {
+        ...candidate,
+        surface,
+        abortController: new AbortController(),
+      };
+      const owner: SessionOwner = {
+        version: 1,
+        token: randomUUID(),
+        sessionFile: resolve(running.sessionFile),
+        surface,
+        mux: this.muxIdentity(),
+      };
+      this.owners.set(running, owner);
+      // Persist the pane BEFORE dispatch: even parent death cannot hide a writer.
+      writeFileSync(`${owner.sessionFile}.owner.json`, JSON.stringify(owner), { flag: "wx" });
       await new Promise<void>((resolve) => setTimeout(resolve, this.hooks.shellReadyDelayMs()));
       if (moduleSignal.aborted) throw new Error("Aborted while launching subagent");
       const plan = prepare(running);
@@ -128,12 +277,14 @@ export class ManagedRuns {
       register?.(running);
       this.hooks.refresh(true);
     } catch (error) {
-      this.release(running);
+      if (running) this.release(running, true);
       throw error;
+    } finally {
+      unlock();
     }
     // The tool's signal ends with its acknowledgement. Supervision instead
     // belongs to this run and the extension runtime (shutdown or /reload).
-    void this.complete(running, policy, moduleSignal);
+    void this.complete(running, resultPolicy, moduleSignal);
     return running;
   }
 
@@ -158,13 +309,30 @@ export class ManagedRuns {
     return `${cd}${prefix} ${plan.parts.join(" ")}`;
   }
 
-  private release(running: RunningSubagent): void {
+  private release(running: RunningSubagent, lockHeld = false): void {
+    let closed = false;
     try {
       closeSurface(running.surface);
+      closed = true;
     } catch {
-      /* Pane may already be gone. */
+      // Do not surrender ownership if cancellation/cleanup cannot kill the
+      // writer. A later launch must establish actual terminal exit/pane loss.
     }
-    this.running.delete(running.id);
+    if (this.running.get(running.id) === running) this.running.delete(running.id);
+    if (!closed) return;
+    let unlock: (() => void) | undefined;
+    try {
+      if (!lockHeld) unlock = this.lockSession(running.sessionFile);
+      const owner = this.readOwner(running.sessionFile);
+      // A late obsolete watcher must never unlink a successor's claim.
+      if (owner?.token === this.owners.get(running)?.token) {
+        unlinkSync(`${resolve(running.sessionFile)}.owner.json`);
+      }
+    } catch {
+      // Unknown/busy ownership remains fail-closed; a later launch can probe exit.
+    } finally {
+      unlock?.();
+    }
   }
 
   private async complete(
@@ -179,7 +347,10 @@ export class ManagedRuns {
         interval: 1000,
         sessionFile: running.sessionFile,
         sentinelFile: running.sentinelFile,
-        onTick: () => this.hooks.tick(running),
+        onTick: () => {
+          // A terminal read already in flight can finish after disposal.
+          if (!moduleSignal.aborted && !signal.aborted) this.hooks.tick(running);
+        },
       });
       result = this.extractResult(running, policy, exit);
     } catch (error) {
@@ -197,7 +368,7 @@ export class ManagedRuns {
       if (moduleSignal.aborted) {
         // Disposal owns the watcher, not the child process. Leave its pane
         // alone; a replacement runtime must not receive this run's result.
-        this.running.delete(running.id);
+        if (this.running.get(running.id) === running) this.running.delete(running.id);
       } else {
         this.release(running);
       }

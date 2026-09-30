@@ -2,7 +2,7 @@ import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-age
 import { keyHint } from "@mariozechner/pi-coding-agent";
 import { Type, type Static } from "@sinclair/typebox";
 import { Box, Text, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   readdirSync,
@@ -16,7 +16,6 @@ import { homedir } from "node:os";
 import { isMuxAvailable, muxSetupHint, sendCommand, shellEscape } from "./tmux.ts";
 
 import {
-  countSessionEntryLines,
   getSessionId,
   readNameRegistry,
   readSubagentLoadout,
@@ -46,7 +45,12 @@ import {
   type SubagentActivityState,
 } from "./activity.ts";
 
-import { ManagedRuns, type RunningSubagent, type SubagentResult } from "./managed-run.ts";
+import {
+  ManagedRuns,
+  RunOwnershipError,
+  type RunningSubagent,
+  type SubagentResult,
+} from "./managed-run.ts";
 
 /** Absolute path to `pi-extension/subagents`. https://github.com/nodejs/node/issues/37845 */
 const SUBAGENTS_DIR = dirname(fileURLToPath(import.meta.url));
@@ -1452,10 +1456,7 @@ export default function subagentsExtension(pi: ExtensionAPI) {
     }
     const moduleAbort = (globalThis as any)[POLL_ABORT_KEY] as AbortController | undefined;
     if (moduleAbort) moduleAbort.abort();
-    for (const [_id, agent] of runningSubagents) {
-      agent.abortController?.abort();
-    }
-    runningSubagents.clear();
+    managedRuns.dispose();
   });
 
   // The spawning tools are always registered here. Whether a child process can
@@ -1838,14 +1839,6 @@ export default function subagentsExtension(pi: ExtensionAPI) {
         return { content: [{ type: "text" as const, text: err }], details: { error: err } };
       }
 
-      // Guard: never resume a session that is still running — two processes
-      // mutating the same .jsonl corrupts it. Steer it by name instead.
-      for (const r of runningSubagents.values()) {
-        if (resolve(r.sessionFile) === resolve(sessionPath)) {
-          return handleSubagentSteer({ name: r.name, message: params.message });
-        }
-      }
-
       // Reconstruct the sandbox from the snapshot written at spawn time.
       // Without it we cannot safely resume: relaunching bare would load every
       // global extension + the full toolset. Refuse rather than escalate.
@@ -1861,43 +1854,57 @@ export default function subagentsExtension(pi: ExtensionAPI) {
 
       const resumedSessionId = entry.sessionId ?? getSessionId(sessionPath) ?? requestedName;
 
-      // Record entry count before resuming so we can extract new messages.
-      // Count lines cheaply (no per-line JSON.parse) so resuming a large
-      // transcript doesn't block the UI.
-      const entryCountBefore = countSessionEntryLines(sessionPath);
-
       const artifactDir = parentArtifactDir;
       const activityFile = getSubagentActivityFile(artifactDir, id);
       mkdirSync(dirname(activityFile), { recursive: true });
-      const running = await managedRuns.launch(
-        {
-          id,
-          name,
-          task: message,
-          startTime,
-          sessionFile: sessionPath,
-          activityFile,
-          interactive,
-          statusState: createStatusState({ source: "pi", startTimeMs: startTime }),
-        },
-        { kind: "resume", entryCountBefore, sessionId: resumedSessionId },
-        ({ surface }) => {
-          // Build pi resume command
-          const parts = ["pi", "--approve", "--session", shellEscape(sessionPath)];
+      let running: RunningSubagent;
+      try {
+        running = await managedRuns.launch(
+          {
+            id,
+            name,
+            task: message,
+            startTime,
+            sessionFile: sessionPath,
+            activityFile,
+            interactive,
+            statusState: createStatusState({ source: "pi", startTimeMs: startTime }),
+          },
+          { kind: "resume", sessionId: resumedSessionId },
+          ({ surface }) => {
+            // Build pi resume command
+            const parts = ["pi", "--approve", "--session", shellEscape(sessionPath)];
 
-          // Load subagent-done extension so the agent can self-terminate if needed
-          const subagentDonePath = join(SUBAGENTS_DIR, "subagent-done.ts");
-          parts.push("-e", shellEscape(subagentDonePath));
+            // Load subagent-done extension so the agent can self-terminate if needed
+            const subagentDonePath = join(SUBAGENTS_DIR, "subagent-done.ts");
+            parts.push("-e", shellEscape(subagentDonePath));
 
-          // Replay the model, identity, and default-deny tool/extension sandbox.
-          applySandboxToParts(parts, loadout, { artifactDir, name });
+            // Replay the model, identity, and default-deny tool/extension sandbox.
+            applySandboxToParts(parts, loadout, { artifactDir, name });
 
-          let resumeMsgFile: string | undefined;
-          if (params.message) {
-            const msgTimestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-            resumeMsgFile = join(
+            let resumeMsgFile: string | undefined;
+            if (params.message) {
+              const msgTimestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+              resumeMsgFile = join(
+                artifactDir,
+                "subagent-resume",
+                `${
+                  name
+                    .toLowerCase()
+                    .replace(/[^a-z0-9\s-]/g, "")
+                    .replace(/\s+/g, "-")
+                    .replace(/-+/g, "-")
+                    .replace(/^-|-$/g, "") || "resume"
+                }-${msgTimestamp}.md`,
+              );
+              mkdirSync(dirname(resumeMsgFile), { recursive: true });
+              writeFileSync(resumeMsgFile, message, "utf8");
+              parts.push(shellEscape(`@${resumeMsgFile}`));
+            }
+
+            const launchScriptFile = join(
               artifactDir,
-              "subagent-resume",
+              "subagent-scripts",
               `${
                 name
                   .toLowerCase()
@@ -1905,41 +1912,31 @@ export default function subagentsExtension(pi: ExtensionAPI) {
                   .replace(/\s+/g, "-")
                   .replace(/-+/g, "-")
                   .replace(/^-|-$/g, "") || "resume"
-              }-${msgTimestamp}.md`,
+              }-resume-${Date.now()}.sh`,
             );
-            mkdirSync(dirname(resumeMsgFile), { recursive: true });
-            writeFileSync(resumeMsgFile, message, "utf8");
-            parts.push(shellEscape(`@${resumeMsgFile}`));
-          }
-
-          const launchScriptFile = join(
-            artifactDir,
-            "subagent-scripts",
-            `${
-              name
-                .toLowerCase()
-                .replace(/[^a-z0-9\s-]/g, "")
-                .replace(/\s+/g, "-")
-                .replace(/-+/g, "-")
-                .replace(/^-|-$/g, "") || "resume"
-            }-resume-${Date.now()}.sh`,
-          );
-          return {
-            kind: "pi",
-            parts,
-            loadout,
-            autoExit,
-            launchScriptFile,
-            scriptPreamble: [
-              `# Subagent resume script for ${name}`,
-              `# Generated: ${new Date().toISOString()}`,
-              `# Session: ${sessionPath}`,
-              `# Surface: ${surface}`,
-              ...(resumeMsgFile ? [`# Resume message file: ${resumeMsgFile}`] : []),
-            ].join("\n"),
-          };
-        },
-      );
+            return {
+              kind: "pi",
+              parts,
+              loadout,
+              autoExit,
+              launchScriptFile,
+              scriptPreamble: [
+                `# Subagent resume script for ${name}`,
+                `# Generated: ${new Date().toISOString()}`,
+                `# Session: ${sessionPath}`,
+                `# Surface: ${surface}`,
+                ...(resumeMsgFile ? [`# Resume message file: ${resumeMsgFile}`] : []),
+              ].join("\n"),
+            };
+          },
+        );
+      } catch (error) {
+        if (!(error instanceof RunOwnershipError)) throw error;
+        return {
+          content: [{ type: "text" as const, text: error.message }],
+          details: { error: error.message },
+        };
+      }
 
       return {
         content: [{ type: "text", text: `Session "${name}" resumed.` }],

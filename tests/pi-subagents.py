@@ -17,7 +17,7 @@ SOURCE = REPO / "home-manager/modules/ai/pi/extensions/interactive-subagents/pi-
 PI = os.environ.get("PI_BIN", shutil.which("pi"))
 
 FAKE_TMUX = """#!/usr/bin/env python3
-import json, os, shlex, sys
+import json, os, shlex, sys, time
 from pathlib import Path
 root = Path(os.environ['PI_TEST_ROOT'])
 args = sys.argv[1:]
@@ -25,6 +25,8 @@ with (root / 'tmux-calls').open('a') as calls:
     calls.write(json.dumps(args) + '\\n')
 modefile = root / 'tmux-mode'
 mode = modefile.read_text() if modefile.exists() else 'healthy'
+if args[0] == 'kill-pane':
+    (root / f'closed-{args[2]}').write_text('closed')
 if args[0] == 'send-keys':
     if mode == 'send-failure':
         sys.exit(1)
@@ -53,13 +55,19 @@ if args[0] == 'send-keys':
         if mode == 'managed-error':
             Path(str(session) + '.exit').write_text(json.dumps({
                 'type': 'error', 'errorMessage': 'OFFLINE_PROVIDER_FAILURE'}))
-        (root / f'done-{pane}').write_text('done')
+        if mode != 'managed-live':
+            (root / f'done-{pane}').write_text('done')
 if args[0] == 'split-window':
     counter = root / 'pane-count'
     n = int(counter.read_text()) + 1 if counter.exists() else 1
     counter.write_text(str(n))
     print(f'%{n}')
 elif args[0] == 'capture-pane':
+    if (root / 'capture-delay').exists():
+        time.sleep(float((root / 'capture-delay').read_text()))
+    pane = args[args.index('-t') + 1]
+    if (root / f'closed-{pane}').exists():
+        sys.exit(1)
     if mode in ('missing', 'late-sidecar', 'capture-error', 'unavailable'):
         sys.exit(1)
     if mode == 'transient':
@@ -80,6 +88,10 @@ elif args[0] == 'list-panes':
         sys.exit(1)
     if mode not in ('missing', 'late-sidecar'):
         print('%99')
+        counter = root / 'pane-count'
+        for n in range(1, int(counter.read_text()) + 1 if counter.exists() else 1):
+            if not (root / f'closed-%{n}').exists():
+                print(f'%{n}')
 """
 
 
@@ -251,7 +263,7 @@ class PiRegressions(unittest.TestCase):
 
     def probes(self, scenario):
         bindir = self.root / "bin"
-        bindir.mkdir()
+        bindir.mkdir(exist_ok=True)
         shim = bindir / "tmux"
         shim.write_text(FAKE_TMUX)
         shim.chmod(0o755)
@@ -262,7 +274,7 @@ class PiRegressions(unittest.TestCase):
             PI_SUBAGENT_SHELL_READY_DELAY_MS="20",
         )
         agents = self.agent / "agents"
-        agents.mkdir()
+        agents.mkdir(exist_ok=True)
         (agents / "fixture.md").write_text(
             "---\nname: fixture\ntools: read\nauto-exit: true\n---\nOffline fixture role.\n"
         )
@@ -271,13 +283,22 @@ class PiRegressions(unittest.TestCase):
         )
         fixture = (
             "managed-run-probes.ts"
-            if scenario in {"lifecycle", "disposal", "completion-errors"}
+            if scenario
+            in {
+                "lifecycle",
+                "disposal",
+                "completion-errors",
+                "ownership",
+                "ownership-park",
+                "ownership-restart",
+                "ownership-refusals",
+            }
             else "runtime-probes.ts"
         )
         process = self.start(scenario, fixture, done=False)
         # These probes run during session_start without starting an agent loop.
         # Wait for their output, then close RPC explicitly.
-        self.wait_for(lambda: (self.root / "results.json").exists(), process)
+        self.wait_for(lambda: (self.root / "results.json").exists(), process, timeout=15)
         _, error = process.communicate(timeout=2)
         self.assertEqual(process.returncode, 0, error.decode())
         results = json.loads((self.root / "results.json").read_text())
@@ -352,6 +373,45 @@ class PiRegressions(unittest.TestCase):
         self.assertEqual(results["delivered"][0]["details"]["name"], "replacement")
         self.assertEqual(results["closedPanes"], ["%2"])
         self.assertEqual(results["postShutdownWidgets"], 0)
+        self.assertEqual(results["questionWakeups"], 0, results)
+
+    def test_detached_child_keeps_exclusive_session_ownership(self):
+        results = self.probes("ownership")
+        self.assertEqual(results["panesAfterDetachedFollowup"], "1", results)
+        self.assertIn("Cannot safely resume", results["detachedFollowup"]["error"])
+        self.assertTrue(results["claimSurvives"], results)
+        self.assertEqual(
+            sum(r.get("status") == "started" for r in results["parallelResumes"]), 1, results
+        )
+        self.assertFalse(results["claimAfterCompletion"], results)
+        self.assertIn("send-keys", results["failedResume"])
+        self.assertFalse(results["claimAfterFailure"], results)
+        self.assertEqual(results["retry"]["status"], "started", results)
+        self.assertEqual(len(results["delivered"]), 2, results)
+
+    def test_ownership_survives_parent_process_restart_and_closed_pane_is_resumable(self):
+        parked = self.probes("ownership-park")
+        (self.root / "results.json").unlink()
+        results = self.probes("ownership-restart")
+        self.assertTrue(parked["claimSurvives"], parked)
+        self.assertIn("Cannot safely resume", results["liveFollowup"]["error"])
+        self.assertEqual(results["panesAfterLiveFollowup"], "1", results)
+        self.assertEqual(results["closedPaneResume"]["status"], "started", results)
+        self.assertEqual(len(results["delivered"]), 1, results)
+        self.assertEqual(results["delivered"][0]["details"]["exitCode"], 0, results)
+        self.assertIn("RUN_2", results["delivered"][0]["content"])
+        self.assertNotIn("RUN_1", results["delivered"][0]["content"])
+        self.assertFalse(results["claimAfterCompletion"], results)
+
+    def test_unknown_or_unmonitorable_child_ownership_fails_closed(self):
+        results = self.probes("ownership-refusals")
+        for case in ["corrupt", "wrongMux", "busy", "unavailable", "captureFailure", "slowCapture"]:
+            self.assertIn("Cannot safely resume", results[case]["error"], results)
+        self.assertLess(results["slowCaptureMs"], 3200, results)
+        self.assertEqual(results["panes"], "1", results)
+        self.assertTrue(results["claimPreserved"], results)
+        self.assertEqual(results["closedPanes"], [], results)
+        self.assertEqual(results["delivered"], [], results)
 
     def test_live_failures_and_legacy_cancellation_deliver_once_and_cleanup(self):
         results = self.probes("completion-errors")
