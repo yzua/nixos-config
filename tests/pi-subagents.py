@@ -17,16 +17,39 @@ SOURCE = REPO / "home-manager/modules/ai/pi/extensions/interactive-subagents/pi-
 PI = os.environ.get("PI_BIN", shutil.which("pi"))
 
 FAKE_TMUX = """#!/usr/bin/env python3
-import json, os, shlex, sys, time
+import json, os, shlex, subprocess, sys, time
 from pathlib import Path
 root = Path(os.environ['PI_TEST_ROOT'])
 args = sys.argv[1:]
+if args[0] == 'cleanup-fault':
+    owner = Path(args[1])
+    lock = Path(str(owner).removesuffix('.owner.json') + '.owner.lock')
+    deadline = time.monotonic() + 5
+    while not lock.exists():
+        if time.monotonic() > deadline:
+            raise RuntimeError('completion did not acquire its lock')
+        time.sleep(0.001)
+    (lock / 'blocked').write_text('filesystem failure fixture')
+    with owner.open('w') as stream:
+        stream.write(args[2])
+    sys.exit(0)
 with (root / 'tmux-calls').open('a') as calls:
     calls.write(json.dumps(args) + '\\n')
 modefile = root / 'tmux-mode'
 mode = modefile.read_text() if modefile.exists() else 'healthy'
 if args[0] == 'kill-pane':
     (root / f'closed-{args[2]}').write_text('closed')
+    if mode == 'managed-cleanup-fault':
+        command = Path((root / f'command-{args[2]}').read_text()).read_text().splitlines()[-1]
+        parts = shlex.split(command)
+        owner = Path(parts[parts.index('--session') + 1] + '.owner.json')
+        payload = owner.read_text()
+        owner.unlink()
+        # Hold the real ownership read until the external adapter has made the
+        # newly acquired completion lock nonempty, guaranteeing rmdir failure.
+        os.mkfifo(owner)
+        subprocess.Popen([sys.executable, sys.argv[0], 'cleanup-fault', str(owner), payload],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 if args[0] == 'send-keys':
     if mode == 'send-failure':
         sys.exit(1)
@@ -288,6 +311,7 @@ class PiRegressions(unittest.TestCase):
                 "lifecycle",
                 "disposal",
                 "completion-errors",
+                "cleanup-errors",
                 "ownership",
                 "ownership-park",
                 "ownership-restart",
@@ -412,6 +436,14 @@ class PiRegressions(unittest.TestCase):
         self.assertTrue(results["claimPreserved"], results)
         self.assertEqual(results["closedPanes"], [], results)
         self.assertEqual(results["delivered"], [], results)
+
+    def test_completion_cleanup_failure_delivers_result_and_fails_closed(self):
+        results = self.probes("cleanup-errors")
+        self.assertEqual(len(results["delivered"]), 1, results)
+        self.assertEqual(results["delivered"][0]["details"]["exitCode"], 0, results)
+        self.assertEqual(results["unhandled"], [], results)
+        self.assertTrue(results["lockRetained"], results)
+        self.assertIn("Cannot safely resume", results["retry"]["error"], results)
 
     def test_live_failures_and_legacy_cancellation_deliver_once_and_cleanup(self):
         results = self.probes("completion-errors")

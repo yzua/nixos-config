@@ -47,7 +47,11 @@ level. This applies to both initial launches and resumed follow-ups.
 `managed-run.ts` owns process setup, supervision, cleanup, and result delivery
 for both initial and resumed runs. Resumes replay saved restrictions and report
 only new output. Disposed runtimes stop delivering results without terminating
-children solely because of a reload or session replacement.
+children solely because of a reload or session replacement. Durable ownership
+claims prevent a second writer after reload or parent restart; surviving or
+uncertain ownership refuses resume until exit is established. Corrupt metadata,
+an abandoned launch lock, or a different tmux server also refuses resume rather
+than guessing that it is safe.
 
 Children publish terminal errors and shut down at `agent_settled`, after Pi's
 retries and queued continuations finish. Pending questions and nested children

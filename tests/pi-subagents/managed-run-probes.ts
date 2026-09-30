@@ -5,8 +5,9 @@ import subagents, {
   __test__,
 } from "../../home-manager/modules/ai/pi/extensions/interactive-subagents/pi-extension/subagents/index.ts";
 
-// Load through installed Pi, invoke the tools it registers, and substitute only
-// the external tmux command. No child CLI or paid provider is executed.
+// Load through installed Pi and invoke its registered tools with fake tmux.
+// Cleanup fault coverage also injects a real filesystem failure at its adapter.
+// No child CLI or paid provider is executed.
 export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, realContext) => {
     const root = process.env.PI_TEST_ROOT!;
@@ -17,6 +18,8 @@ export default function (pi: ExtensionAPI) {
     let throwDelivery = false;
     let widgetUpdates = 0;
     let questionWakeups = 0;
+    const unhandled: string[] = [];
+    const reportUnhandled = (error: unknown) => unhandled.push(String(error));
     const api = {
       on(event: string, handler: (...args: unknown[]) => unknown) {
         handlers.set(event, [...(handlers.get(event) ?? []), handler]);
@@ -208,6 +211,17 @@ export default function (pi: ExtensionAPI) {
         mode("managed");
         results.retry = (await resume()).details;
         await waitForDelivery(2);
+      } else if (scenario === "cleanup-errors") {
+        mode("managed-cleanup-fault");
+        process.on("unhandledRejection", reportUnhandled);
+        const initial = await spawn("managed");
+        const lock = `${initial.details.sessionFile}.owner.lock`;
+        // The external fake fills the completion lock while its owner is read,
+        // causing a real ENOTEMPTY rather than replacing lifecycle helpers.
+        await waitForDelivery(1);
+        results.lockRetained = existsSync(lock);
+        results.retry = (await resume()).details;
+        results.unhandled = unhandled;
       } else if (scenario === "completion-errors") {
         mode("managed-error");
         await spawn("provider-error");
@@ -235,6 +249,7 @@ export default function (pi: ExtensionAPI) {
     } catch (error) {
       results.failure = String(error);
     } finally {
+      process.removeListener("unhandledRejection", reportUnhandled);
       await event("session_shutdown");
       // Disposed watchers must never deliver to a replacement or dead runtime.
       await new Promise((resolve) => setTimeout(resolve, 20));

@@ -122,7 +122,14 @@ export class ManagedRuns {
         `Cannot safely resume: session ownership is busy or unknown (${lock}).`,
       );
     }
-    return () => rmdirSync(lock);
+    return () => {
+      try {
+        rmdirSync(lock);
+      } catch {
+        // A leftover/unknown lock remains fail-closed. Cleanup failure must not
+        // reject background supervision or prevent completion/error delivery.
+      }
+    };
   }
 
   private muxIdentity(): string {
