@@ -16,6 +16,11 @@ Profiles use the configured default model and resolve the provider from the
 caller's settings. `/plan`, `/review`, and `/handoff` are reusable prompts.
 Alt+S or `/snippets` toggles Verify and Delegate exploration for one message.
 
+Select `system` under Theme in `/settings` to inherit the terminal palette,
+including this workstation's Gruvbox Dark Soft colors. A saved `dark` selection
+uses Pi's own palette. Theme choices stay in writable `~/.pi/agent/settings.json`;
+`/reload` applies settings changes to a running Pi session.
+
 Web fetch extracts pages/PDFs locally. Failed extraction directs the agent to the existing
 Chrome DevTools CLI skill rather than automatically sending URLs to Jina.
 Pi has no MCP tools configured; the Chrome CLI retains its own daemon.
@@ -38,6 +43,11 @@ API and TypeBox imports, including legacy aliases.
 The subagent source passes `--thinking` independently of `--model`, so a
 profile can inherit the configured model while selecting its own reasoning
 level. This applies to both initial launches and resumed follow-ups.
+
+`managed-run.ts` owns process setup, supervision, cleanup, and result delivery
+for both initial and resumed runs. Resumes replay saved restrictions and report
+only new output. Disposed runtimes stop delivering results without terminating
+children solely because of a reload or session replacement.
 
 Children publish terminal errors and shut down at `agent_settled`, after Pi's
 retries and queued continuations finish. Pending questions and nested children
