@@ -17,12 +17,43 @@ SOURCE = REPO / "home-manager/modules/ai/pi/extensions/interactive-subagents/pi-
 PI = os.environ.get("PI_BIN", shutil.which("pi"))
 
 FAKE_TMUX = """#!/usr/bin/env python3
-import json, os, sys
+import json, os, shlex, sys
 from pathlib import Path
 root = Path(os.environ['PI_TEST_ROOT'])
 args = sys.argv[1:]
+with (root / 'tmux-calls').open('a') as calls:
+    calls.write(json.dumps(args) + '\\n')
 modefile = root / 'tmux-mode'
 mode = modefile.read_text() if modefile.exists() else 'healthy'
+if args[0] == 'send-keys':
+    if mode == 'send-failure':
+        sys.exit(1)
+    pane = args[2]
+    command_file = root / f'command-{pane}'
+    if '-l' in args and args[-1].startswith('bash '):
+        command_file.write_text(shlex.split(args[-1])[1])
+    elif args[-1] == 'Enter' and mode.startswith('managed') and command_file.exists():
+        command = Path(command_file.read_text()).read_text().splitlines()[-1]
+        parts = shlex.split(command)
+        session = Path(parts[parts.index('--session') + 1])
+        if not session.exists():
+            session.write_text(json.dumps({'type': 'session', 'id': 'managed-child',
+                                          'version': 3, 'cwd': str(root)}) + '\\n')
+        counter = root / 'managed-runs'
+        n = int(counter.read_text()) + 1 if counter.exists() else 1
+        counter.write_text(str(n))
+        if mode == 'managed-invalid':
+            with session.open('a') as stream:
+                stream.write('invalid json\\n')
+        elif mode != 'managed-empty':
+            message = {'type': 'message', 'message': {'role': 'assistant',
+                       'content': [{'type': 'text', 'text': f'RUN_{n}'}]}}
+            with session.open('a') as stream:
+                stream.write(json.dumps(message) + '\\n')
+        if mode == 'managed-error':
+            Path(str(session) + '.exit').write_text(json.dumps({
+                'type': 'error', 'errorMessage': 'OFFLINE_PROVIDER_FAILURE'}))
+        (root / f'done-{pane}').write_text('done')
 if args[0] == 'split-window':
     counter = root / 'pane-count'
     n = int(counter.read_text()) + 1 if counter.exists() else 1
@@ -38,7 +69,7 @@ elif args[0] == 'capture-pane':
         if n == 1:
             sys.exit(1)
         print('__SUBAGENT_DONE_0__')
-    elif mode == 'sentinel':
+    elif mode == 'sentinel' or (root / f'done-{args[args.index("-t") + 1]}').exists():
         print('__SUBAGENT_DONE_0__')
 elif args[0] == 'display-message':
     if mode in ('missing', 'late-sidecar'):
@@ -238,7 +269,12 @@ class PiRegressions(unittest.TestCase):
         (self.root / "parent.jsonl").write_text(
             json.dumps({"type": "session", "id": "fixture-parent", "version": 3}) + "\n"
         )
-        process = self.start(scenario, "runtime-probes.ts", done=False)
+        fixture = (
+            "managed-run-probes.ts"
+            if scenario in {"lifecycle", "disposal", "completion-errors"}
+            else "runtime-probes.ts"
+        )
+        process = self.start(scenario, fixture, done=False)
         # These probes run during session_start without starting an agent loop.
         # Wait for their output, then close RPC explicitly.
         self.wait_for(lambda: (self.root / "results.json").exists(), process)
@@ -274,6 +310,67 @@ class PiRegressions(unittest.TestCase):
         )
         self.assertEqual(results["resume"]["name"], "duplicate", results)
         self.assertEqual(results["reservations"], [], results)
+
+    def test_managed_runs_complete_and_resume_only_new_output(self):
+        results = self.probes("lifecycle")
+        self.assertEqual([r["details"]["name"] for r in results["delivered"]], ["managed"] * 3)
+        for result, summary in zip(
+            results["delivered"],
+            ["RUN_1", "RUN_2", "Resumed session exited without new output"],
+            strict=True,
+        ):
+            self.assertIn(summary, result["content"])
+            self.assertEqual(result["details"]["exitCode"], 0)
+            self.assertEqual(result["options"], {"triggerTurn": True, "deliverAs": "steer"})
+        self.assertNotIn("RUN_1", results["delivered"][1]["content"])
+        self.assertNotIn("RUN_2", results["delivered"][2]["content"])
+        self.assertEqual(results["refusedPanes"], results["panesBeforeRefusal"])
+        self.assertIn("Cannot safely resume", results["missingLoadout"]["error"])
+        self.assertEqual(results["nextName"], "managed-2")
+        self.assertEqual(results["closedPanes"], ["%1", "%2", "%3"])
+        for command in results["commands"]:
+            self.assertIn("pi --approve", command)
+            self.assertIn("--no-extensions", command)
+            self.assertIn(
+                "--tools 'read,subagent,subagent_message,subagents_list,ask_question'", command
+            )
+            self.assertIn("--model 'offline-fixed'", command)
+            self.assertIn("--thinking 'high'", command)
+            self.assertIn("--system-prompt", command)
+            self.assertIn("PI_SUBAGENT_ALLOWED='scout'", command)
+            self.assertIn("PI_SUBAGENT_AGENT='fixture'", command)
+            self.assertIn("PI_SUBAGENT_SURFACE=", command)
+        self.assertNotIn("PI_SUBAGENT_AUTO_EXIT=", results["commands"][0])
+        self.assertTrue(
+            all("PI_SUBAGENT_AUTO_EXIT='1'" in command for command in results["commands"][1:])
+        )
+        self.assertEqual(results["identities"], ["Fixed role."] * 3)
+
+    def test_disposed_runtime_stops_delivery_without_terminating_child(self):
+        results = self.probes("disposal")
+        self.assertEqual(len(results["delivered"]), 1, results)
+        self.assertEqual(results["delivered"][0]["details"]["name"], "replacement")
+        self.assertEqual(results["closedPanes"], ["%2"])
+        self.assertEqual(results["postShutdownWidgets"], 0)
+
+    def test_live_failures_and_legacy_cancellation_deliver_once_and_cleanup(self):
+        results = self.probes("completion-errors")
+        self.assertEqual(len(results["delivered"]), 4, results)
+        provider, extraction, delivery, cancellation = results["delivered"]
+        self.assertEqual(provider["details"]["errorMessage"], "OFFLINE_PROVIDER_FAILURE")
+        self.assertEqual(provider["details"]["exitCode"], 1)
+        self.assertEqual(extraction["details"]["exitCode"], 1)
+        self.assertIn("Subagent error:", extraction["content"])
+        self.assertIn("OFFLINE_DELIVERY_FAILURE", delivery["content"])
+        self.assertIn("Subagent cancelled.", cancellation["content"])
+        self.assertEqual(cancellation["details"]["exitCode"], 1)
+        self.assertEqual(results["closedPanes"], ["%1", "%2", "%3", "%4"])
+
+    def test_failed_launch_releases_pane_and_name(self):
+        results = self.probes("launch-failure")
+        self.assertIn("send-keys", results["launchError"])
+        self.assertEqual(results["retry"]["name"], "retryable")
+        self.assertEqual(results["closedPanes"], ["%1", "%2"])
 
     def test_spawn_and_resume_apply_project_trust(self):
         results = self.probes("trust")

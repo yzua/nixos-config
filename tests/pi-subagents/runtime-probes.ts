@@ -76,53 +76,80 @@ export default function (pi: ExtensionAPI) {
         const run = (tool: string, args: Record<string, unknown>) =>
           tools.get(tool)!.execute("fixture", args, undefined, undefined, context);
         try {
-          const trustProbe = process.env.PI_TEST_SCENARIO === "trust";
-          const spawns = await Promise.all([
-            run("subagent", { agent: "fixture", name: "duplicate", task: "first" }),
-            run("subagent", {
-              agent: "fixture",
-              name: trustProbe ? "other" : "duplicate",
-              task: "second",
-            }),
-          ]);
-          results.parallel = spawns.map((spawn) => spawn.details);
-          results.spawnCommands = spawns.map((spawn) =>
-            readFileSync(spawn.details.launchScriptFile, "utf8"),
-          );
+          if (process.env.PI_TEST_SCENARIO === "launch-failure") {
+            writeFileSync(join(root, "tmux-mode"), "send-failure");
+            try {
+              await run("subagent", { agent: "fixture", name: "retryable", task: "fail" });
+            } catch (error) {
+              results.launchError = String(error);
+            }
+            writeFileSync(join(root, "tmux-mode"), "sentinel");
+            results.retry = (
+              await run("subagent", {
+                agent: "fixture",
+                name: "retryable",
+                task: "retry",
+              })
+            ).details;
+            await new Promise((resolve) => setTimeout(resolve, 100));
+            results.closedPanes = readFileSync(join(root, "tmux-calls"), "utf8")
+              .trim()
+              .split("\n")
+              .map((line) => JSON.parse(line))
+              .filter((args) => args[0] === "kill-pane")
+              .map((args) => args[2]);
+          } else {
+            const trustProbe = process.env.PI_TEST_SCENARIO === "trust";
+            const spawns = await Promise.all([
+              run("subagent", { agent: "fixture", name: "duplicate", task: "first" }),
+              run("subagent", {
+                agent: "fixture",
+                name: trustProbe ? "other" : "duplicate",
+                task: "second",
+              }),
+            ]);
+            results.parallel = spawns.map((spawn) => spawn.details);
+            results.spawnCommands = spawns.map((spawn) =>
+              readFileSync(spawn.details.launchScriptFile, "utf8"),
+            );
 
-          // Keep the persistent registry, simulate both jobs having finished,
-          // then spawn again: previous display handles must remain resumable.
-          for (const running of __test__.runningSubagents.values())
-            running.abortController?.abort();
-          __test__.runningSubagents.clear();
-          await new Promise((resolve) => setTimeout(resolve, 20));
-          const first = spawns[0].details;
-          writeFileSync(
-            first.sessionFile,
-            `${JSON.stringify({ type: "session", id: "fixture-child", version: 3, cwd: root })}\n`,
-          );
-          const third = await run("subagent", {
-            agent: "fixture",
-            name: trustProbe ? "third" : "duplicate",
-            task: "third",
-          });
-          results.finishedName = third.details.name;
-          results.registryBeforeResume = JSON.parse(
-            readFileSync(
-              join(root, "artifacts", "fixture-parent", "subagent-registry.json"),
-              "utf8",
-            ),
-          );
-          const resumed = await run("subagent_message", { name: first.name, message: "continue" });
-          results.resume = resumed.details;
-          const resumedRunning = [...__test__.runningSubagents.values()].find(
-            (item) => item.id === resumed.details.id,
-          );
-          results.resumeCommand = resumedRunning?.launchScriptFile
-            ? readFileSync(resumedRunning.launchScriptFile, "utf8")
-            : undefined;
-          results.reservations = [...__test__.reservedNames];
-          results.loadoutExists = existsSync(`${first.sessionFile}.loadout.json`);
+            // Keep the persistent registry, simulate both jobs having finished,
+            // then spawn again: previous display handles must remain resumable.
+            for (const running of __test__.runningSubagents.values())
+              running.abortController?.abort();
+            __test__.runningSubagents.clear();
+            await new Promise((resolve) => setTimeout(resolve, 20));
+            const first = spawns[0].details;
+            writeFileSync(
+              first.sessionFile,
+              `${JSON.stringify({ type: "session", id: "fixture-child", version: 3, cwd: root })}\n`,
+            );
+            const third = await run("subagent", {
+              agent: "fixture",
+              name: trustProbe ? "third" : "duplicate",
+              task: "third",
+            });
+            results.finishedName = third.details.name;
+            results.registryBeforeResume = JSON.parse(
+              readFileSync(
+                join(root, "artifacts", "fixture-parent", "subagent-registry.json"),
+                "utf8",
+              ),
+            );
+            const resumed = await run("subagent_message", {
+              name: first.name,
+              message: "continue",
+            });
+            results.resume = resumed.details;
+            const resumedRunning = [...__test__.runningSubagents.values()].find(
+              (item) => item.id === resumed.details.id,
+            );
+            results.resumeCommand = resumedRunning?.launchScriptFile
+              ? readFileSync(resumedRunning.launchScriptFile, "utf8")
+              : undefined;
+            results.reservations = [...__test__.reservedNames];
+            results.loadoutExists = existsSync(`${first.sessionFile}.loadout.json`);
+          }
         } finally {
           for (const handler of handlers.get("session_shutdown") ?? []) handler({}, context);
         }
