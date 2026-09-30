@@ -224,6 +224,7 @@ in
       ${tmuxPalette}
       # Preserve modified Enter keys for apps running through tmux (such as Pi).
       set -g extended-keys on
+      set -g extended-keys-format csi-u
       set -g renumber-windows on
       set -g status-interval 10
       set -g status-style 'fg=${colors.base05},bg=${colors.base01}'

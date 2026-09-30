@@ -43,6 +43,7 @@ in
   imports = [
     ./herdr.nix
     ./pnpm-tools.nix
+    ./pi
     ./skills.nix
     ./voice
   ];

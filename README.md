@@ -40,6 +40,10 @@ Edit `setup` in `flake.nix` for the host, user, locale, keyboard, display,
 graphics, and Git settings. Output names follow the configured host and user.
 Set `monitor = null` to use the display's preferred mode.
 
+Pi's reviewed extensions and agent profiles live in
+[`home-manager/modules/ai/pi`](home-manager/modules/ai/pi/README.md). Its live
+settings and credentials remain writable; `/thinking` changes reasoning effort.
+
 For another machine, regenerate the host's `hardware-configuration.nix` and
 review its boot settings. Keep the installed `stateVersion` values when
 updating dependencies. Use your own Git signing and SOPS age keys outside the
