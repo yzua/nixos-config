@@ -74,7 +74,49 @@ in
       open-floating true
     }
 
+    // Keep the startup destinations available and ordered, even while empty.
+    workspace "1"
+    workspace "2"
+    workspace "3"
+    workspace "4"
+
+    // Placement expires after Niri's first 60 seconds; windows remain movable.
+    window-rule {
+      match at-startup=true app-id=r#"(?i)^firefox$"#
+      open-on-workspace "1"
+    }
+
+    window-rule {
+      match at-startup=true app-id=r#"^com\.mitchellh\.ghostty$"#
+      match at-startup=true app-id=r#"(?i)^code$"#
+      open-on-workspace "2"
+      open-focused false
+    }
+
+    window-rule {
+      match at-startup=true app-id=r#"^(org\.telegram\.desktop|TelegramDesktop)$"#
+      match at-startup=true app-id=r#"(?i)^vesktop$"#
+      open-on-workspace "3"
+      open-focused false
+    }
+
+    window-rule {
+      match at-startup=true app-id=r#"^(Mullvad VPN|mullvad-vpn)$"#
+      match at-startup=true app-id=r#"^NetBird$"#
+      open-on-workspace "4"
+      open-focused false
+    }
+
     spawn-at-startup "${noctalia}"
+    spawn-at-startup "${lib.getExe config.programs.firefox.package}"
+    spawn-at-startup "${ghostty}"
+    spawn-at-startup "${lib.getExe config.programs.vscode.package}"
+    spawn-at-startup "${lib.getExe' pkgs.telegram-desktop "Telegram"}"
+    spawn-at-startup "${lib.getExe config.programs.nixcord.vesktop.package}"
+    // Launch the Mullvad GUI supplied by the active NixOS VPN service.
+    spawn-at-startup "${lib.getExe' pkgs.glib "gio"}" "launch" "/run/current-system/sw/share/applications/mullvad-vpn.desktop"
+    // Reuse NetBird's launcher, including its daemon-control group handling.
+    spawn-at-startup "${lib.getExe' pkgs.glib "gio"}" "launch" "${config.home.profileDirectory}/share/applications/netbird.desktop"
 
     binds {
       Mod+Shift+Slash { show-hotkey-overlay; }

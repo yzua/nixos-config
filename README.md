@@ -126,6 +126,13 @@ The Niri system module installs the session and Xwayland Satellite for X11
 games. Home Manager owns Niri's keyboard and shortcuts and starts Noctalia
 only in the Niri session.
 
+At Niri login, Firefox opens on workspace 1; Ghostty and VS Code on workspace 2;
+Telegram and Vesktop (Discord) on workspace 3; and Mullvad VPN and NetBird's
+Quick Actions window on workspace 4. These four named workspaces remain
+available even when empty. Placement rules apply only during the first 60
+seconds of the session; later launches use the current workspace, and you can
+move the startup windows at any time.
+
 In Niri, `Mod` is the Super key. Caps Lock switches between US and Arabic
 (Shift+Caps Lock retains the normal Caps Lock action). `Mod+Enter` opens
 Ghostty with tmux; `Mod+Shift+Enter` opens a new Ghostty window without tmux.
