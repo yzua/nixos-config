@@ -48,8 +48,9 @@ trust. Explicit and default names get suffixes when needed, preserving finished
 children's handles for later follow-ups.
 
 Use `nix develop`, then `just fmt-check` and `just lint-ts` when editing the
-extensions. `just pi-test` checks writable-config migration and child reliability
-through the installed Pi loader, with isolated settings, a mock provider, and
+extensions. `python3 tests/pi-config.py` and `python3 tests/pi-subagents.py`
+check writable-config migration and child reliability through the installed Pi
+loader, with isolated settings, a mock provider, and
 fake tmux. It makes no paid model calls. Set `PI_BIN` to test another Pi binary.
 Run `just check` and `just home-preview` before activation. Smoke-test browser
 use and real tmux subagent completion/follow-up with the installed Pi.
