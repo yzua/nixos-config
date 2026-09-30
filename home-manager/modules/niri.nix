@@ -80,6 +80,7 @@ in
       Mod+Shift+Slash { show-hotkey-overlay; }
 
       Mod+Return { spawn "${ghostty}"; }
+      Mod+Shift+Return { spawn "${ghostty}" "--gtk-single-instance=false" "--env=GHOSTTY_NO_TMUX=1"; }
       Mod+Space { spawn "${noctalia}" "msg" "panel-toggle" "launcher"; }
       Mod+V { spawn "${noctalia}" "msg" "panel-toggle" "clipboard"; }
       Mod+S { spawn "${noctalia}" "msg" "panel-toggle" "control-center"; }

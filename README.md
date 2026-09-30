@@ -128,7 +128,8 @@ only in the Niri session.
 
 In Niri, `Mod` is the Super key. Caps Lock switches between US and Arabic
 (Shift+Caps Lock retains the normal Caps Lock action). `Mod+Enter` opens
-Ghostty, `Mod+Space` opens the app launcher, `Mod+S` opens the control center,
+Ghostty with tmux; `Mod+Shift+Enter` opens a new Ghostty window without tmux.
+`Mod+Space` opens the app launcher, `Mod+S` opens the control center,
 `Mod+V` opens clipboard history, `Mod+Shift+Comma` opens Noctalia settings,
 and `Mod+Home` locks. `Mod+F` toggles floating, `Mod+M` maximizes the window
 while keeping the bar visible, and `Mod+Shift+F` toggles fullscreen.
