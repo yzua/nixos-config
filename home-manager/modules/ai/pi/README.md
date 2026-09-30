@@ -44,11 +44,6 @@ The subagent source passes `--thinking` independently of `--model`, so a
 profile can inherit the configured model while selecting its own reasoning
 level. This applies to both initial launches and resumed follow-ups.
 
-`managed-run.ts` owns process setup, supervision, cleanup, and result delivery
-for both initial and resumed runs. Resumes replay saved restrictions and report
-only new output. Disposed runtimes stop delivering results without terminating
-children solely because of a reload or session replacement.
-
 Children publish terminal errors and shut down at `agent_settled`, after Pi's
 retries and queued continuations finish. Pending questions and nested children
 keep the session open. A missing pane gets a two-second grace period for its
