@@ -12,6 +12,10 @@
 
   hardware.nvidia = lib.mkIf (builtins.elem "nvidia" setup.graphics.videoDrivers) {
     open = setup.graphics.nvidiaOpen;
+    gsp.enable = setup.graphics.nvidiaGsp;
+    moduleParams = lib.optionalAttrs (!setup.graphics.nvidiaGsp) {
+      nvidia.NVreg_EnableGpuFirmware = 0;
+    };
     modesetting.enable = true;
   };
 }

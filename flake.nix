@@ -69,7 +69,9 @@
         };
         graphics = {
           videoDrivers = [ "nvidia" ];
-          nvidiaOpen = true;
+          # Test the proprietary kernel module without GSP after GPU hangs.
+          nvidiaOpen = false;
+          nvidiaGsp = false;
         };
         gitIdentity = {
           name = username;
