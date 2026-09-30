@@ -46,8 +46,9 @@ Markdown, including links and structures that affect rendering, without
 requiring line wrapping or headings in prompt fragments. For quick focused
 checks, use `just lint-ts`, `just lint-python`, `just lint-shell`, or
 `just lint-markdown`.
-For Pi checks, run `python3 tests/pi-config.py` and
-`python3 tests/pi-subagents.py`. They use isolated fixtures without paid model calls.
+For regression checks, run `bash tests/workflow.sh`, `python3 tests/voice-action.py`,
+`python3 tests/pi-config.py`, and `python3 tests/pi-subagents.py`. They use isolated
+fixtures without activation or paid model calls.
 
 ## Customize
 
@@ -59,6 +60,10 @@ Pi's reviewed extensions and agent profiles live in
 [`home-manager/modules/ai/pi`](home-manager/modules/ai/pi/README.md). Its live
 settings and credentials remain writable; `/thinking` changes reasoning effort.
 
+Voice actions share conversation context until reset. Reset discards a recording
+or transcription that has not been submitted; an executing request finishes in
+its original context.
+
 For another machine, regenerate the host's `hardware-configuration.nix` and
 review its boot settings. Keep the installed `stateVersion` values when
 updating dependencies. Use your own Git signing and SOPS age keys outside the
@@ -69,7 +74,8 @@ Nix store, and re-encrypt the SOPS secrets for your key.
 - `flake.nix` and `flake.lock`: outputs and pinned dependencies.
 - `hosts/` and `modules/nixos/`: hardware and system settings.
 - `home-manager/`: user apps and preferences.
-- `justfile` and `scripts/`: checks, previews, and guarded switches.
+- `justfile`: command menu and checks; `scripts/generation.sh`: previews, status,
+  and guarded switches.
 
 ## License
 

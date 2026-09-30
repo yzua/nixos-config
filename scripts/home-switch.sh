@@ -1,23 +1,4 @@
 #!/usr/bin/env bash
-# Activate only the saved Home Manager generation after checking its owner and freshness.
+# Activate the selected Home output through the guarded generation workflow.
 set -euo pipefail
-cd "$(dirname "${BASH_SOURCE[0]}")/.."
-source scripts/config.sh
-source scripts/saved-preview-build.sh
-
-select_home
-require_home_owner
-
-result=$(saved_preview_link home "$HOME_CONFIG")
-actual=$(require_saved_preview_build "$home_ref.activationPackage.outPath" "$result" home-preview)
-if [[ ! -x "$actual/activate" || ! -f "$actual/gen-version" || "$(cat "$actual/gen-version")" != 1 ]]; then
-  echo 'Saved Home generation does not support driver-version 1; refusing to switch.' >&2
-  exit 1
-fi
-
-# Match the pinned Home Manager switch driver: set the generation profile first,
-# then activate that exact generation. Never re-evaluate or rebuild after the guard.
-profile=$(home_profile)
-mkdir -p "$(dirname "$profile")"
-nix-env --profile "$profile" --set "$actual"
-"$actual/activate" --driver-version 1
+exec "$(dirname "${BASH_SOURCE[0]}")/generation.sh" switch home

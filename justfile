@@ -68,32 +68,15 @@ lint-markdown:
 status:
     @./scripts/status.sh
 
-# Build and compare the system, then save the reviewed generation.
+# Build and compare the system, then retain its saved preview build.
 preview:
-    @source scripts/config.sh; source scripts/saved-preview-build.sh; select_system; \
-      actual="$(nix build --no-write-lock-file --no-link --print-out-paths "$system_ref.config.system.build.toplevel")"; \
-      nix store diff-closures /run/current-system "$actual"; \
-      result="$(saved_preview_link system "$NIXOS_CONFIG")"; \
-      mkdir -p "$(dirname "$result")"; \
-      ln -sfnT "$actual" "$result"
+    @./scripts/generation.sh preview system
 
 # Activate exactly the built closure; run `just preview` and review it first.
 switch:
-    @source scripts/config.sh; source scripts/saved-preview-build.sh; select_system; \
-      configured_host="$(nix eval --raw --no-write-lock-file "$system_ref.config.networking.hostName")"; \
-      current_host="$(hostname)"; \
-      test -n "$configured_host" || { echo 'The selected NixOS configuration has no hostname' >&2; exit 1; }; \
-      if [ "$current_host" != "$configured_host" ]; then \
-        test "${ALLOW_HOST_RENAME:-}" = 1 || { \
-          printf 'Host mismatch: running %s, selected %s (%s). To deliberately rename this host, use ALLOW_HOST_RENAME=1 just switch.\n' "$current_host" "$configured_host" "$NIXOS_CONFIG" >&2; exit 1; \
-        }; \
-        printf 'Opted in to hostname change: %s -> %s\n' "$current_host" "$configured_host"; \
-      fi; \
-      result="$(saved_preview_link system "$NIXOS_CONFIG")"; \
-      actual="$(require_saved_preview_build "$system_ref.config.system.build.toplevel.outPath" "$result" preview)"; \
-      sudo nixos-rebuild switch --no-reexec --store-path "$actual"
+    @./scripts/generation.sh switch system
 
-# Build and compare Home Manager, then save the reviewed generation.
+# Build and compare Home Manager, then retain its saved preview build.
 home-preview:
     @./scripts/home-preview.sh
 
