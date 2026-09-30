@@ -40,6 +40,12 @@ let
 
     # Privacy and security
     {
+      name = "ublock-origin-1.75.0";
+      id = "uBlock0@raymondhill.net";
+      url = "https://addons.mozilla.org/firefox/downloads/file/5034826/ublock_origin-1.75.0.xpi";
+      hash = "sha256-W3RBWGBFY3BkS9gPFhJehlsObDVrtd/PuEBpln6qUoc=";
+    }
+    {
       name = "simplelogin-3.0.7";
       id = "addon@simplelogin";
       url = "https://addons.mozilla.org/firefox/downloads/file/4458602/simplelogin-3.0.7.xpi";
@@ -59,6 +65,12 @@ let
     }
 
     # Web development and display
+    {
+      name = "sidebery-5.6.1";
+      id = "{3c078156-979c-498b-8990-85f7987dd929}";
+      url = "https://addons.mozilla.org/firefox/downloads/file/4903712/sidebery-5.6.1.xpi";
+      hash = "sha256-6KCktVarfdU2iXwYFq+dCRgDAiMGjqZoOgQ3YQOmyvI=";
+    }
     {
       name = "darkreader-4.9.133";
       id = "addon@darkreader.org";
