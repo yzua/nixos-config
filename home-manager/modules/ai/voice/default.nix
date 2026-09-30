@@ -181,12 +181,12 @@ in
   ];
   dconf.settings."org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/voxtype" = {
     name = "Toggle Voxtype dictation";
-    command = "${aiPackages.voxtype}/bin/voxtype record toggle";
+    command = "${voiceAction}/bin/voxtype-pi-action dictation-toggle";
     binding = "<Super>d";
   };
   dconf.settings."org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/voxtype-cancel" = {
     name = "Cancel Voxtype dictation";
-    command = "${aiPackages.voxtype}/bin/voxtype record cancel";
+    command = "${voiceAction}/bin/voxtype-pi-action cancel";
     binding = "<Super><Shift>d";
   };
 }
