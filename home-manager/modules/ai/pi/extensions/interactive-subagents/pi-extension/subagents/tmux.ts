@@ -287,6 +287,10 @@ export async function pollForExit(
   },
 ): Promise<PollResult> {
   const start = Date.now();
+  let paneUnavailableSince: number | undefined;
+  // Let a final sidecar reach disk after pane loss, without timing out jobs
+  // whose panes remain present. Transient capture failures alone aren't loss.
+  const paneLossGraceMs = 2000;
 
   for (;;) {
     if (signal.aborted) {
@@ -317,6 +321,7 @@ export async function pollForExit(
     // Slow path: read terminal screen for sentinel (crash detection)
     try {
       const screen = await readScreenAsync(surface, 5);
+      paneUnavailableSince = undefined;
       const match = screen.match(/__SUBAGENT_DONE_(\d+)__/);
       if (match) {
         return { reason: "sentinel", exitCode: parseInt(match[1], 10) };
@@ -332,6 +337,32 @@ export async function pollForExit(
             return interpretExitSidecar(data);
           }
         } catch {}
+      }
+
+      let paneExists: boolean | undefined;
+      try {
+        const { stdout } = await execFileAsync("tmux", ["list-panes", "-a", "-F", "#{pane_id}"], {
+          encoding: "utf8",
+        });
+        paneExists = stdout.trim().split("\n").includes(surface);
+      } catch {
+        // The tmux server itself may have gone away. Repeated inability to
+        // inspect it is a monitoring failure, rather than an endless wait.
+      }
+      if (paneExists) {
+        paneUnavailableSince = undefined;
+      } else {
+        paneUnavailableSince ??= Date.now();
+        if (Date.now() - paneUnavailableSince >= paneLossGraceMs) {
+          return {
+            reason: "error",
+            exitCode: 1,
+            errorMessage:
+              paneExists === false
+                ? `Subagent pane ${surface} disappeared before reporting completion.`
+                : `Cannot monitor subagent pane ${surface}: tmux is unavailable.`,
+          };
+        }
       }
     }
 

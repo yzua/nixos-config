@@ -1,0 +1,288 @@
+#!/usr/bin/env python3
+"""Offline regressions through the installed Pi loader; no model or auth access."""
+
+import json
+import os
+import select
+import shutil
+import subprocess
+import tempfile
+import time
+import unittest
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[1]
+FIXTURES = REPO / "tests" / "pi-subagents"
+SOURCE = REPO / "home-manager/modules/ai/pi/extensions/interactive-subagents/pi-extension/subagents"
+PI = os.environ.get("PI_BIN", shutil.which("pi"))
+
+FAKE_TMUX = """#!/usr/bin/env python3
+import json, os, sys
+from pathlib import Path
+root = Path(os.environ['PI_TEST_ROOT'])
+args = sys.argv[1:]
+modefile = root / 'tmux-mode'
+mode = modefile.read_text() if modefile.exists() else 'healthy'
+if args[0] == 'split-window':
+    counter = root / 'pane-count'
+    n = int(counter.read_text()) + 1 if counter.exists() else 1
+    counter.write_text(str(n))
+    print(f'%{n}')
+elif args[0] == 'capture-pane':
+    if mode in ('missing', 'late-sidecar', 'capture-error', 'unavailable'):
+        sys.exit(1)
+    if mode == 'transient':
+        counter = root / 'capture-count'
+        n = int(counter.read_text()) + 1 if counter.exists() else 1
+        counter.write_text(str(n))
+        if n == 1:
+            sys.exit(1)
+        print('__SUBAGENT_DONE_0__')
+    elif mode == 'sentinel':
+        print('__SUBAGENT_DONE_0__')
+elif args[0] == 'display-message':
+    if mode in ('missing', 'late-sidecar'):
+        sys.exit(1)
+    print('%99')
+elif args[0] == 'list-panes':
+    if mode == 'unavailable':
+        sys.exit(1)
+    if mode not in ('missing', 'late-sidecar'):
+        print('%99')
+"""
+
+
+class PiRegressions(unittest.TestCase):
+    def setUp(self):
+        if not PI:
+            self.fail("Pi is required; install it or set PI_BIN to its executable")
+        self.tmp = tempfile.TemporaryDirectory(prefix="pi-subagents-test-")
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.agent = self.root / "agent"
+        self.agent.mkdir()
+        (self.agent / "settings.json").write_text(
+            json.dumps(
+                {
+                    "retry": {"enabled": True, "maxRetries": 1, "baseDelayMs": 1},
+                    "compaction": {"enabled": False},
+                }
+            )
+        )
+        self.env = os.environ.copy()
+        for key in tuple(self.env):
+            if key.startswith("PI_SUBAGENT") or key in {"TMUX", "TMUX_PANE"}:
+                self.env.pop(key)
+        self.env.update(
+            PI_CODING_AGENT_DIR=str(self.agent),
+            PI_TEST_ROOT=str(self.root),
+            PI_TEST_EVENTS=str(self.root / "events"),
+            PI_SUBAGENT_SESSION=str(self.root / "child.jsonl"),
+            PI_SUBAGENT_AUTO_EXIT="1",
+        )
+
+    def start(self, scenario, fixture="mock-provider.ts", done=True):
+        self.env["PI_TEST_SCENARIO"] = scenario
+        args = [
+            PI,
+            "--mode",
+            "rpc",
+            "--approve",
+            "--no-extensions",
+            "--no-skills",
+            "--no-prompt-templates",
+            "--provider",
+            "pi-test",
+            "--model",
+            "offline",
+            "--session",
+            str(self.root / "child.jsonl"),
+            "-e",
+            str(FIXTURES / fixture),
+        ]
+        if fixture != "mock-provider.ts":
+            args += ["-e", str(FIXTURES / "mock-provider.ts")]
+        if done:
+            args += ["-e", str(SOURCE / "subagent-done.ts")]
+        process = subprocess.Popen(
+            args,
+            cwd=self.root,
+            env=self.env,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        self.addCleanup(self.stop, process)
+        return process
+
+    @staticmethod
+    def stop(process):
+        if process.poll() is None:
+            process.terminate()
+        try:
+            process.communicate(timeout=2)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.communicate()
+
+    @staticmethod
+    def prompt(process, text, streaming_behavior=None):
+        command = {"type": "prompt", "message": text}
+        if streaming_behavior:
+            command["streamingBehavior"] = streaming_behavior
+        process.stdin.write(json.dumps(command).encode() + b"\n")
+        process.stdin.flush()
+
+    def events(self):
+        path = self.root / "events"
+        return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+
+    def wait_for(self, predicate, process, timeout=8):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if predicate():
+                return
+            if process.poll() is not None:
+                output, error = process.communicate()
+                self.fail(
+                    f"Pi exited before expected result: {error.decode()} {output.decode()[-1500:]}"
+                )
+            time.sleep(0.01)
+        self.fail("Pi did not produce the expected result before timeout")
+
+    def finish(self, process):
+        # communicate() closes stdin, which RPC treats as shutdown. Drain its
+        # output while leaving stdin open until the child requests shutdown.
+        output = bytearray()
+        deadline = time.monotonic() + 8
+        while process.poll() is None and time.monotonic() < deadline:
+            ready, _, _ = select.select([process.stdout], [], [], 0.01)
+            if ready:
+                output.extend(os.read(process.stdout.fileno(), 65536))
+        self.assertIsNotNone(process.poll(), "Pi did not auto-exit after finishing")
+        remaining, error = process.communicate(timeout=2)
+        output.extend(remaining)
+        self.assertEqual(process.returncode, 0, error.decode())
+        self.assertNotIn(b"Failed to load extension", error)
+        return bytes(output)
+
+    def test_recovered_retry_does_not_publish_failure(self):
+        process = self.start("recovered")
+        self.prompt(process, "fixture")
+        output = self.finish(process)
+        self.assertTrue(b"OFFLINE_RECOVERED" in output, f"retry did not recover: {self.events()}")
+        self.assertEqual([e["event"] for e in self.events()].count("agent_end"), 2)
+        self.assertFalse(
+            (self.root / "child.jsonl.exit").exists(), "recovered retry published an error sidecar"
+        )
+        self.assertFalse(any(e["sidecar"] for e in self.events()), self.events())
+
+    def test_exhausted_retry_publishes_failure_only_after_settled(self):
+        process = self.start("exhausted")
+        self.prompt(process, "fixture")
+        self.finish(process)
+        events = self.events()
+        self.assertEqual([e["event"] for e in events].count("agent_end"), 2)
+        self.assertFalse(
+            any(e["sidecar"] for e in events if e["event"] != "session_shutdown"), events
+        )
+        error = json.loads((self.root / "child.jsonl.exit").read_text())
+        self.assertEqual(error["type"], "error")
+        self.assertIn("overloaded_error", error["errorMessage"])
+
+    def assert_parked_then_resumed(self, scenario):
+        process = self.start(scenario)
+        self.prompt(process, "fixture")
+        self.wait_for(lambda: any(e["event"] == "agent_settled" for e in self.events()), process)
+        time.sleep(0.05)
+        self.assertIsNone(
+            process.poll(), "child exited while waiting for parent or nested children"
+        )
+        self.assertFalse((self.root / "child.jsonl.exit").exists())
+        if scenario == "question":
+            self.assertTrue((self.root / "child.jsonl.ask").exists())
+        self.prompt(process, "parent followup")
+        self.assertIn(b"OFFLINE_RECOVERED", self.finish(process))
+
+    def test_pending_question_keeps_child_open(self):
+        self.assert_parked_then_resumed("question")
+
+    def test_nested_children_keep_child_open(self):
+        self.assert_parked_then_resumed("nested")
+
+    def test_queued_followup_finishes_before_auto_exit(self):
+        process = self.start("queued")
+        self.prompt(process, "initial fixture")
+        self.wait_for(lambda: any(e["event"] == "provider_call:1" for e in self.events()), process)
+        self.prompt(process, "queued continuation", "followUp")
+        self.finish(process)
+        self.assertIn("provider_call:2", [event["event"] for event in self.events()])
+
+    def probes(self, scenario):
+        bindir = self.root / "bin"
+        bindir.mkdir()
+        shim = bindir / "tmux"
+        shim.write_text(FAKE_TMUX)
+        shim.chmod(0o755)
+        self.env.update(
+            PATH=f"{bindir}:{self.env['PATH']}",
+            TMUX="offline-fixture",
+            TMUX_PANE="%0",
+            PI_SUBAGENT_SHELL_READY_DELAY_MS="20",
+        )
+        agents = self.agent / "agents"
+        agents.mkdir()
+        (agents / "fixture.md").write_text(
+            "---\nname: fixture\ntools: read\nauto-exit: true\n---\nOffline fixture role.\n"
+        )
+        (self.root / "parent.jsonl").write_text(
+            json.dumps({"type": "session", "id": "fixture-parent", "version": 3}) + "\n"
+        )
+        process = self.start(scenario, "runtime-probes.ts", done=False)
+        # These probes run during session_start without starting an agent loop.
+        # Wait for their output, then close RPC explicitly.
+        self.wait_for(lambda: (self.root / "results.json").exists(), process)
+        _, error = process.communicate(timeout=2)
+        self.assertEqual(process.returncode, 0, error.decode())
+        results = json.loads((self.root / "results.json").read_text())
+        self.assertNotIn("failure", results, results)
+        return results
+
+    def test_missing_pane_reports_failure_and_late_sidecar_wins(self):
+        results = self.probes("panes")
+        self.assertEqual(results["missing"].get("reason"), "error", results)
+        self.assertIn("pane", results["missing"]["errorMessage"].lower())
+        self.assertLess(results["missing"]["elapsedMs"], 3000)
+        self.assertEqual(results["unavailable"].get("reason"), "error", results)
+        self.assertIn("tmux is unavailable", results["unavailable"]["errorMessage"])
+        self.assertEqual(results["late-sidecar"]["reason"], "done", results)
+        for mode in ["transient", "sentinel"]:
+            self.assertEqual(results[mode]["reason"], "sentinel", results)
+            self.assertEqual(results[mode]["exitCode"], 0)
+        self.assertIn("Aborted", results["healthy"]["error"])
+        self.assertIn("Aborted", results["capture-error"]["error"])
+
+    def test_explicit_names_reserve_and_preserve_finished_handles(self):
+        results = self.probes("names")
+        self.assertEqual(
+            [spawn["name"] for spawn in results["parallel"]], ["duplicate", "duplicate-2"]
+        )
+        self.assertEqual(results["finishedName"], "duplicate-3")
+        first = results["parallel"][0]
+        self.assertEqual(
+            results["registryBeforeResume"]["duplicate"]["sessionFile"], first["sessionFile"]
+        )
+        self.assertEqual(results["resume"]["name"], "duplicate", results)
+        self.assertEqual(results["reservations"], [], results)
+
+    def test_spawn_and_resume_apply_project_trust(self):
+        results = self.probes("trust")
+        for command in [*results["spawnCommands"], results["resumeCommand"]]:
+            self.assertIn("pi --approve", command)
+            self.assertIn("--no-extensions", command)
+            self.assertIn("--tools 'read,ask_question'", command)
+        self.assertTrue(results["loadoutExists"])
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)

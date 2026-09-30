@@ -64,6 +64,11 @@ lint-python:
 lint-markdown:
     rumdl check --no-cache .
 
+# Exercise Pi initialization and child lifecycle without paid model calls.
+pi-test:
+    python3 tests/pi-config.py
+    python3 tests/pi-subagents.py
+
 # Show the desired, saved preview, and active system/home generations (no build or switch).
 status:
     @./scripts/status.sh

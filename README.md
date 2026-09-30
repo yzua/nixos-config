@@ -46,6 +46,8 @@ Markdown, including links and structures that affect rendering, without
 requiring line wrapping or headings in prompt fragments. For quick focused
 checks, use `just lint-ts`, `just lint-python`, `just lint-shell`, or
 `just lint-markdown`.
+Run `just pi-test` for Pi initialization and child-lifecycle regressions; the
+tests use an isolated mock provider without paid model calls.
 
 ## Customize
 

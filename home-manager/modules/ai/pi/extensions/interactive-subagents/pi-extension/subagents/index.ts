@@ -559,15 +559,12 @@ function resolveResultPresentation(
   const sessionRef = `\n\nFollow up with subagent_message({ name: "${name}", message: "…" })`;
 
   if (result.errorMessage) {
-    // Auto-retry exhausted or other agent-loop error. The subagent did not
-    // produce a usable result — surface the underlying provider/network
-    // failure so the orchestrator can decide whether to retry, resume, or
-    // change approach instead of silently treating the run as completed.
+    // Surface provider errors and lost panes as failures, preserving the
+    // specific cause so the orchestrator can decide how to continue.
     return (
-      `Sub-agent "${name}" failed after ${formatElapsed(result.elapsed)} ` +
-      `(provider/agent error — auto-retry exhausted).\n\n` +
+      `Sub-agent "${name}" failed after ${formatElapsed(result.elapsed)}.\n\n` +
       `Error: ${result.errorMessage}\n\n` +
-      `The subagent did not produce a result. You can retry by spawning a new ` +
+      `The subagent did not finish successfully. You can retry by spawning a new ` +
       `subagent or resume the session with subagent_message.${sessionRef}`
     );
   }
@@ -954,7 +951,7 @@ function observeRunningSubagent(running: RunningSubagent, observedAt = Date.now(
  * `runningSubagents`. Parallel `subagent` tool calls run their synchronous
  * prefix (name defaulting) before any of them finishes `launchSubagent` and
  * registers, so without this they'd all see an empty map and pick the same
- * name. Reserved synchronously when a default name is chosen and released once
+ * name. Reserved synchronously when a name is chosen and released once
  * the subagent registers (or its launch fails).
  */
 const reservedNames = new Set<string>();
@@ -963,7 +960,7 @@ const reservedNames = new Set<string>();
  * Return `base`, or `base-2`, `base-3`, … so the result is unique within this
  * spawner session. Considers (a) currently-running subagents, (b) names
  * reserved by parallel in-flight spawns, and (c) every name already recorded in
- * the spawner's persistent registry — so a defaulted name never collides with a
+ * the spawner's persistent registry — so a new name never collides with a
  * finished subagent either. This lets `subagent_message({ name })` address any
  * subagent of this session unambiguously, running or finished.
  *
@@ -1340,7 +1337,8 @@ async function launchSubagent(
   // ── Pi CLI path ──
 
   // Build pi command
-  const parts: string[] = ["pi"];
+  // Match `p`'s agreed automatic project-trust policy for child processes.
+  const parts: string[] = ["pi", "--approve"];
   parts.push("--session", shellEscape(subagentSessionFile));
 
   const subagentDonePath = join(SUBAGENTS_DIR, "subagent-done.ts");
@@ -1581,16 +1579,21 @@ async function watchSubagent(
       }
 
       if (!summary) {
-        summary = readScreen(surface, 200)
-          .replace(/__SUBAGENT_DONE_\d+__/, "")
-          .trimEnd();
+        try {
+          summary = readScreen(surface, 200)
+            .replace(/__SUBAGENT_DONE_\d+__/, "")
+            .trimEnd();
+        } catch {
+          // A disappeared pane has no screen; preserve the polling failure.
+        }
       }
 
       if (!summary) {
         summary =
-          result.exitCode !== 0
+          result.errorMessage ??
+          (result.exitCode !== 0
             ? `Claude Code exited with code ${result.exitCode}`
-            : "Claude Code exited without output";
+            : "Claude Code exited without output");
       }
 
       // Copy Claude session transcript
@@ -1605,7 +1608,11 @@ async function watchSubagent(
         } catch {}
       }
 
-      closeSurface(surface);
+      try {
+        closeSurface(surface);
+      } catch {
+        /* Pane may already be gone. */
+      }
       runningSubagents.delete(running.id);
 
       return {
@@ -1615,6 +1622,7 @@ async function watchSubagent(
         exitCode: result.exitCode,
         elapsed,
         ...(sessionId ? { claudeSessionId: sessionId } : {}),
+        ...(result.errorMessage ? { errorMessage: result.errorMessage } : {}),
       };
     }
 
@@ -1640,7 +1648,11 @@ async function watchSubagent(
     const stats = existsSync(sessionFile) ? summarizeSessionStats(sessionFile) : null;
     const subagentSessionId = existsSync(sessionFile) ? getSessionId(sessionFile) : null;
 
-    closeSurface(surface);
+    try {
+      closeSurface(surface);
+    } catch {
+      /* Pane may already be gone. */
+    }
     runningSubagents.delete(running.id);
 
     return {
@@ -1825,18 +1837,15 @@ export default function subagentsExtension(pi: ExtensionAPI) {
         ctx.sessionManager.getSessionId(),
       );
 
-      // Default the cosmetic pane label to the agent name when omitted,
+      // Default the pane label to the agent name when omitted,
       // disambiguating against running subagents, in-flight reservations, and
       // every name already in the registry — so names stay unique across the
       // whole session, running or finished. Reserve the chosen name
       // synchronously (before any await) so parallel spawns don't collide.
-      let reservedName: string | null = null;
-      if (!params.name?.trim()) {
-        const registryNames = new Set(Object.keys(readNameRegistry(parentArtifactDir)));
-        params.name = uniqueRunningName(params.agent, registryNames);
-        reservedName = params.name;
-        reservedNames.add(reservedName);
-      }
+      const registryNames = new Set(Object.keys(readNameRegistry(parentArtifactDir)));
+      params.name = uniqueRunningName(params.name?.trim() || params.agent, registryNames);
+      const reservedName = params.name;
+      reservedNames.add(reservedName);
 
       // Launch the subagent (creates pane, sends command). Release the name
       // reservation once it registers in runningSubagents (or launch fails) —
@@ -1845,7 +1854,7 @@ export default function subagentsExtension(pi: ExtensionAPI) {
       try {
         running = await launchSubagent(params, ctx);
       } finally {
-        if (reservedName) reservedNames.delete(reservedName);
+        reservedNames.delete(reservedName);
       }
 
       // Persist name → session so subagent_message({ name }) can resume this
@@ -2190,7 +2199,7 @@ export default function subagentsExtension(pi: ExtensionAPI) {
       await new Promise<void>((resolve) => setTimeout(resolve, getShellReadyDelayMs()));
 
       // Build pi resume command
-      const parts = ["pi", "--session", shellEscape(sessionPath)];
+      const parts = ["pi", "--approve", "--session", shellEscape(sessionPath)];
 
       // Load subagent-done extension so the agent can self-terminate if needed
       const subagentDonePath = join(SUBAGENTS_DIR, "subagent-done.ts");
@@ -2453,7 +2462,7 @@ export default function subagentsExtension(pi: ExtensionAPI) {
           .replace(`Sub-agent "${name}" failed (exit code ${exitCode}).\n\n`, "")
           .replace(
             new RegExp(
-              `^Sub-agent "${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}" failed after ${elapsed} \\(provider/agent error — auto-retry exhausted\\)\\.\\n\\n`,
+              `^Sub-agent "${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}" failed after ${elapsed}(?: \\(provider/agent error — auto-retry exhausted\\))?\\.\\n\\n`,
             ),
             "",
           );

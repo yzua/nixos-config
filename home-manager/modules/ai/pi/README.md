@@ -39,6 +39,17 @@ The subagent source passes `--thinking` independently of `--model`, so a
 profile can inherit the configured model while selecting its own reasoning
 level. This applies to both initial launches and resumed follow-ups.
 
-Run `python3 tests/pi-config.py` for writable-config migration checks, then
-`just check` and `just home-preview` before activation. Smoke-test extension
-loading, browser use, and subagent completion/follow-up with the installed Pi.
+Children publish terminal errors and shut down at `agent_settled`, after Pi's
+retries and queued continuations finish. Pending questions and nested children
+keep the session open. A missing pane gets a two-second grace period for its
+final sidecar, then reports failure; healthy panes have no job timeout.
+Spawns and resumed follow-ups use `--approve`, matching `p`'s automatic project
+trust. Explicit and default names get suffixes when needed, preserving finished
+children's handles for later follow-ups.
+
+Use `nix develop`, then `just fmt-check` and `just lint-ts` when editing the
+extensions. `just pi-test` checks writable-config migration and child reliability
+through the installed Pi loader, with isolated settings, a mock provider, and
+fake tmux. It makes no paid model calls. Set `PI_BIN` to test another Pi binary.
+Run `just check` and `just home-preview` before activation. Smoke-test browser
+use and real tmux subagent completion/follow-up with the installed Pi.

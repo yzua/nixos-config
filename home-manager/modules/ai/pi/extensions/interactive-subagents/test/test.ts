@@ -51,7 +51,7 @@ import {
 } from "../pi-extension/subagents/activity.ts";
 import {
   shouldMarkUserTookOver,
-  shouldAutoExitOnAgentEnd,
+  shouldAutoExitOnAgentSettled,
   findLatestAssistantError,
   runningChildrenCount,
 } from "../pi-extension/subagents/subagent-done.ts";
@@ -1298,13 +1298,19 @@ describe("subagent discovery", () => {
     }
   });
 
-  it("getToolExtensionPath maps custom tools and skips built-ins", () => {
-    assert.equal(testApi.getToolExtensionPath("read"), undefined);
-    assert.equal(testApi.getToolExtensionPath("bash"), undefined);
-    assert.ok(testApi.getToolExtensionPath("web_search")?.endsWith("web-search/index.ts"));
-    assert.ok(testApi.getToolExtensionPath("safe_bash")?.endsWith("tools/safe-bash.ts"));
-    // Spawning tools are registered by this extension itself.
-    assert.ok(testApi.getToolExtensionPath("subagent")?.endsWith("index.ts"));
+  it("getToolExtensionPath maps installed custom tools and skips built-ins", async () => {
+    await withIsolatedAgentEnv(({ globalDir }) => {
+      const extensionDir = join(globalDir, "extensions", "web-fetch");
+      mkdirSync(extensionDir, { recursive: true });
+      writeFileSync(join(extensionDir, "index.ts"), "export default function () {}\n");
+      assert.equal(testApi.getToolExtensionPath("read"), undefined);
+      assert.equal(testApi.getToolExtensionPath("bash"), undefined);
+      assert.equal(testApi.getToolExtensionPath("web_search"), undefined);
+      assert.equal(testApi.getToolExtensionPath("web_fetch"), join(extensionDir, "index.ts"));
+      assert.ok(testApi.getToolExtensionPath("safe_bash")?.endsWith("tools/safe-bash.ts"));
+      // Spawning tools are registered by this extension itself.
+      assert.ok(testApi.getToolExtensionPath("subagent")?.endsWith("index.ts"));
+    });
   });
 
   it("ignores invalid session-mode values", async () => {
@@ -1399,9 +1405,9 @@ describe("subagent discovery", () => {
         { artifactDir: d, name: "worker" },
       );
       const joined = parts.join(" ");
-      // Model with thinking suffix.
-      assert.ok(joined.includes("--model"), "expected --model");
-      assert.ok(joined.includes("openrouter/z-ai/glm-5.2:medium"), "expected model:thinking");
+      // Pi accepts reasoning independently of the selected model.
+      assert.equal(parts[parts.indexOf("--model") + 1], "'openrouter/z-ai/glm-5.2'");
+      assert.equal(parts[parts.indexOf("--thinking") + 1], "'medium'");
       // Identity written to a file and appended.
       assert.ok(joined.includes("--append-system-prompt"), "expected --append-system-prompt");
       // Default-deny restriction.
@@ -1436,6 +1442,29 @@ describe("subagent discovery", () => {
         { artifactDir: d, name: "fork" },
       );
       assert.deepEqual(parts, []);
+    });
+  });
+
+  it("applySandboxToParts preserves reasoning when the model is inherited", () => {
+    withTempDir((d) => {
+      const parts: string[] = [];
+      testApi.applySandboxToParts(
+        parts,
+        {
+          agent: "scout",
+          toolAllowlist: null,
+          model: null,
+          thinking: "medium",
+          systemPromptMode: null,
+          identity: null,
+          spawnable: null,
+          autoExit: true,
+          cwd: null,
+          agentDir: null,
+        },
+        { artifactDir: d, name: "scout" },
+      );
+      assert.deepEqual(parts, ["--thinking", "'medium'"]);
     });
   });
 
@@ -1593,20 +1622,20 @@ describe("subagent-done.ts", () => {
     });
   });
 
-  describe("shouldAutoExitOnAgentEnd", () => {
+  describe("shouldAutoExitOnAgentSettled", () => {
     it("auto-exits after normal completion when there was no takeover", () => {
       const messages = [{ role: "assistant", stopReason: "stop" }];
-      assert.equal(shouldAutoExitOnAgentEnd(false, messages), true);
+      assert.equal(shouldAutoExitOnAgentSettled(false, messages), true);
     });
 
     it("auto-exits after normal completion even when the user sent the prompt", () => {
       const messages = [{ role: "assistant", stopReason: "stop" }];
-      assert.equal(shouldAutoExitOnAgentEnd(true, messages), true);
+      assert.equal(shouldAutoExitOnAgentSettled(true, messages), true);
     });
 
     it("stays open after Escape aborts the run", () => {
       const messages = [{ role: "assistant", stopReason: "aborted" }];
-      assert.equal(shouldAutoExitOnAgentEnd(false, messages), false);
+      assert.equal(shouldAutoExitOnAgentSettled(false, messages), false);
     });
 
     it("still exits when the latest turn ended with stopReason=error", () => {
@@ -1614,7 +1643,7 @@ describe("subagent-done.ts", () => {
       // parent is woken. The error sidecar (written separately) carries the
       // failure detail; staying open would just strand the worker.
       const messages = [{ role: "assistant", stopReason: "error", errorMessage: "529 overloaded" }];
-      assert.equal(shouldAutoExitOnAgentEnd(false, messages), true);
+      assert.equal(shouldAutoExitOnAgentSettled(false, messages), true);
     });
   });
 
@@ -1830,6 +1859,7 @@ describe("subagent-done.ts", () => {
       const ask = async () => {
         const tool = tools.find((t) => t.name === "ask_question");
         await tool.execute("c1", { question: "v1 or v2?" }, undefined, undefined, {
+          sessionManager: { getBranch: () => [] },
           shutdown() {},
         });
       };
@@ -1846,22 +1876,27 @@ describe("subagent-done.ts", () => {
         emit("input");
         let shutdown = false;
         emit(
-          "agent_end",
-          { messages: [] },
+          "agent_settled",
+          {},
           {
+            sessionManager: { getBranch: () => [] },
             shutdown() {
               shutdown = true;
             },
           },
         );
-        assert.equal(shutdown, true, "reply consumed mid-run → agent_end should exit, not park");
+        assert.equal(
+          shutdown,
+          true,
+          "reply consumed mid-run → agent_settled should exit, not park",
+        );
       } finally {
         restore();
         rmSync(dir, { recursive: true, force: true });
       }
     });
 
-    it("parks as waiting at agent_end while the reply is still pending (no input yet)", async () => {
+    it("parks as waiting at agent_settled while the reply is still pending (no input yet)", async () => {
       const dir = createTestDir();
       const { emit, ask, restore } = setupCapturingExtension(join(dir, "s.jsonl"));
       try {
@@ -1870,9 +1905,10 @@ describe("subagent-done.ts", () => {
         // No input yet — the orchestrator has not replied.
         let shutdown = false;
         emit(
-          "agent_end",
-          { messages: [] },
+          "agent_settled",
+          {},
           {
+            sessionManager: { getBranch: () => [] },
             shutdown() {
               shutdown = true;
             },
@@ -1893,9 +1929,10 @@ describe("subagent-done.ts", () => {
         await ask();
         let shutdown1 = false;
         emit(
-          "agent_end",
-          { messages: [] },
+          "agent_settled",
+          {},
           {
+            sessionManager: { getBranch: () => [] },
             shutdown() {
               shutdown1 = true;
             },
@@ -1907,15 +1944,16 @@ describe("subagent-done.ts", () => {
         emit("agent_start");
         let shutdown2 = false;
         emit(
-          "agent_end",
-          { messages: [] },
+          "agent_settled",
+          {},
           {
+            sessionManager: { getBranch: () => [] },
             shutdown() {
               shutdown2 = true;
             },
           },
         );
-        assert.equal(shutdown2, true, "after the reply turn, agent_end should exit");
+        assert.equal(shutdown2, true, "after the reply turn, agent_settled should exit");
       } finally {
         restore();
         rmSync(dir, { recursive: true, force: true });
@@ -2588,11 +2626,27 @@ describe("subagent interruption", () => {
     );
 
     assert.match(presentation, /Sub-agent "Worker" failed/);
-    assert.match(presentation, /provider\/agent error — auto-retry exhausted/);
+    assert.match(presentation, /failed after 14s\./);
     assert.match(presentation, /Error: Anthropic 529 Overloaded after 3 retries/);
     assert.match(presentation, /subagent_message\(\{ name: "Worker"/);
     assert.doesNotMatch(presentation, /Session id:/);
     assert.doesNotMatch(presentation, /ignored when errorMessage is present/);
+  });
+
+  it("reports pane loss without describing it as retry exhaustion", () => {
+    const testApi = (subagentsModule as any).__test__;
+    const presentation = testApi.resolveResultPresentation(
+      {
+        exitCode: 1,
+        elapsed: 2,
+        summary: "",
+        errorMessage: "Subagent pane %7 disappeared before reporting completion.",
+      },
+      "Worker",
+    );
+    assert.match(presentation, /failed after 2s\./);
+    assert.match(presentation, /pane %7 disappeared/);
+    assert.doesNotMatch(presentation, /auto-retry exhausted/);
   });
 });
 
