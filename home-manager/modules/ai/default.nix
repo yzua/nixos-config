@@ -48,6 +48,11 @@ in
     ./voice
   ];
 
+  # Share portable guidance, not Pi's extension-specific instructions. Runtime
+  # settings and credentials remain writable and outside Nix.
+  home.file.".codex/AGENTS.md".source = ./agent-instructions.md;
+  xdg.configFile."opencode/AGENTS.md".source = ./agent-instructions.md;
+
   # Executables come from Numtide; settings, logins, and session data remain
   # in the user's home until deliberately migrated one app at a time.
   home.packages = with aiPackages; [
@@ -55,11 +60,9 @@ in
     chatgpt
     codexCli
     ctx
-    executor
     herdr
     officecli
     opencodeCli
-    opencode2
     pi
     skills
     t3code-desktop

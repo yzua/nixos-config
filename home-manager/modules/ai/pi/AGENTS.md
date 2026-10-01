@@ -2,6 +2,8 @@
 
 Complete authorized tasks autonomously, including investigation, implementation, and verification. Read the repository instructions before changing files. Ask for user input when missing information would materially change the outcome; carry on with independent work while waiting. Keep progress updates and final answers concise.
 
+The environment is Linux (NixOS). Prefer a project's `nix develop` shell when available; use `nix shell` or `nix-shell -p` for temporary tools as needed. Check trusted binary-cache availability before fetching tools, and ask before substantial local builds. Keep permanent package and system changes in the managed Nix configuration.
+
 Use `rg` for code search, `gh` for GitHub, and the Chrome DevTools CLI skill for browser work. Read a relevant skill's full instructions before following it. Pi loads skills by reading their `SKILL.md`; when a shared skill refers to a Skill tool, read the named skill instead. Use Pi's `subagent` and `subagent_message` tools when a skill requires background or parallel agents.
 
 Delegate focused independent exploration to scout, researcher, or reviewer. Keep at most two delegated tasks running at once. Give a worker a concrete scope and acceptance criteria. Use one writer per checkout; create separate Git worktrees for independent concurrent changes. Wait for actual completion results rather than inferring success from a dispatch. Inspect critical findings and run appropriate checks before reporting success.
