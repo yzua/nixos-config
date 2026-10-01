@@ -65,6 +65,10 @@ Use `nix develop`, then `just fmt-check` and `just lint-ts` when editing the
 extensions. `python3 tests/pi-config.py` and `python3 tests/pi-subagents.py`
 check writable-config migration and child reliability through the installed Pi
 loader, with isolated settings, a mock provider, and
-fake tmux. It makes no paid model calls. Set `PI_BIN` to test another Pi binary.
+fake tmux. `python3 tests/pi-extensions.py` exercises web/PDF extraction,
+question answers/cancellation and Herdr waiting events, and the optional
+`safe_bash` tool through Pi's loader. It uses local HTTP fixtures and the
+installed web-fetch dependencies; set `PI_WEB_FETCH_DIR` to use another dependency
+directory. These tests make no paid model calls. Set `PI_BIN` to test another Pi binary.
 Run `just check` and `just home-preview` before activation. Smoke-test browser
 use and real tmux subagent completion/follow-up with the installed Pi.

@@ -38,7 +38,10 @@ function isPDF(url: string, contentType?: string): boolean {
 }
 
 async function extractPDF(buffer: ArrayBuffer, url: string): Promise<FetchResult> {
-  const { getDocumentProxy } = await import("unpdf");
+  const { getDocumentProxy, definePDFJSModule } = await import("unpdf");
+  // Pi's compiled loader cannot resolve unpdf's internal package self-import.
+  // Load the bundled module from this extension's dependency scope instead.
+  await definePDFJSModule(() => import("unpdf/pdfjs"));
   const pdf = await getDocumentProxy(new Uint8Array(buffer));
 
   const metadata = await pdf.getMetadata();

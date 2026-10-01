@@ -636,30 +636,36 @@ export default function askUserQuestion(pi: ExtensionAPI) {
       }
 
       return withUILock(async () => {
-        if (mode === "text") {
-          const editorTitle = context ? `${params.question}\n\n${context}` : params.question;
-          const answer = await ctx.ui.editor(editorTitle);
-          if (answer === undefined) {
+        // Herdr listens on Pi's event bus; emitting is harmless without its integration.
+        pi.events.emit("herdr:blocked", { active: true, label: params.question });
+        try {
+          if (mode === "text") {
+            const editorTitle = context ? `${params.question}\n\n${context}` : params.question;
+            const answer = await ctx.ui.editor(editorTitle);
+            if (answer === undefined) {
+              return cancelledResult(params.question, mode, context);
+            }
+            return buildResult(params.question, context, mode, [
+              { type: "text", label: answer.trim(), value: answer.trim() },
+            ]);
+          }
+
+          if (mode === "single-select") {
+            const answer = await askSingleChoice(ctx, params.question, context, options);
+            if (!answer) {
+              return cancelledResult(params.question, mode, context);
+            }
+            return buildResult(params.question, context, mode, [answer]);
+          }
+
+          const answers = await askMultiChoice(ctx, params.question, context, options);
+          if (!answers) {
             return cancelledResult(params.question, mode, context);
           }
-          return buildResult(params.question, context, mode, [
-            { type: "text", label: answer.trim(), value: answer.trim() },
-          ]);
+          return buildResult(params.question, context, mode, answers);
+        } finally {
+          pi.events.emit("herdr:blocked", { active: false });
         }
-
-        if (mode === "single-select") {
-          const answer = await askSingleChoice(ctx, params.question, context, options);
-          if (!answer) {
-            return cancelledResult(params.question, mode, context);
-          }
-          return buildResult(params.question, context, mode, [answer]);
-        }
-
-        const answers = await askMultiChoice(ctx, params.question, context, options);
-        if (!answers) {
-          return cancelledResult(params.question, mode, context);
-        }
-        return buildResult(params.question, context, mode, answers);
       });
     },
 

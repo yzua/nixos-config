@@ -47,7 +47,8 @@ requiring line wrapping or headings in prompt fragments. For quick focused
 checks, use `just lint-ts`, `just lint-python`, `just lint-shell`, or
 `just lint-markdown`.
 For regression checks, run `bash tests/workflow.sh`, `python3 tests/voice-action.py`,
-`python3 tests/pi-config.py`, and `python3 tests/pi-subagents.py`. They use isolated
+`python3 tests/pi-config.py`, `python3 tests/pi-subagents.py`, and
+`python3 tests/pi-extensions.py`. They use isolated
 fixtures without activation or paid model calls.
 
 ## Customize
