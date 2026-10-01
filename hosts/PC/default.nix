@@ -9,6 +9,7 @@
     ../../modules/nixos/base.nix
     ../../modules/nixos/audio.nix
     ../../modules/nixos/gnome.nix
+    ../../modules/nixos/flatpak.nix
     ../../modules/nixos/gaming.nix
     ../../modules/nixos/niri.nix
     ../../modules/nixos/mullvad-vpn.nix
