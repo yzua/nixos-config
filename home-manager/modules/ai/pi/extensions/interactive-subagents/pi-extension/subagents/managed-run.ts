@@ -31,6 +31,7 @@ import {
   createSurface,
   pollForExit,
   readScreen,
+  readScreenAsync,
   sendLongCommand,
   shellEscape,
   muxIdentity,
@@ -127,6 +128,7 @@ type SessionOwner = {
 export class ManagedRuns {
   readonly running = new Map<string, RunningSubagent>();
   private readonly owners = new WeakMap<RunningSubagent, SessionOwner>();
+  private readonly createdMux = new WeakMap<RunningSubagent, string>();
   private readonly completions = new WeakMap<RunningSubagent, Promise<void>>();
   private lifecycle = new AbortController();
 
@@ -399,17 +401,29 @@ export class ManagedRuns {
       }
       const current = this.running.get(owner.run.id);
       if (signal.aborted) throw new RunOwnershipError("Cannot recall from a disposed runtime.");
+      let readTimer: ReturnType<typeof setTimeout> | undefined;
       try {
-        const screen = readScreen(owner.surface, 5);
+        const screen = await Promise.race([
+          readScreenAsync(owner.surface, 5),
+          new Promise<never>((_resolve, reject) => {
+            readTimer = setTimeout(() => reject(new Error("Ownership read timed out")), 2600);
+          }),
+        ]);
         terminal =
           /__SUBAGENT_DONE_\d+__/.test(screen) ||
           (owner.run.cli === "claude" &&
             !!owner.run.sentinelFile &&
             existsSync(owner.run.sentinelFile));
       } catch {
+        if (inspectSubagentWriterLease(owner.sessionFile, owner.run.id, owner.token) === "dead") {
+          this.running.delete(owner.run.id);
+          return undefined; // Guarded resume can replace a proven-dead writer.
+        }
         throw new RunOwnershipError(
           "Cannot safely recall: owned surface is missing or cannot be inspected.",
         );
+      } finally {
+        clearTimeout(readTimer);
       }
       if (owner.mux !== this.muxIdentity()) {
         throw new RunOwnershipError(
@@ -472,7 +486,7 @@ export class ManagedRuns {
     candidate: Omit<RunningSubagent, "surface" | "abortController">,
     policy: { kind: "initial" } | { kind: "resume"; sessionId: string },
     prepare: (running: RunningSubagent) => LaunchPlan,
-    register?: (running: RunningSubagent) => void,
+    register?: (running: RunningSubagent) => (() => void) | void,
   ): Promise<RunningSubagent> {
     // Capture this runtime's signal, not whatever a later session installs.
     const moduleSignal = AbortSignal.any([this.hooks.moduleSignal(), this.lifecycle.signal]);
@@ -484,6 +498,7 @@ export class ManagedRuns {
     );
     let running: RunningSubagent | undefined;
     let resultPolicy: ResultPolicy;
+    let rollbackRegistration: (() => void) | void;
     try {
       // Sample only after the previous writer has truly exited: any final
       // detached output is old history, never this follow-up's summary.
@@ -491,6 +506,7 @@ export class ManagedRuns {
         policy.kind === "resume"
           ? { ...policy, entryCountBefore: countSessionEntryLines(candidate.sessionFile) }
           : policy;
+      const incarnation = this.muxIdentity();
       const surface = createSurface(candidate.name);
       running = {
         ...candidate,
@@ -499,7 +515,14 @@ export class ManagedRuns {
         surface,
         abortController: new AbortController(),
       };
+      this.createdMux.set(running, incarnation);
+      if (incarnation !== this.muxIdentity()) {
+        throw new RunOwnershipError("Cannot prepare: multiplexer incarnation changed.");
+      }
       const plan = prepare(running);
+      if (incarnation !== this.muxIdentity()) {
+        throw new RunOwnershipError("Cannot prepare: multiplexer incarnation changed.");
+      }
       running.launchScriptFile = plan.launchScriptFile;
       const { abortController: _abort, ...run } = running;
       const owner: SessionOwner = {
@@ -519,7 +542,7 @@ export class ManagedRuns {
       // Persist the pane BEFORE dispatch: even parent death cannot hide a writer.
       writeFileSync(`${owner.sessionFile}.owner.json`, JSON.stringify(owner), { flag: "wx" });
       // The registry must survive parent death immediately after dispatch too.
-      register?.(running);
+      rollbackRegistration = register?.(running);
       await new Promise<void>((resolve) => setTimeout(resolve, this.hooks.shellReadyDelayMs()));
       if (moduleSignal.aborted) throw new Error("Aborted while launching subagent");
       if (!this.owns(running))
@@ -534,7 +557,7 @@ export class ManagedRuns {
       this.running.set(running.id, running);
       this.hooks.refresh(true);
     } catch (error) {
-      if (running) this.release(running, true);
+      if (running && this.release(running, true)) rollbackRegistration?.();
       throw error;
     } finally {
       unlock();
@@ -567,20 +590,27 @@ export class ManagedRuns {
     return `${cd}${prefix} ${plan.parts.join(" ")}`;
   }
 
-  private release(running: RunningSubagent, lockHeld = false): void {
+  private release(running: RunningSubagent, lockHeld = false): boolean {
     let unlock: (() => void) | undefined;
     try {
       if (!lockHeld) unlock = this.lockSession(running.sessionFile);
       // Check BEFORE closing, not just before unlinking. Surface IDs can be reused.
-      if (this.owners.has(running) ? !this.owns(running) : !lockHeld) return;
+      if (
+        this.owners.has(running)
+          ? !this.owns(running)
+          : !lockHeld || this.createdMux.get(running) !== this.muxIdentity()
+      )
+        return false;
       closeSurface(running.surface);
       if (this.owners.has(running)) {
         // Closed failed launches remain known-safe handles too. Missing claims
         // cannot distinguish a finished legacy run from an unknown live writer.
         this.writeOwner({ ...this.readOwner(running.sessionFile)!, delivered: true });
       }
+      return true;
     } catch {
       // Failed close retains the writer claim; later launch must establish exit.
+      return false;
     } finally {
       if (this.running.get(running.id) === running) this.running.delete(running.id);
       unlock?.();
@@ -667,7 +697,11 @@ export class ManagedRuns {
     }
     if (moduleSignal.aborted) return;
     try {
-      this.hooks.refresh(false);
+      try {
+        this.hooks.refresh(false);
+      } catch {
+        // UI observation must not swallow the actual result delivery.
+      }
       this.hooks.sendMessage(
         {
           customType: "subagent_result",

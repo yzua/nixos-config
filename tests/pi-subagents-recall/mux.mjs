@@ -60,6 +60,7 @@ export function sendLongCommand(surface, command) {
   record("dispatch", surface, command);
 }
 export function sendCommand(surface, command) { readScreen(surface); record("steer", surface, command); }
+export async function readScreenAsync(surface) { return readScreen(surface); }
 export function readScreen(surface) {
   record("inspect", surface);
   const state = read(`surface-${surface}.json`, null);

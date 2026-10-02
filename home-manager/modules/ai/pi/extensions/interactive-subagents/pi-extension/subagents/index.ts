@@ -1378,7 +1378,7 @@ async function launchSubagent(
     },
     (running) => {
       // Persist the handle before supervision; registration failures also clean up.
-      registerName(artifactDir, running.name, {
+      return registerName(artifactDir, running.name, {
         sessionFile: running.sessionFile,
         sessionId: getSessionId(running.sessionFile),
       });

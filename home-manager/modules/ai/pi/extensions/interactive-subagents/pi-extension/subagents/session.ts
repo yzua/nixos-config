@@ -311,9 +311,14 @@ export function readNameRegistry(artifactDir: string): NameRegistry {
  * Writes atomically (temp file + rename) so a concurrent reader never sees a
  * partial registry.
  */
-export function registerName(artifactDir: string, name: string, entry: NameRegistryEntry): void {
+export function registerName(
+  artifactDir: string,
+  name: string,
+  entry: NameRegistryEntry,
+): () => void {
   mkdirSync(artifactDir, { recursive: true });
   const registry = readNameRegistry(artifactDir);
+  const previous = registry[name];
   registry[name] = entry;
   const p = nameRegistryPath(artifactDir);
   const tmp = `${p}.tmp-${process.pid}-${Math.random().toString(16).slice(2, 8)}`;
@@ -321,6 +326,17 @@ export function registerName(artifactDir: string, name: string, entry: NameRegis
   // A failed registration must stop dispatch: an unaddressable detached writer
   // cannot be safely recalled by the replacement parent runtime.
   renameSync(tmp, p);
+  return () => {
+    // Roll back only our still-current registration after safe failed-launch
+    // cleanup. Never remove another run's handle or discard other names.
+    const current = readNameRegistry(artifactDir);
+    if (current[name]?.sessionFile !== entry.sessionFile) return;
+    if (previous) current[name] = previous;
+    else delete current[name];
+    const rollback = `${p}.tmp-${randomUUID()}`;
+    writeFileSync(rollback, JSON.stringify(current, null, 2), "utf8");
+    renameSync(rollback, p);
+  };
 }
 
 /** Resolve a name to its registry entry within a spawner session, or null. */

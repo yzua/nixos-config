@@ -215,6 +215,35 @@ if (mode === "restart-writer") {
   assert.equal(old.messages.length, 0);
   await verifyCompletionAndFollowup(recalled, run);
   assert.equal(old.messages.length, 0);
+} else if (mode === "prepare-replacement") {
+  const { ManagedRuns } = await import(new URL("managed-run.ts", source));
+  const { createStatusState } = await import(new URL("status.ts", source));
+  const manager = new ManagedRuns({moduleSignal: () => new AbortController().signal,
+    shellReadyDelayMs: () => 0, refresh() {}, tick() {}, present: r => r.summary, sendMessage() {}});
+  const startTime = Date.now();
+  await assert.rejects(manager.launch({id:"preparing", name:"Recall", task:"offline", startTime,
+    sessionFile:file("preparing.jsonl"), parentArtifactDir:file("artifacts/parent-session"),
+    activityFile:file("preparing.activity.json"), interactive:false,
+    statusState:createStatusState({source:"pi", startTimeMs:startTime})}, {kind:"initial"}, () => {
+      save("incarnation.json", {dev:"1", ino:"99", ctimeNs:"100"});
+      throw new Error("preparation failed after replacement");
+    }), /preparation failed/);
+  assert.equal(calls("close").length, 0, "failed preparation cannot close replacement-server panes");
+  manager.dispose();
+} else if (mode === "dead-missing-surface") {
+  const old = await runtime("dead-original");
+  const run = await launch(old);
+  old.stop();
+  save("proc-mode.json", "dead");
+  save(`surface-${owner(run).surface}.json`, {closed:true});
+  const rt = await runtime("dead-recalled");
+  const followup = await rt.tool("subagent_message", {name:"Recall", message:"safe dead-writer followup"});
+  assert.equal(followup.details.status, "started");
+  assert.equal(followup.details.sessionFile, run.sessionFile);
+  assert.equal(followup.details.name, run.name);
+  assert.equal(calls("spawn").length, 2);
+  assert.equal(calls("steer").length, 0, "missing owned shell is never steered");
+  rt.stop();
 } else if (mode === "fenced-live-runtime" || mode === "delivery-throws") {
   // Even if a predecessor's disposal signal is lost, its lease cannot close
   // or deliver after another supervisor takes over the same writer.
