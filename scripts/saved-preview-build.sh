@@ -51,19 +51,27 @@ discard_preview_root() {
 }
 
 cleanup_preview_root() {
-  local saved="$1" candidate="$2"
+  local saved="$1" candidate="$2" lock="${3:-}" cleanup_lock
+  # Drop this shell's publication descriptor, then lock a distinct file
+  # description. A surviving foreground child (e.g. mv) retains the original
+  # lock until it exits, so cleanup cannot race its eventual atomic rename.
+  if [[ -n "$lock" ]]; then
+    exec {lock}>&-
+  fi
+  exec {cleanup_lock}>"$saved.roots/publication.lock"
+  flock "$cleanup_lock"
   # Also covers a signal immediately after atomic publication: never unroot
   # the candidate now referenced by the public saved link.
-  if [[ -L "$saved" && "$(readlink "$saved")" == "$candidate/result" ]]; then
-    return
+  if [[ ! -L "$saved" || "$(readlink "$saved")" != "$candidate/result" ]]; then
+    discard_preview_root "$saved" "$candidate/result"
   fi
-  discard_preview_root "$saved" "$candidate/result"
+  exec {cleanup_lock}>&-
 }
 
-publish_preview_root() (
-  local saved="$1" candidate="$2" previous='' lock
-  # Serialize publication/retirement for this output, not other outputs or builds.
-  exec {lock}>"$saved.roots/publication.lock"
+publish_preview_root() {
+  local saved="$1" candidate="$2" lock="$3" previous=''
+  # Run in the preview shell: no surviving publication subshell may replace
+  # the saved alias after signal cleanup has removed its candidate.
   flock "$lock"
   if [[ -L "$saved" ]]; then
     previous=$(readlink "$saved")
@@ -75,7 +83,7 @@ publish_preview_root() (
     discard_preview_root "$saved" "$previous" ||
       printf 'Warning: could not retire superseded preview root: %s\n' "$previous" >&2
   fi
-)
+}
 
 generation_target() {
   if [[ -e "$1" ]]; then

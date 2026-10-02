@@ -70,11 +70,31 @@ case "$*" in
   *) printf 'Unexpected nix call: %s\n' "$*" >&2; exit 1 ;;
 esac
 SH
-export TEST_REAL_MV
+export TEST_REAL_MV TEST_REAL_RM TEST_REAL_FLOCK
 TEST_REAL_MV=$(command -v mv)
+TEST_REAL_RM=$(command -v rm)
+TEST_REAL_FLOCK=$(command -v flock)
+cat >"$test_root/bin/flock" <<'SH'
+#!/usr/bin/env bash
+if [[ -n "${TEST_FLOCK_NOTIFY:-}" ]]; then
+  printf 'locking %s\n' "$PPID" > "$TEST_FLOCK_NOTIFY"
+fi
+exec "$TEST_REAL_FLOCK" "$@"
+SH
+cat >"$test_root/bin/rm" <<'SH'
+#!/usr/bin/env bash
+"$TEST_REAL_RM" "$@" || exit 1
+if [[ -n "${TEST_FLOCK_NOTIFY:-}" && "$*" == *'/result' ]]; then
+  printf 'deleted\n' > "$TEST_FLOCK_NOTIFY"
+fi
+SH
 cat >"$test_root/bin/mv" <<'SH'
 #!/usr/bin/env bash
 [[ "${TEST_FAIL_PUBLICATION:-}" != 1 ]] || exit 1
+if [[ -n "${TEST_MV_GATE:-}" ]]; then
+  printf 'renaming %s\n' "$$" > "$TEST_FLOCK_NOTIFY"
+  read -r < "$TEST_MV_GATE"
+fi
 exec "$TEST_REAL_MV" "$@"
 SH
 cat >"$test_root/bin/nix-env" <<'SH'
@@ -129,7 +149,7 @@ start_case() {
   export TEST_NIX_LOG="$case_root/nix-calls"
   export TEST_DIFF_EXPECTED="$case_root/generation"
   export TEST_SOURCES='' TEST_ACTIVE_SOURCES=''
-  unset NIXOS_CONFIG HOME_CONFIG TEST_RUNNING_HOST TEST_FAIL_DIFF TEST_FAIL_DESIRED TEST_FAIL_DCONF TEST_FAIL_BUILD TEST_FAIL_PUBLICATION TEST_BAD_ROOT
+  unset NIXOS_CONFIG HOME_CONFIG TEST_RUNNING_HOST TEST_FAIL_DIFF TEST_FAIL_DESIRED TEST_FAIL_DCONF TEST_FAIL_BUILD TEST_FAIL_PUBLICATION TEST_BAD_ROOT TEST_FLOCK_NOTIFY TEST_MV_GATE
 }
 
 # Selection stays explicit when a flake has several outputs.
@@ -289,6 +309,80 @@ start_case() {
   ln -sfn "$other" "$saved"
   NIXOS_CONFIG=host-a just preview >"$case_root/output" 2>&1 || fail 'preview replacing foreign output link'
   [[ -L "$other" && -e "$other" ]] || fail 'foreign output root was deleted'
+)
+
+# Termination while waiting to publish must not leave an independent publisher
+# able to replace the prior saved link after cleanup removes its candidate.
+(
+  start_case terminated-publication
+  just home-preview >"$case_root/output" 2>&1 || fail 'initial preview before termination'
+  saved="$XDG_STATE_HOME/nixos/result-home-test-user@host-a"
+  previous=$(readlink "$saved")
+  exec {held_lock}>"$saved.roots/publication.lock"
+  "$TEST_REAL_FLOCK" "$held_lock"
+  mkfifo "$case_root/notify"
+  exec {notify}<>"$case_root/notify"
+  TEST_FLOCK_NOTIFY="$case_root/notify" bash scripts/generation.sh preview home >"$case_root/output" 2>&1 &
+  workflow_pid=$!
+  publication_pid=''
+  preview_pid=''
+  trap 'kill -TERM ${publication_pid:+"$publication_pid"} ${preview_pid:+"$preview_pid"} "$workflow_pid" 2>/dev/null || true;
+    "$TEST_REAL_FLOCK" -u "$held_lock"; wait "$workflow_pid" 2>/dev/null || true' EXIT
+  read -r -t 10 -u "$notify" event publication_pid || fail 'publication did not reach held lock'
+  [[ "$event" == locking ]] || fail 'unexpected publication event'
+  preview_pid=$(ps -o pid= --ppid "$workflow_pid")
+  preview_pid="${preview_pid// /}"
+  [[ "$preview_pid" =~ ^[0-9]+$ ]] || fail 'cannot identify preview process'
+  kill -TERM "$preview_pid"
+  read -r -t 10 -u "$notify" event cleanup_pid || fail 'termination did not reach cleanup lock'
+  [[ "$event" == locking && "$cleanup_pid" == "$preview_pid" && "$publication_pid" == "$preview_pid" ]] || fail 'cleanup raced an independently surviving publisher'
+  candidate=$(<"$TEST_CANDIDATE")
+  [[ -L "$candidate" && $(readlink "$saved") == "$previous" && -e "$previous" ]] || fail 'termination removed roots before acquiring publication lock'
+  "$TEST_REAL_FLOCK" -u "$held_lock"
+  status=0
+  wait "$workflow_pid" || status=$?
+  trap - EXIT
+  [[ "$status" == 143 ]] || fail 'terminated preview returned wrong status'
+  [[ $(readlink "$saved") == "$previous" && -e "$previous" && ! -L "$candidate" ]] || fail 'terminated preview lost saved root or leaked candidate'
+  [[ ! -s "$TEST_LOG" ]] || fail 'terminated preview activated'
+)
+
+# A foreground rename can also survive shell termination. Cleanup must wait
+# for its inherited lock before deciding whether publication already committed.
+(
+  start_case terminated-rename
+  just home-preview >"$case_root/output" 2>&1 || fail 'initial preview before interrupted rename'
+  saved="$XDG_STATE_HOME/nixos/result-home-test-user@host-a"
+  previous=$(readlink "$saved")
+  mkfifo "$case_root/notify" "$case_root/rename-gate"
+  exec {notify}<>"$case_root/notify"
+  exec {gate}<>"$case_root/rename-gate"
+  TEST_FLOCK_NOTIFY="$case_root/notify" TEST_MV_GATE="$case_root/rename-gate" \
+    bash scripts/generation.sh preview home >"$case_root/output" 2>&1 &
+  workflow_pid=$!
+  preview_pid=''
+  rename_pid=''
+  trap 'kill -TERM ${rename_pid:+"$rename_pid"} ${preview_pid:+"$preview_pid"} "$workflow_pid" 2>/dev/null || true;
+    wait "$workflow_pid" 2>/dev/null || true' EXIT
+  read -r -t 10 -u "$notify" event preview_pid || fail 'rename preview did not lock publication'
+  [[ "$event" == locking ]] || fail 'unexpected pre-rename event'
+  read -r -t 10 -u "$notify" event rename_pid || fail 'publication did not reach rename'
+  [[ "$event" == renaming ]] || fail 'unexpected rename event'
+  kill -TERM "$preview_pid"
+  read -r -t 10 -u "$notify" event cleanup_pid || fail 'interrupted rename did not reach cleanup lock'
+  [[ "$event" == locking && "$cleanup_pid" == "$preview_pid" ]] || fail 'rename cleanup did not lock'
+  if read -r -t 1 -u "$notify" event; then
+    fail 'cleanup deleted a root while the rename still held the publication lock'
+  fi
+  candidate=$(<"$TEST_CANDIDATE")
+  [[ -L "$candidate" && $(readlink "$saved") == "$previous" ]] || fail 'cleanup raced pending rename'
+  printf 'continue\n' >&"$gate"
+  status=0
+  wait "$workflow_pid" || status=$?
+  trap - EXIT
+  [[ "$status" == 143 ]] || fail 'interrupted rename returned wrong status'
+  [[ $(readlink "$saved") == "$candidate" && -e "$candidate" && -e "$previous" ]] || fail 'committed rename left dangling saved preview or lost prior root'
+  [[ ! -s "$TEST_LOG" ]] || fail 'interrupted rename activated'
 )
 
 # A dangling saved preview is never eligible, even if desired still matches its old target.

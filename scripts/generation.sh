@@ -74,10 +74,13 @@ review_home_generation() {
 }
 
 preview_generation() (
-  local actual candidate rooted
+  local actual candidate rooted publication_lock
   select_generation "$1"
   candidate=$(create_preview_root "$generation_saved")
-  trap 'cleanup_preview_root "$generation_saved" "$candidate"' EXIT
+  trap 'cleanup_preview_root "$generation_saved" "$candidate" "${publication_lock:-}"' EXIT
+  # Children inherit this descriptor, so signal cleanup can wait for any
+  # surviving publisher child. Opening it does not lock builds or reviews.
+  exec {publication_lock}>"$generation_saved.roots/publication.lock"
   actual=$(nix build --no-write-lock-file --out-link "$candidate/result" --print-out-paths "$generation_build")
   rooted=$(saved_preview_target "$candidate/result")
   if [[ "$rooted" != "$actual" ]]; then
@@ -93,7 +96,7 @@ preview_generation() (
     review_home_generation "$actual" "$generation_active"
   fi
   # Publish only the exact built path, after every applicable review succeeds.
-  publish_preview_root "$generation_saved" "$candidate"
+  publish_preview_root "$generation_saved" "$candidate" "$publication_lock"
 )
 
 require_system_host() {
