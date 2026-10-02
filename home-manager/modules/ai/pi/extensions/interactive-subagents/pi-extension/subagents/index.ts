@@ -1217,6 +1217,7 @@ async function launchSubagent(
       agent: params.agent,
       startTime,
       sessionFile: subagentSessionFile,
+      parentArtifactDir: artifactDir,
       ...(cli === "claude" ? { cli, sentinelFile } : { activityFile }),
       interactive: effectiveInteractive,
       statusState: createStatusState({
@@ -1430,7 +1431,7 @@ function deliverPendingQuestion(running: RunningSubagent): void {
 export default function subagentsExtension(pi: ExtensionAPI) {
   latestPi = pi;
   // Capture the UI context for widget updates
-  pi.on("session_start", (_event, ctx) => {
+  pi.on("session_start", async (_event, ctx) => {
     latestCtx = ctx;
     // pi runs multiple sessions in one process. A prior session's shutdown
     // aborts the shared module poll-abort controller; install a fresh one so
@@ -1439,6 +1440,20 @@ export default function subagentsExtension(pi: ExtensionAPI) {
     const prevAbort = (globalThis as any)[POLL_ABORT_KEY] as AbortController | undefined;
     if (!prevAbort || prevAbort.signal.aborted) {
       (globalThis as any)[POLL_ABORT_KEY] = new AbortController();
+    }
+    // Rebuild supervision only from this session's durable registry, never from
+    // a global pane/session scan. Recall does not relaunch the child process.
+    const artifactDir = getArtifactDir(
+      ctx.sessionManager.getSessionDir(),
+      ctx.sessionManager.getSessionId(),
+    );
+    for (const [name, entry] of Object.entries(readNameRegistry(artifactDir))) {
+      try {
+        if (typeof entry?.sessionFile !== "string") continue;
+        await managedRuns.recall(artifactDir, name, entry.sessionFile);
+      } catch (error) {
+        ctx.ui.notify(error instanceof Error ? error.message : String(error), "warning");
+      }
     }
   });
 
@@ -1799,6 +1814,25 @@ export default function subagentsExtension(pi: ExtensionAPI) {
         return muxUnavailableResult();
       }
 
+      const parentArtifactDir = getArtifactDir(
+        ctx.sessionManager.getSessionDir(),
+        ctx.sessionManager.getSessionId(),
+      );
+      const entry = resolveNameInRegistry(parentArtifactDir, requestedName);
+      // Retry recall here as well: startup may have encountered a busy launch
+      // lock. Never fall through to dispatch when ownership cannot be proven.
+      if (entry) {
+        try {
+          await managedRuns.recall(parentArtifactDir, requestedName, entry.sessionFile);
+        } catch (error) {
+          if (!(error instanceof RunOwnershipError)) throw error;
+          return {
+            content: [{ type: "text" as const, text: error.message }],
+            details: { error: error.message },
+          };
+        }
+      }
+
       // ── Steer a running subagent ──
       // A name that matches a currently-running subagent always steers it.
       const runningMatch = Array.from(runningSubagents.values()).find(
@@ -1816,11 +1850,6 @@ export default function subagentsExtension(pi: ExtensionAPI) {
       const id = Math.random().toString(16).slice(2, 10);
 
       // Resolve the name to its session file via this session's registry.
-      const parentArtifactDir = getArtifactDir(
-        ctx.sessionManager.getSessionDir(),
-        ctx.sessionManager.getSessionId(),
-      );
-      const entry = resolveNameInRegistry(parentArtifactDir, requestedName);
       if (!entry) {
         const known = Object.keys(readNameRegistry(parentArtifactDir));
         const err =
@@ -1864,8 +1893,10 @@ export default function subagentsExtension(pi: ExtensionAPI) {
             id,
             name,
             task: message,
+            agent: loadout.agent ?? undefined,
             startTime,
             sessionFile: sessionPath,
+            parentArtifactDir,
             activityFile,
             interactive,
             statusState: createStatusState({ source: "pi", startTimeMs: startTime }),

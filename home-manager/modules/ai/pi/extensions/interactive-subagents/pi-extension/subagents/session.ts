@@ -6,6 +6,7 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  readlinkSync,
   readSync,
   readdirSync,
   renameSync,
@@ -13,7 +14,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { randomBytes, randomUUID } from "node:crypto";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 export interface SessionEntry {
   type: string;
@@ -130,16 +131,142 @@ export function writeSubagentLoadout(sessionFile: string, loadout: SubagentLoado
   }
 }
 
+/** Validate durable sandbox metadata before trusting it for recall or resume. */
+export function isSubagentLoadout(value: unknown): value is SubagentLoadout {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  const nullableString = (key: string) => v[key] === null || typeof v[key] === "string";
+  return (
+    ["agent", "toolAllowlist", "model", "thinking", "identity", "cwd", "agentDir"].every(
+      nullableString,
+    ) &&
+    (v.systemPromptMode === null ||
+      v.systemPromptMode === "append" ||
+      v.systemPromptMode === "replace") &&
+    (v.spawnable === null ||
+      (Array.isArray(v.spawnable) && v.spawnable.every((a) => typeof a === "string"))) &&
+    typeof v.autoExit === "boolean"
+  );
+}
+
 /** Read a subagent's loadout snapshot, or null if absent/unparseable. */
 export function readSubagentLoadout(sessionFile: string): SubagentLoadout | null {
   try {
     const p = loadoutSidecarPath(sessionFile);
     if (!existsSync(p)) return null;
     const parsed = JSON.parse(readFileSync(p, "utf8"));
-    if (!parsed || typeof parsed !== "object") return null;
-    return parsed as SubagentLoadout;
+    return isSubagentLoadout(parsed) ? parsed : null;
   } catch {
     return null;
+  }
+}
+
+export interface SubagentWriterLease {
+  version: 1;
+  sessionFile: string;
+  runningChildId: string;
+  token: string;
+  pid: number;
+  startTime: string;
+  machineId: string;
+  bootId: string;
+  pidNamespace: string;
+}
+
+const BOOT_ID_PATTERN = /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/;
+
+function hostBootIdentity(): { machineId: string; bootId: string; pidNamespace: string } {
+  const machineId = readFileSync("/etc/machine-id", "utf8").trim();
+  const bootId = readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim();
+  const pidNamespace = readlinkSync("/proc/self/ns/pid");
+  if (
+    !/^[a-f0-9]{32}$/.test(machineId) ||
+    !BOOT_ID_PATTERN.test(bootId) ||
+    !/^pid:\[\d+\]$/.test(pidNamespace)
+  ) {
+    throw new Error("Cannot establish writer host/boot identity");
+  }
+  // Confirm /proc is inspectable before treating a missing target PID as dead.
+  processIdentity("self");
+  return { machineId, bootId, pidNamespace };
+}
+
+function processIdentity(pid: number | "self"): { startTime: string; state: string } {
+  const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+  // comm may contain whitespace or parentheses; field 3 starts after its last ')'.
+  const end = stat.lastIndexOf(")");
+  const fields = stat
+    .slice(end + 2)
+    .trim()
+    .split(/\s+/);
+  if (end < 0 || !/^[A-Za-z]$/.test(fields[0]) || !/^\d+$/.test(fields[19])) {
+    throw new Error("Invalid writer process identity");
+  }
+  return { state: fields[0], startTime: fields[19] };
+}
+
+/** Reporter-owned proof of the actual Pi writer, not its shell/pane or parent. */
+export function writeSubagentWriterLease(
+  sessionFile: string,
+  runningChildId: string,
+  token: string,
+): void {
+  if (!runningChildId || !token) throw new Error("Missing writer lease identity");
+  const identity = processIdentity(process.pid);
+  const lease: SubagentWriterLease = {
+    version: 1,
+    sessionFile: resolve(sessionFile),
+    runningChildId,
+    token,
+    pid: process.pid,
+    startTime: identity.startTime,
+    ...hostBootIdentity(),
+  };
+  const file = `${lease.sessionFile}.writer.json`;
+  const tmp = `${file}.tmp-${randomUUID()}`;
+  writeFileSync(tmp, JSON.stringify(lease), { flag: "wx" });
+  renameSync(tmp, file);
+}
+
+/** No kill(), stale screen, or completion sidecar is authority across muxes. */
+export function inspectSubagentWriterLease(
+  sessionFile: string,
+  runningChildId: string,
+  token: string,
+): "live" | "dead" | "unknown" {
+  try {
+    const lease = JSON.parse(readFileSync(`${resolve(sessionFile)}.writer.json`, "utf8"));
+    if (
+      lease.version !== 1 ||
+      lease.sessionFile !== resolve(sessionFile) ||
+      lease.runningChildId !== runningChildId ||
+      lease.token !== token ||
+      !Number.isSafeInteger(lease.pid) ||
+      lease.pid <= 0 ||
+      typeof lease.startTime !== "string" ||
+      !/^\d+$/.test(lease.startTime) ||
+      typeof lease.machineId !== "string" ||
+      !/^[a-f0-9]{32}$/.test(lease.machineId) ||
+      typeof lease.bootId !== "string" ||
+      !BOOT_ID_PATTERN.test(lease.bootId) ||
+      typeof lease.pidNamespace !== "string" ||
+      !/^pid:\[\d+\]$/.test(lease.pidNamespace)
+    )
+      return "unknown";
+    const host = hostBootIdentity();
+    if (lease.machineId !== host.machineId) return "unknown";
+    if (lease.bootId !== host.bootId) return "dead";
+    if (lease.pidNamespace !== host.pidNamespace) return "unknown";
+    try {
+      const identity = processIdentity(lease.pid);
+      return identity.startTime !== lease.startTime || ["Z", "X", "x"].includes(identity.state)
+        ? "dead"
+        : "live";
+    } catch (error) {
+      return (error as NodeJS.ErrnoException).code === "ENOENT" ? "dead" : "unknown";
+    }
+  } catch {
+    return "unknown";
   }
 }
 
@@ -185,18 +312,15 @@ export function readNameRegistry(artifactDir: string): NameRegistry {
  * partial registry.
  */
 export function registerName(artifactDir: string, name: string, entry: NameRegistryEntry): void {
-  try {
-    mkdirSync(artifactDir, { recursive: true });
-    const registry = readNameRegistry(artifactDir);
-    registry[name] = entry;
-    const p = nameRegistryPath(artifactDir);
-    const tmp = `${p}.tmp-${process.pid}-${Math.random().toString(16).slice(2, 8)}`;
-    writeFileSync(tmp, JSON.stringify(registry, null, 2), "utf8");
-    renameSync(tmp, p);
-  } catch {
-    // Best-effort: a failed registration only means resume-by-name won't find
-    // this subagent later; it never breaks the spawn itself.
-  }
+  mkdirSync(artifactDir, { recursive: true });
+  const registry = readNameRegistry(artifactDir);
+  registry[name] = entry;
+  const p = nameRegistryPath(artifactDir);
+  const tmp = `${p}.tmp-${process.pid}-${Math.random().toString(16).slice(2, 8)}`;
+  writeFileSync(tmp, JSON.stringify(registry, null, 2), "utf8");
+  // A failed registration must stop dispatch: an unaddressable detached writer
+  // cannot be safely recalled by the replacement parent runtime.
+  renameSync(tmp, p);
 }
 
 /** Resolve a name to its registry entry within a spawner session, or null. */

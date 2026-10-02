@@ -4,7 +4,9 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  renameSync,
   rmdirSync,
+  statSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -17,6 +19,8 @@ import {
   findLastAssistantMessage,
   getNewEntries,
   getSessionId,
+  isSubagentLoadout,
+  inspectSubagentWriterLease,
   summarizeSessionStats,
   type SessionStats,
   type SubagentLoadout,
@@ -55,6 +59,8 @@ export interface RunningSubagent {
   surface: string;
   startTime: number;
   sessionFile: string;
+  /** Registry of the parent that dispatched this writer. */
+  parentArtifactDir: string;
   launchScriptFile?: string;
   activityFile?: string;
   activity?: SubagentActivityState;
@@ -98,11 +104,20 @@ type LaunchPlan = {
 export class RunOwnershipError extends Error {}
 
 type SessionOwner = {
-  version: 1;
+  version: 2;
+  /** Writer identity, unchanged when supervision is recalled. */
   token: string;
+  /** Fences obsolete watchers, including ones with a terminal read in flight. */
+  supervisor: string;
   sessionFile: string;
   surface: string;
   mux: string;
+  run: Omit<RunningSubagent, "abortController">;
+  policy: ResultPolicy;
+  loadout: SubagentLoadout | null;
+  delivered: boolean;
+  /** A crash around dispatch is unknown, not a shell safe to steer. */
+  phase: "prepared" | "dispatched";
 };
 
 /** Own a pane from creation through result delivery, regardless of session policy.
@@ -112,6 +127,8 @@ type SessionOwner = {
 export class ManagedRuns {
   readonly running = new Map<string, RunningSubagent>();
   private readonly owners = new WeakMap<RunningSubagent, SessionOwner>();
+  private readonly completions = new WeakMap<RunningSubagent, Promise<void>>();
+  private lifecycle = new AbortController();
 
   // Locks serialize inspection and replacement across runtimes AND processes.
   // A crash during launch leaves an unknown lock: refuse, never guess it is safe.
@@ -136,7 +153,45 @@ export class ManagedRuns {
   }
 
   private muxIdentity(): string {
-    return muxIdentity();
+    try {
+      const identity = muxIdentity();
+      if (/^herdr:.+:\d+:\d+:\d+$/.test(identity)) return identity;
+      if (/^\/[^,]+,\d+$/.test(identity)) {
+        // TMUX's socket path + PID alone can be reused after a server restart.
+        // Bind v2 ownership to the actual socket incarnation as Herdr does.
+        const stat = statSync(identity.split(",")[0], { bigint: true });
+        if (stat.isSocket()) return `${identity}:${stat.dev}:${stat.ino}:${stat.ctimeNs}`;
+      }
+    } catch {
+      // Missing/uninspectable socket identity is never authority over a pane.
+    }
+    throw new RunOwnershipError("Cannot establish the current multiplexer incarnation.");
+  }
+
+  private writeOwner(owner: SessionOwner): void {
+    const file = `${owner.sessionFile}.owner.json`;
+    const tmp = `${file}.tmp-${randomUUID()}`;
+    try {
+      writeFileSync(tmp, JSON.stringify(owner), { flag: "wx" });
+      renameSync(tmp, file);
+    } finally {
+      if (existsSync(tmp)) unlinkSync(tmp);
+    }
+  }
+
+  private owns(running: RunningSubagent): boolean {
+    try {
+      const expected = this.owners.get(running);
+      const actual = this.readOwner(running.sessionFile);
+      return (
+        !!expected &&
+        actual?.token === expected.token &&
+        actual.supervisor === expected.supervisor &&
+        actual.mux === this.muxIdentity()
+      );
+    } catch {
+      return false;
+    }
   }
 
   private readOwner(sessionFile: string): SessionOwner | undefined {
@@ -144,14 +199,54 @@ export class ManagedRuns {
     try {
       const owner = JSON.parse(readFileSync(file, "utf8"));
       if (
-        owner.version !== 1 ||
+        owner.version !== 2 ||
         typeof owner.token !== "string" ||
         !owner.token ||
         owner.sessionFile !== resolve(sessionFile) ||
         typeof owner.surface !== "string" ||
         !(/^%\d+$/.test(owner.surface) || isHerdrSurface(owner.surface)) ||
         typeof owner.mux !== "string" ||
-        !owner.mux
+        !/^(?:herdr:.+:\d+:\d+:\d+|\/[^,]+,\d+:\d+:\d+:\d+)$/.test(owner.mux) ||
+        typeof owner.supervisor !== "string" ||
+        !owner.supervisor ||
+        typeof owner.delivered !== "boolean" ||
+        !(owner.phase === "prepared" || owner.phase === "dispatched") ||
+        !owner.run ||
+        Array.isArray(owner.run) ||
+        owner.run.sessionFile !== owner.sessionFile ||
+        owner.run.surface !== owner.surface ||
+        typeof owner.run.parentArtifactDir !== "string" ||
+        resolve(owner.run.parentArtifactDir) !== owner.run.parentArtifactDir ||
+        typeof owner.run.id !== "string" ||
+        !owner.run.id ||
+        typeof owner.run.name !== "string" ||
+        !owner.run.name ||
+        typeof owner.run.task !== "string" ||
+        !Number.isFinite(owner.run.startTime) ||
+        owner.run.startTime < 0 ||
+        typeof owner.run.interactive !== "boolean" ||
+        !["agent", "launchScriptFile", "activityFile", "sentinelFile", "cli"].every(
+          (key) => owner.run[key] === undefined || typeof owner.run[key] === "string",
+        ) ||
+        !(owner.run.cli === undefined || owner.run.cli === "claude") ||
+        !(owner.run.cli === "claude" ? owner.run.sentinelFile : owner.run.activityFile) ||
+        !owner.run.statusState ||
+        Array.isArray(owner.run.statusState) ||
+        owner.run.statusState.source !== (owner.run.cli === "claude" ? "claude" : "pi") ||
+        owner.run.statusState.startTimeMs !== owner.run.startTime ||
+        !["starting", "active", "waiting", "stalled", "running"].includes(
+          owner.run.statusState.currentKind,
+        ) ||
+        !owner.policy ||
+        !(
+          owner.policy.kind === "initial" ||
+          (owner.policy.kind === "resume" &&
+            typeof owner.policy.sessionId === "string" &&
+            !!owner.policy.sessionId &&
+            Number.isInteger(owner.policy.entryCountBefore) &&
+            owner.policy.entryCountBefore >= 0)
+        ) ||
+        !(owner.run.cli === "claude" ? owner.loadout === null : isSubagentLoadout(owner.loadout))
       )
         throw new Error("invalid owner");
       return owner;
@@ -163,56 +258,90 @@ export class ManagedRuns {
     }
   }
 
-  private async claimSession(sessionFile: string, signal: AbortSignal): Promise<() => void> {
+  private async claimSession(
+    sessionFile: string,
+    signal: AbortSignal,
+    parentArtifactDir: string,
+    requireExisting: boolean,
+  ): Promise<() => void> {
     // Synchronous lock acquisition precedes the first await in any launch.
     const unlock = this.lockSession(sessionFile);
     try {
+      this.muxIdentity(); // Reject unknown incarnations before creating any surface.
       const owner = this.readOwner(sessionFile);
+      if (!owner && requireExisting) {
+        throw new RunOwnershipError(
+          "Cannot safely resume: missing durable session ownership (legacy or unknown writer).",
+        );
+      }
       if (owner) {
-        if (owner.mux !== this.muxIdentity() || !isSurfaceId(owner.surface)) {
+        if (owner.run.parentArtifactDir !== resolve(parentArtifactDir)) {
+          throw new RunOwnershipError("Cannot safely resume: child belongs to another parent.");
+        }
+        const sameMux = owner.mux === this.muxIdentity() && isSurfaceId(owner.surface);
+        if (
+          !sameMux &&
+          inspectSubagentWriterLease(owner.sessionFile, owner.run.id, owner.token) !== "dead"
+        ) {
           throw new RunOwnershipError(
-            "Cannot safely resume: child belongs to another or unknown multiplexer server.",
+            "Cannot safely resume: foreign multiplexer and writer is live or its death cannot be established.",
           );
         }
-        const probe = new AbortController();
-        const probeSignal = AbortSignal.any([signal, probe.signal]);
-        const timer = setTimeout(() => probe.abort(), 2600);
-        let onAbort: (() => void) | undefined;
-        try {
-          // Probe terminal completion/pane loss only. An error sidecar can be
-          // published before process exit, so it cannot release writer ownership.
-          // Bound the caller even if an external tmux read is slow. A late
-          // probe has no delivery hooks or authority to remove the claim.
-          const exit = await Promise.race([
-            pollForExit(owner.surface, probeSignal, { interval: 50 }),
-            new Promise<never>((_resolve, reject) => {
-              onAbort = () => reject(new Error("Ownership probe aborted"));
-              if (probeSignal.aborted) onAbort();
-              else probeSignal.addEventListener("abort", onAbort, { once: true });
-            }),
-          ]);
-          if (
-            exit.reason !== "sentinel" &&
-            exit.errorMessage !==
-              `Subagent pane ${owner.surface} disappeared before reporting completion.`
-          )
-            throw new Error("cannot establish child exit");
-        } catch {
-          throw new RunOwnershipError(
-            "Cannot safely resume: a surviving child still owns this session, or its exit cannot be established.",
-          );
-        } finally {
-          clearTimeout(timer);
-          if (onAbort) probeSignal.removeEventListener("abort", onAbort);
+        if (sameMux) {
+          const probe = new AbortController();
+          const probeSignal = AbortSignal.any([signal, probe.signal]);
+          const timer = setTimeout(() => probe.abort(), 2600);
+          let onAbort: (() => void) | undefined;
+          try {
+            // Probe terminal completion/pane loss only. An error sidecar can be
+            // published before process exit, so it cannot release writer ownership.
+            // Bound the caller even if an external tmux read is slow. A late
+            // probe has no delivery hooks or authority to remove the claim.
+            const exit = await Promise.race([
+              pollForExit(owner.surface, probeSignal, { interval: 50 }),
+              new Promise<never>((_resolve, reject) => {
+                onAbort = () => reject(new Error("Ownership probe aborted"));
+                if (probeSignal.aborted) onAbort();
+                else probeSignal.addEventListener("abort", onAbort, { once: true });
+              }),
+            ]);
+            if (
+              exit.reason !== "sentinel" &&
+              exit.errorMessage !==
+                `Subagent pane ${owner.surface} disappeared before reporting completion.`
+            )
+              throw new Error("cannot establish child exit");
+            const writer = inspectSubagentWriterLease(owner.sessionFile, owner.run.id, owner.token);
+            // Losing a pane is not proof that a detached Pi process died. A
+            // known-live writer also overrides stale/noisy terminal sentinels.
+            if (writer === "live" || (exit.reason !== "sentinel" && writer !== "dead")) {
+              throw new Error("writer is live or its death cannot be established");
+            }
+          } catch {
+            throw new RunOwnershipError(
+              "Cannot safely resume: a surviving child still owns this session, or its exit cannot be established.",
+            );
+          } finally {
+            clearTimeout(timer);
+            if (onAbort) probeSignal.removeEventListener("abort", onAbort);
+          }
+          if (owner.mux !== this.muxIdentity()) {
+            throw new RunOwnershipError(
+              "Cannot safely resume: multiplexer incarnation changed during inspection.",
+            );
+          }
+          try {
+            closeSurface(owner.surface);
+          } catch {
+            /* Already closed. */
+          }
         }
-        try {
-          closeSurface(owner.surface);
-        } catch {
-          /* Already closed. */
+        // Across incarnations, proof of writer death releases local metadata
+        // only. Never inspect or close an ID that may now be a foreign pane.
+        for (const suffix of [".exit", ".ask", ".writer.json"]) {
+          const file = `${resolve(sessionFile)}${suffix}`;
+          if (existsSync(file)) unlinkSync(file);
         }
-        // Old error sidecars belong to the completed writer, not its successor.
-        const exitFile = `${resolve(sessionFile)}.exit`;
-        if (existsSync(exitFile)) unlinkSync(exitFile);
         unlinkSync(`${resolve(sessionFile)}.owner.json`);
       }
       if (signal.aborted) throw new Error("Aborted while claiming subagent session");
@@ -223,8 +352,108 @@ export class ManagedRuns {
     }
   }
 
+  /** Recall only a handle from this parent's registry; never dispatch a writer.
+   * A terminal read must establish that the same mux surface is inspectable.
+   * Completion already present on that surface is delivered by the new watcher.
+   */
+  async recall(
+    parentArtifactDir: string,
+    name: string,
+    sessionFile: string,
+  ): Promise<RunningSubagent | undefined> {
+    const signal = AbortSignal.any([this.hooks.moduleSignal(), this.lifecycle.signal]);
+    const unlock = this.lockSession(sessionFile);
+    let running: RunningSubagent | undefined;
+    let owner: SessionOwner | undefined;
+    let terminal = false;
+    let adopted = false;
+    try {
+      owner = this.readOwner(sessionFile);
+      if (!owner || owner.delivered) {
+        for (const [id, run] of this.running) {
+          if (run.sessionFile === resolve(sessionFile) && run.name === name)
+            this.running.delete(id);
+        }
+        if (!owner) return undefined;
+      }
+      if (owner.run.parentArtifactDir !== resolve(parentArtifactDir) || owner.run.name !== name) {
+        throw new RunOwnershipError("Cannot safely recall: foreign parent ownership.");
+      }
+      if (owner.mux !== this.muxIdentity() || !isSurfaceId(owner.surface)) {
+        if (inspectSubagentWriterLease(owner.sessionFile, owner.run.id, owner.token) !== "dead") {
+          throw new RunOwnershipError(
+            "Cannot safely recall: foreign multiplexer and writer is live or unknown.",
+          );
+        }
+        for (const [id, run] of this.running) {
+          if (run.sessionFile === resolve(sessionFile) && run.name === name)
+            this.running.delete(id);
+        }
+        return undefined; // A proven-dead writer can be resumed, not reattached.
+      }
+      if (owner.delivered) return undefined;
+      if (owner.phase !== "dispatched") {
+        throw new RunOwnershipError(
+          "Cannot safely recall: child dispatch is incomplete or unknown.",
+        );
+      }
+      const current = this.running.get(owner.run.id);
+      if (signal.aborted) throw new RunOwnershipError("Cannot recall from a disposed runtime.");
+      try {
+        const screen = readScreen(owner.surface, 5);
+        terminal =
+          /__SUBAGENT_DONE_\d+__/.test(screen) ||
+          (owner.run.cli === "claude" &&
+            !!owner.run.sentinelFile &&
+            existsSync(owner.run.sentinelFile));
+      } catch {
+        throw new RunOwnershipError(
+          "Cannot safely recall: owned surface is missing or cannot be inspected.",
+        );
+      }
+      if (owner.mux !== this.muxIdentity()) {
+        throw new RunOwnershipError(
+          "Cannot safely recall: multiplexer incarnation changed during inspection.",
+        );
+      }
+      if (current && this.owns(current)) {
+        running = current;
+      } else {
+        running = { ...owner.run, abortController: new AbortController() };
+        owner = { ...owner, supervisor: randomUUID() };
+        this.writeOwner(owner);
+        this.owners.set(running, owner);
+        this.running.set(running.id, running);
+        adopted = true;
+      }
+    } finally {
+      unlock();
+    }
+    if (adopted) {
+      this.watch(running!, owner!.policy, signal);
+      try {
+        this.hooks.refresh(true);
+      } catch {
+        // UI observation cannot abandon the recalled writer's supervision.
+      }
+    }
+    // A completed command has returned to its shell. Never type a follow-up
+    // into that shell: settle the original watcher, then let the caller resume.
+    if (terminal) {
+      await this.completions.get(running!);
+      return undefined;
+    }
+    return running;
+  }
+
+  private watch(running: RunningSubagent, policy: ResultPolicy, signal: AbortSignal): void {
+    this.completions.set(running, this.complete(running, policy, signal));
+  }
+
   /** Dispose supervision without surrendering a child's durable writer claim. */
   dispose(): void {
+    this.lifecycle.abort();
+    this.lifecycle = new AbortController();
     this.running.clear();
   }
 
@@ -246,8 +475,13 @@ export class ManagedRuns {
     register?: (running: RunningSubagent) => void,
   ): Promise<RunningSubagent> {
     // Capture this runtime's signal, not whatever a later session installs.
-    const moduleSignal = this.hooks.moduleSignal();
-    const unlock = await this.claimSession(candidate.sessionFile, moduleSignal);
+    const moduleSignal = AbortSignal.any([this.hooks.moduleSignal(), this.lifecycle.signal]);
+    const unlock = await this.claimSession(
+      candidate.sessionFile,
+      moduleSignal,
+      candidate.parentArtifactDir,
+      policy.kind === "resume",
+    );
     let running: RunningSubagent | undefined;
     let resultPolicy: ResultPolicy;
     try {
@@ -260,30 +494,44 @@ export class ManagedRuns {
       const surface = createSurface(candidate.name);
       running = {
         ...candidate,
+        sessionFile: resolve(candidate.sessionFile),
+        parentArtifactDir: resolve(candidate.parentArtifactDir),
         surface,
         abortController: new AbortController(),
       };
+      const plan = prepare(running);
+      running.launchScriptFile = plan.launchScriptFile;
+      const { abortController: _abort, ...run } = running;
       const owner: SessionOwner = {
-        version: 1,
+        version: 2,
         token: randomUUID(),
-        sessionFile: resolve(running.sessionFile),
+        supervisor: randomUUID(),
+        sessionFile: running.sessionFile,
         surface,
         mux: this.muxIdentity(),
+        run,
+        policy: resultPolicy,
+        loadout: plan.kind === "pi" ? plan.loadout : null,
+        delivered: false,
+        phase: "prepared",
       };
       this.owners.set(running, owner);
       // Persist the pane BEFORE dispatch: even parent death cannot hide a writer.
       writeFileSync(`${owner.sessionFile}.owner.json`, JSON.stringify(owner), { flag: "wx" });
+      // The registry must survive parent death immediately after dispatch too.
+      register?.(running);
       await new Promise<void>((resolve) => setTimeout(resolve, this.hooks.shellReadyDelayMs()));
       if (moduleSignal.aborted) throw new Error("Aborted while launching subagent");
-      const plan = prepare(running);
-      running.launchScriptFile = plan.launchScriptFile;
+      if (!this.owns(running))
+        throw new RunOwnershipError("Cannot dispatch: subagent ownership changed.");
       const command = plan.kind === "pi" ? this.piCommand(running, plan) : plan.command;
       sendLongCommand(surface, `${command}; echo '__SUBAGENT_DONE_'$?'__'`, {
         scriptPath: plan.launchScriptFile,
         scriptPreamble: plan.scriptPreamble,
       });
+      owner.phase = "dispatched";
+      this.writeOwner(owner);
       this.running.set(running.id, running);
-      register?.(running);
       this.hooks.refresh(true);
     } catch (error) {
       if (running) this.release(running, true);
@@ -293,7 +541,7 @@ export class ManagedRuns {
     }
     // The tool's signal ends with its acknowledgement. Supervision instead
     // belongs to this run and the extension runtime (shutdown or /reload).
-    void this.complete(running, resultPolicy, moduleSignal);
+    this.watch(running, resultPolicy, moduleSignal);
     return running;
   }
 
@@ -306,6 +554,7 @@ export class ManagedRuns {
       PI_SUBAGENT_NAME: running.name,
       PI_SUBAGENT_SESSION: running.sessionFile,
       PI_SUBAGENT_ID: running.id,
+      PI_SUBAGENT_WRITER_TOKEN: this.owners.get(running)?.token,
       PI_SUBAGENT_ACTIVITY_FILE: running.activityFile,
       PI_SUBAGENT_SURFACE: running.surface,
       PI_SUBAGENT_AUTO_EXIT: plan.autoExit ? "1" : undefined,
@@ -319,27 +568,45 @@ export class ManagedRuns {
   }
 
   private release(running: RunningSubagent, lockHeld = false): void {
-    let closed = false;
-    try {
-      closeSurface(running.surface);
-      closed = true;
-    } catch {
-      // Do not surrender ownership if cancellation/cleanup cannot kill the
-      // writer. A later launch must establish actual terminal exit/pane loss.
-    }
-    if (this.running.get(running.id) === running) this.running.delete(running.id);
-    if (!closed) return;
     let unlock: (() => void) | undefined;
     try {
       if (!lockHeld) unlock = this.lockSession(running.sessionFile);
-      const owner = this.readOwner(running.sessionFile);
-      // A late obsolete watcher must never unlink a successor's claim.
-      if (owner?.token === this.owners.get(running)?.token) {
-        unlinkSync(`${resolve(running.sessionFile)}.owner.json`);
+      // Check BEFORE closing, not just before unlinking. Surface IDs can be reused.
+      if (this.owners.has(running) ? !this.owns(running) : !lockHeld) return;
+      closeSurface(running.surface);
+      if (this.owners.has(running)) {
+        // Closed failed launches remain known-safe handles too. Missing claims
+        // cannot distinguish a finished legacy run from an unknown live writer.
+        this.writeOwner({ ...this.readOwner(running.sessionFile)!, delivered: true });
       }
     } catch {
-      // Unknown/busy ownership remains fail-closed; a later launch can probe exit.
+      // Failed close retains the writer claim; later launch must establish exit.
     } finally {
+      if (this.running.get(running.id) === running) this.running.delete(running.id);
+      unlock?.();
+    }
+  }
+
+  private finish(running: RunningSubagent): boolean {
+    let unlock: (() => void) | undefined;
+    try {
+      unlock = this.lockSession(running.sessionFile);
+      if (!this.owns(running)) return false;
+      const owner = this.readOwner(running.sessionFile)!;
+      if (owner.delivered) return false;
+      // Durable at-most-once reservation precedes the synchronous delivery seam.
+      // A crash between reservation and send can lose a notification, never replay it.
+      this.writeOwner({ ...owner, delivered: true });
+      try {
+        closeSurface(running.surface);
+      } catch {
+        // Keep the tombstone AND writer claim; a follow-up still probes actual exit.
+      }
+      return true;
+    } catch {
+      return false;
+    } finally {
+      if (this.running.get(running.id) === running) this.running.delete(running.id);
       unlock?.();
     }
   }
@@ -358,9 +625,15 @@ export class ManagedRuns {
         sentinelFile: running.sentinelFile,
         onTick: () => {
           // A terminal read already in flight can finish after disposal.
-          if (!moduleSignal.aborted && !signal.aborted) this.hooks.tick(running);
+          if (moduleSignal.aborted || signal.aborted) return;
+          if (!this.owns(running)) {
+            running.abortController!.abort();
+            return;
+          }
+          this.hooks.tick(running);
         },
       });
+      if (moduleSignal.aborted || !this.owns(running)) return;
       result = this.extractResult(running, policy, exit);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -374,22 +647,31 @@ export class ManagedRuns {
         ...(signal.aborted ? { sessionFile: running.sessionFile } : {}),
       };
     } finally {
-      if (moduleSignal.aborted) {
+      if (moduleSignal.aborted || !this.owns(running)) {
         // Disposal owns the watcher, not the child process. Leave its pane
         // alone; a replacement runtime must not receive this run's result.
         if (this.running.get(running.id) === running) this.running.delete(running.id);
-      } else {
-        this.release(running);
       }
     }
-    // An obsolete runtime must never wake the replacement session after reload.
+    // Fence cleanup and delivery together under the same cross-process lock.
+    if (moduleSignal.aborted || !this.finish(running)) return;
+    let content: string;
+    try {
+      content = this.hooks.present(result, running.name);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      content =
+        policy.kind === "resume"
+          ? `Resume error: ${message}`
+          : `Sub-agent "${running.name}" error: ${message}`;
+    }
     if (moduleSignal.aborted) return;
     try {
       this.hooks.refresh(false);
       this.hooks.sendMessage(
         {
           customType: "subagent_result",
-          content: this.hooks.present(result, running.name),
+          content,
           display: true,
           details:
             policy.kind === "resume"
@@ -417,33 +699,9 @@ export class ManagedRuns {
         },
         { triggerTurn: true, deliverAs: "steer" },
       );
-    } catch (error) {
-      // Presentation/delivery errors still report through the same registered
-      // message seam. A failed error delivery must not reject an unowned promise.
-      const message = error instanceof Error ? error.message : String(error);
-      try {
-        this.hooks.sendMessage(
-          {
-            customType: "subagent_result",
-            content:
-              policy.kind === "resume"
-                ? `Resume error: ${message}`
-                : `Sub-agent "${running.name}" error: ${message}`,
-            display: true,
-            details:
-              policy.kind === "resume"
-                ? { name: running.name, error: message }
-                : {
-                    name: running.name,
-                    task: running.task,
-                    error: message,
-                  },
-          },
-          { triggerTurn: true, deliverAs: "steer" },
-        );
-      } catch {
-        /* Runtime may be shutting down; resources are already released. */
-      }
+    } catch {
+      // A send may have enqueued before throwing. Retrying would risk a second
+      // result/wakeup. The durable delivery reservation remains at-most-once.
     }
   }
 

@@ -17,6 +17,7 @@ import { Box, Text } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
 import { writeFileSync } from "node:fs";
 import { createSubagentActivityRecorder } from "./activity.ts";
+import { writeSubagentWriterLease } from "./session.ts";
 
 export function shouldMarkUserTookOver(agentStarted: boolean): boolean {
   return agentStarted;
@@ -185,6 +186,14 @@ export default function (pi: ExtensionAPI) {
 
   // Show widget + status bar on session start
   pi.on("session_start", (_event, ctx) => {
+    const sessionFile = process.env.PI_SUBAGENT_SESSION;
+    const runningChildId = process.env.PI_SUBAGENT_ID;
+    const writerToken = process.env.PI_SUBAGENT_WRITER_TOKEN;
+    if (sessionFile && runningChildId && writerToken) {
+      // This PID, not the parent or pane shell, is the session's actual writer.
+      // If identity cannot be persisted, cross-mux recovery remains fail-closed.
+      writeSubagentWriterLease(sessionFile, runningChildId, writerToken);
+    }
     recorder.sessionStart();
     const tools = pi.getAllTools();
     toolNames = tools.map((t) => t.name).sort();
