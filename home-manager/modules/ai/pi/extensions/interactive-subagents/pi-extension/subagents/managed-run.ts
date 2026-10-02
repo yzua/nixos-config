@@ -533,7 +533,11 @@ function copyClaudeSession(sentinelFile: string): string | null {
     if (!existsSync(transcriptFile)) return null;
     const transcriptPath = readFileSync(transcriptFile, "utf8").trim();
     if (!transcriptPath || !existsSync(transcriptPath)) return null;
-    const sessionsDir = join(process.env.HOME ?? "/tmp", ".pi", "agent", "sessions", "claude-code");
+    const agentDir =
+      process.env.PI_CODING_AGENT_DIR ??
+      (process.env.HOME ? join(process.env.HOME, ".pi", "agent") : undefined);
+    if (!agentDir) return null;
+    const sessionsDir = join(agentDir, "sessions", "claude-code");
     mkdirSync(sessionsDir, { recursive: true });
     const filename = transcriptPath.split("/").pop() ?? `claude-${Date.now()}.jsonl`;
     copyFileSync(transcriptPath, join(sessionsDir, filename));
