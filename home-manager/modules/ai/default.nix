@@ -42,7 +42,7 @@ in
 {
   imports = [
     ./herdr.nix
-    ./pnpm-tools.nix
+    ./chrome-devtools
     ./pi
     ./pi-re
     ./skills.nix

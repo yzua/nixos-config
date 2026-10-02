@@ -78,7 +78,9 @@ Nix store, and re-encrypt the SOPS secrets for your key.
 
 - `flake.nix` and `flake.lock`: outputs and pinned dependencies.
 - `hosts/` and `modules/nixos/`: hardware and system settings.
-- `home-manager/`: user apps and preferences.
+- `home-manager/`: user apps and preferences. Under `modules/`, `desktop/`
+  groups GNOME, Niri, and Noctalia settings; `desktop-apps/` owns applications;
+  `terminal/` groups CLI tools, terminal/shell settings, and Git.
 - `justfile`: command menu and checks; `scripts/generation.sh`: previews, status,
   and guarded switches.
 

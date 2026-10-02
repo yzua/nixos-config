@@ -13,7 +13,7 @@ let
   colors = config.lib.stylix.colors.withHashtag;
   ghostty = lib.getExe pkgs.ghostty;
   noctalia = lib.getExe pkgs.noctalia;
-  voiceAction = lib.getExe (import ./ai/voice/action.nix { inherit aiPackages pkgs; });
+  voiceAction = lib.getExe (import ../ai/voice/action.nix { inherit aiPackages pkgs; });
 in
 {
   xdg.configFile."niri/config.kdl".text = ''

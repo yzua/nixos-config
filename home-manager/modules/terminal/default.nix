@@ -1,10 +1,11 @@
-# Install everyday CLI tools and import terminal and shell configuration.
+# Install everyday CLI tools and import terminal, shell, and Git configuration.
 
-{ pkgs, ... }:
+{ pkgs, setup, ... }:
 
 {
   imports = [
     ./ghostty.nix
+    (import ./git.nix { inherit (setup) gitIdentity; })
     ./shell.nix
   ];
 

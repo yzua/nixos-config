@@ -5,13 +5,10 @@
 {
   imports = [
     ./modules/ai
+    ./modules/desktop
     ./modules/desktop-apps
     ./modules/gaming.nix
-    (import ./modules/git.nix { inherit (setup) gitIdentity; })
-    ./modules/gnome.nix
     ./modules/mime.nix
-    ./modules/niri.nix
-    ./modules/noctalia.nix
     ./modules/secrets.nix
     ./modules/terminal
     ./modules/theme.nix

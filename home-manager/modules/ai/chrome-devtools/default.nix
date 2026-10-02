@@ -1,10 +1,10 @@
-# Build globally available JavaScript CLIs from a pinned pnpm lockfile.
+# Install pinned Chrome DevTools CLI/MCP commands with NixOS browser discovery.
 
 { pkgs, ... }:
 
 let
-  src = ../../pnpm-global-tools;
-  pnpmGlobalTools = pkgs.stdenvNoCC.mkDerivation (finalAttrs: {
+  src = ./.;
+  chromeDevtools = pkgs.stdenvNoCC.mkDerivation (finalAttrs: {
     pname = "pnpm-global-tools";
     version = "1";
     inherit src;
@@ -42,5 +42,5 @@ let
   });
 in
 {
-  home.packages = [ pnpmGlobalTools ];
+  home.packages = [ chromeDevtools ];
 }
