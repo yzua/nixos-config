@@ -4,6 +4,7 @@ import { join } from "node:path";
 import subagents, {
   __test__,
 } from "../../home-manager/modules/ai/pi/extensions/interactive-subagents/pi-extension/subagents/index.ts";
+import { writeSubagentWriterLease } from "../../home-manager/modules/ai/pi/extensions/interactive-subagents/pi-extension/subagents/session.ts";
 
 // Load through installed Pi and invoke its registered tools with fake tmux.
 // Cleanup fault coverage also injects a real filesystem failure at its adapter.
@@ -15,6 +16,7 @@ export default function (pi: ExtensionAPI) {
     const tools = new Map<string, { execute: (...args: unknown[]) => Promise<any> }>();
     const handlers = new Map<string, Array<(...args: unknown[]) => unknown>>();
     const delivered: Array<Record<string, any>> = [];
+    const deliveryAttempts: string[] = [];
     let throwDelivery = false;
     let widgetUpdates = 0;
     let questionWakeups = 0;
@@ -32,6 +34,7 @@ export default function (pi: ExtensionAPI) {
       sendMessage(message: Record<string, unknown>, options: Record<string, unknown>) {
         if (message.customType === "subagent_question") questionWakeups++;
         if (message.customType !== "subagent_result") return;
+        deliveryAttempts.push((message.details as { name: string }).name);
         if (throwDelivery) {
           throwDelivery = false;
           throw new Error("OFFLINE_DELIVERY_FAILURE");
@@ -67,6 +70,13 @@ export default function (pi: ExtensionAPI) {
       if (delivered.length !== count)
         throw new Error(`Expected ${count} results, received ${delivered.length}`);
     };
+    const waitForCleanup = async (id: string) => {
+      const deadline = Date.now() + 4000;
+      while (__test__.runningSubagents.has(id) && Date.now() < deadline)
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      if (__test__.runningSubagents.has(id)) throw new Error(`Run ${id} did not settle`);
+    };
+    const owner = (session: string) => JSON.parse(readFileSync(`${session}.owner.json`, "utf8"));
     const calls = () =>
       readFileSync(join(root, "tmux-calls"), "utf8")
         .trim()
@@ -156,10 +166,17 @@ export default function (pi: ExtensionAPI) {
         mode("managed");
         results.closedPaneResume = (await resume()).details;
         await waitForDelivery(1);
-        results.claimAfterCompletion = existsSync(`${session}.owner.json`);
+        results.ownerAfterCompletion = owner(session);
       } else if (scenario === "ownership-refusals") {
         mode("managed-live");
         const initial = await spawn("managed");
+        // This probe acts as the still-live fake writer for refusal coverage.
+        // A dead shim lease would instead permit a guarded resume fallback.
+        writeSubagentWriterLease(
+          initial.details.sessionFile,
+          initial.details.id,
+          owner(initial.details.sessionFile).token,
+        );
         await event("session_shutdown");
         await event("session_start");
         const file = `${initial.details.sessionFile}.owner.json`;
@@ -195,29 +212,30 @@ export default function (pi: ExtensionAPI) {
         results.detachedFollowup = (await resume()).details;
         results.panesAfterDetachedFollowup = readFileSync(join(root, "pane-count"), "utf8");
         results.claimSurvives = existsSync(`${initial.details.sessionFile}.owner.json`);
-        // Terminal completion, not watcher disposal, releases the writer.
+        // Terminal completion, not watcher disposal, settles the original run.
         writeFileSync(join(root, "done-%1"), "done");
+        await waitForDelivery(1);
         mode("managed");
         results.parallelResumes = (await Promise.all([resume(), resume()])).map((r) => r.details);
-        await waitForDelivery(1);
-        results.claimAfterCompletion = existsSync(`${initial.details.sessionFile}.owner.json`);
+        await waitForDelivery(2);
+        results.ownerAfterCompletion = owner(initial.details.sessionFile);
         mode("send-failure");
         try {
           await resume();
         } catch (error) {
           results.failedResume = String(error);
         }
-        results.claimAfterFailure = existsSync(`${initial.details.sessionFile}.owner.json`);
+        results.ownerAfterFailure = owner(initial.details.sessionFile);
         mode("managed");
         results.retry = (await resume()).details;
-        await waitForDelivery(2);
+        await waitForDelivery(3);
       } else if (scenario === "cleanup-errors") {
         mode("managed-cleanup-fault");
         process.on("unhandledRejection", reportUnhandled);
         const initial = await spawn("managed");
         const lock = `${initial.details.sessionFile}.owner.lock`;
-        // The external fake fills the completion lock while its owner is read,
-        // causing a real ENOTEMPTY rather than replacing lifecycle helpers.
+        // The synchronous kill adapter fills the held ownership lock, causing
+        // a real ENOTEMPTY rather than replacing lifecycle helpers.
         await waitForDelivery(1);
         results.lockRetained = existsSync(lock);
         results.retry = (await resume()).details;
@@ -231,14 +249,19 @@ export default function (pi: ExtensionAPI) {
         await waitForDelivery(2);
         mode("managed");
         throwDelivery = true;
-        await spawn("delivery-error");
-        await waitForDelivery(3);
+        const throwing = await spawn("delivery-error");
+        await waitForCleanup(throwing.details.id);
+        results.throwingOwner = owner(throwing.details.sessionFile);
+        await event("session_shutdown");
+        await event("session_start");
+        results.throwingRecall = __test__.runningSubagents.get(throwing.details.id) ?? null;
         mode("healthy");
         const cancel = await spawn("cancelled");
         // Legacy internal cancellation coverage: no public cancel capability
         // exists, and the acknowledgement tool's signal does not own the run.
         __test__.runningSubagents.get(cancel.details.id)!.abortController!.abort();
-        await waitForDelivery(4);
+        await waitForDelivery(3);
+        results.deliveryAttempts = deliveryAttempts;
       }
       results.delivered = delivered;
       if (!results.closedPanes) {

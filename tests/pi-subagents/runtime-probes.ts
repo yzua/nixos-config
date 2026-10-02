@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import subagents, {
@@ -113,12 +114,17 @@ export default function (pi: ExtensionAPI) {
               readFileSync(spawn.details.launchScriptFile, "utf8"),
             );
 
-            // Keep the persistent registry, simulate both jobs having finished,
-            // then spawn again: previous display handles must remain resumable.
-            for (const running of __test__.runningSubagents.values())
+            // A real short-lived shim writes a matching writer lease before
+            // cancellation. Await completion cleanup; clearing the map alone
+            // would leave unknown writer ownership, correctly refusing resume.
+            for (const running of __test__.runningSubagents.values()) {
+              execFileSync("tmux", ["writer-lease", running.sessionFile]);
               running.abortController?.abort();
-            __test__.runningSubagents.clear();
-            await new Promise((resolve) => setTimeout(resolve, 20));
+            }
+            const deadline = Date.now() + 4000;
+            while (__test__.runningSubagents.size && Date.now() < deadline)
+              await new Promise((resolve) => setTimeout(resolve, 10));
+            if (__test__.runningSubagents.size) throw new Error("Cancelled runs did not settle");
             const first = spawns[0].details;
             writeFileSync(
               first.sessionFile,
@@ -151,7 +157,8 @@ export default function (pi: ExtensionAPI) {
             results.loadoutExists = existsSync(`${first.sessionFile}.loadout.json`);
           }
         } finally {
-          for (const handler of handlers.get("session_shutdown") ?? []) handler({}, context);
+          for (const handler of handlers.get("session_shutdown") ?? []) await handler({}, context);
+          await new Promise((resolve) => setTimeout(resolve, 50));
         }
       }
     } catch (error) {

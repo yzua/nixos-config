@@ -5,6 +5,7 @@ import json
 import os
 import select
 import shutil
+import socket
 import subprocess
 import tempfile
 import time
@@ -18,21 +19,23 @@ SOURCE = REPO / "home-manager/modules/ai/pi/extensions/interactive-subagents/pi-
 PI = os.environ.get("PI_BIN", shutil.which("pi"))
 
 FAKE_TMUX = """#!/usr/bin/env python3
-import json, os, shlex, subprocess, sys, time
+import json, os, shlex, sys, time
 from pathlib import Path
 root = Path(os.environ['PI_TEST_ROOT'])
 args = sys.argv[1:]
-if args[0] == 'cleanup-fault':
-    owner = Path(args[1])
-    lock = Path(str(owner).removesuffix('.owner.json') + '.owner.lock')
-    deadline = time.monotonic() + 5
-    while not lock.exists():
-        if time.monotonic() > deadline:
-            raise RuntimeError('completion did not acquire its lock')
-        time.sleep(0.001)
-    (lock / 'blocked').write_text('filesystem failure fixture')
-    with owner.open('w') as stream:
-        stream.write(args[2])
+def write_lease(session):
+    owner = json.loads(Path(str(session) + '.owner.json').read_text())
+    stat = Path('/proc/self/stat').read_text().rsplit(')', 1)[1].split()
+    Path(str(session) + '.writer.json').write_text(json.dumps({
+        'version': 1, 'sessionFile': str(session.resolve()),
+        'runningChildId': owner['run']['id'], 'token': owner['token'],
+        'pid': os.getpid(), 'startTime': stat[19],
+        'machineId': Path('/etc/machine-id').read_text().strip(),
+        'bootId': Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
+        'pidNamespace': os.readlink('/proc/self/ns/pid')}))
+if args[0] == 'writer-lease':
+    # The shim is a real short-lived writer; after return this lease proves death.
+    write_lease(Path(args[1]))
     sys.exit(0)
 with (root / 'tmux-calls').open('a') as calls:
     calls.write(json.dumps(args) + '\\n')
@@ -44,15 +47,16 @@ if args[0] == 'kill-pane':
         command = Path((root / f'command-{args[2]}').read_text()).read_text().splitlines()[-1]
         parts = shlex.split(command)
         owner = Path(parts[parts.index('--session') + 1] + '.owner.json')
-        payload = owner.read_text()
-        owner.unlink()
-        # Hold the real ownership read until the external adapter has made the
-        # newly acquired completion lock nonempty, guaranteeing rmdir failure.
-        os.mkfifo(owner)
-        subprocess.Popen([sys.executable, sys.argv[0], 'cleanup-fault', str(owner), payload],
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        lock = Path(str(owner).removesuffix('.owner.json') + '.owner.lock')
+        # kill-pane runs synchronously inside the ownership critical section.
+        # No late writer or FIFO is needed to force the real rmdir failure.
+        (lock / 'blocked').write_text('filesystem failure fixture')
 if args[0] == 'send-keys':
     if mode == 'send-failure':
+        if '-l' in args and args[-1].startswith('bash '):
+            command = Path(shlex.split(args[-1])[1]).read_text().splitlines()[-1]
+            parts = shlex.split(command)
+            write_lease(Path(parts[parts.index('--session') + 1]))
         sys.exit(1)
     pane = args[2]
     command_file = root / f'command-{pane}'
@@ -79,6 +83,7 @@ if args[0] == 'send-keys':
         if mode == 'managed-error':
             Path(str(session) + '.exit').write_text(json.dumps({
                 'type': 'error', 'errorMessage': 'OFFLINE_PROVIDER_FAILURE'}))
+        write_lease(session)
         if mode != 'managed-live':
             (root / f'done-{pane}').write_text('done')
 if args[0] == 'split-window':
@@ -302,9 +307,13 @@ class PiRegressions(unittest.TestCase):
             "#!/usr/bin/env bash\necho 'Offline fixture reached Herdr' >&2\nexit 1\n"
         )
         forbidden.chmod(0o755)
+        if not hasattr(self, "mux_endpoint"):
+            self.mux_endpoint = socket.socket(socket.AF_UNIX)
+            self.addCleanup(self.mux_endpoint.close)
+            self.mux_endpoint.bind(str(self.root / "tmux.sock"))
         self.env.update(
             PATH=f"{bindir}:{self.env['PATH']}",
-            TMUX="offline-fixture",
+            TMUX=f"{self.root / 'tmux.sock'},123,0",
             TMUX_PANE="%0",
             PI_SUBAGENT_SHELL_READY_DELAY_MS="20",
         )
@@ -402,7 +411,7 @@ class PiRegressions(unittest.TestCase):
         self.assertEqual(results["refusedPanes"], results["panesBeforeRefusal"])
         self.assertIn("Cannot safely resume", results["missingLoadout"]["error"])
         self.assertEqual(results["nextName"], "managed-2")
-        self.assertEqual(results["closedPanes"], ["%1", "%2", "%3"])
+        self.assertEqual(set(results["closedPanes"]), {"%1", "%2", "%3"})
         for command in results["commands"]:
             self.assertIn("pi --approve", command)
             self.assertIn("--no-extensions", command)
@@ -432,35 +441,37 @@ class PiRegressions(unittest.TestCase):
     def test_detached_child_keeps_exclusive_session_ownership(self):
         results = self.probes("ownership")
         self.assertEqual(results["panesAfterDetachedFollowup"], "1", results)
-        self.assertIn("Cannot safely resume", results["detachedFollowup"]["error"])
+        self.assertEqual(results["detachedFollowup"]["status"], "steered", results)
         self.assertTrue(results["claimSurvives"], results)
         self.assertEqual(
             sum(r.get("status") == "started" for r in results["parallelResumes"]), 1, results
         )
-        self.assertFalse(results["claimAfterCompletion"], results)
+        self.assertTrue(results["ownerAfterCompletion"]["delivered"], results)
         self.assertIn("send-keys", results["failedResume"])
-        self.assertFalse(results["claimAfterFailure"], results)
+        self.assertTrue(results["ownerAfterFailure"]["delivered"], results)
         self.assertEqual(results["retry"]["status"], "started", results)
-        self.assertEqual(len(results["delivered"]), 2, results)
+        self.assertEqual(len(results["delivered"]), 3, results)
+        for record, output in zip(results["delivered"], ["RUN_1", "RUN_2", "RUN_3"], strict=True):
+            self.assertIn(output, record["content"])
 
     def test_ownership_survives_parent_process_restart_and_closed_pane_is_resumable(self):
         parked = self.probes("ownership-park")
         (self.root / "results.json").unlink()
         results = self.probes("ownership-restart")
         self.assertTrue(parked["claimSurvives"], parked)
-        self.assertIn("Cannot safely resume", results["liveFollowup"]["error"])
+        self.assertEqual(results["liveFollowup"]["status"], "steered", results)
         self.assertEqual(results["panesAfterLiveFollowup"], "1", results)
         self.assertEqual(results["closedPaneResume"]["status"], "started", results)
         self.assertEqual(len(results["delivered"]), 1, results)
         self.assertEqual(results["delivered"][0]["details"]["exitCode"], 0, results)
         self.assertIn("RUN_2", results["delivered"][0]["content"])
         self.assertNotIn("RUN_1", results["delivered"][0]["content"])
-        self.assertFalse(results["claimAfterCompletion"], results)
+        self.assertTrue(results["ownerAfterCompletion"]["delivered"], results)
 
     def test_unknown_or_unmonitorable_child_ownership_fails_closed(self):
         results = self.probes("ownership-refusals")
         for case in ["corrupt", "wrongMux", "busy", "unavailable", "captureFailure", "slowCapture"]:
-            self.assertIn("Cannot safely resume", results[case]["error"], results)
+            self.assertRegex(results[case]["error"], r"Cannot safely (?:resume|recall)", results)
         self.assertLess(results["slowCaptureMs"], 3200, results)
         self.assertEqual(results["panes"], "1", results)
         self.assertTrue(results["claimPreserved"], results)
@@ -477,13 +488,18 @@ class PiRegressions(unittest.TestCase):
 
     def test_live_failures_and_legacy_cancellation_deliver_once_and_cleanup(self):
         results = self.probes("completion-errors")
-        self.assertEqual(len(results["delivered"]), 4, results)
-        provider, extraction, delivery, cancellation = results["delivered"]
+        self.assertEqual(len(results["delivered"]), 3, results)
+        provider, extraction, cancellation = results["delivered"]
         self.assertEqual(provider["details"]["errorMessage"], "OFFLINE_PROVIDER_FAILURE")
         self.assertEqual(provider["details"]["exitCode"], 1)
         self.assertEqual(extraction["details"]["exitCode"], 1)
         self.assertIn("Subagent error:", extraction["content"])
-        self.assertIn("OFFLINE_DELIVERY_FAILURE", delivery["content"])
+        self.assertEqual(
+            results["deliveryAttempts"],
+            ["provider-error", "extraction-error", "delivery-error", "cancelled"],
+        )
+        self.assertTrue(results["throwingOwner"]["delivered"], results)
+        self.assertEqual(results["throwingRecall"], None, results)
         self.assertIn("Subagent cancelled.", cancellation["content"])
         self.assertEqual(cancellation["details"]["exitCode"], 1)
         self.assertEqual(results["closedPanes"], ["%1", "%2", "%3", "%4"])

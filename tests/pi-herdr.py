@@ -31,6 +31,15 @@ if args[:2] == ['pane', 'run'] and os.environ.get('SESSION_FILE'):
         session.write_text(json.dumps({'type': 'session', 'id': 'fixture-child', 'version': 3}) + '\\n')
     with session.open('a') as f:
         f.write(json.dumps({'type': 'message', 'message': {'role': 'assistant', 'content': [{'type': 'text', 'text': f'RUN_{n}'}]}}) + '\\n')
+    owner = json.loads(Path(str(session) + '.owner.json').read_text())
+    stat = Path('/proc/self/stat').read_text().rsplit(')', 1)[1].split()
+    Path(str(session) + '.writer.json').write_text(json.dumps({
+        'version': 1, 'sessionFile': str(session.resolve()),
+        'runningChildId': owner['run']['id'], 'token': owner['token'],
+        'pid': os.getpid(), 'startTime': stat[19],
+        'machineId': Path('/etc/machine-id').read_text().strip(),
+        'bootId': Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
+        'pidNamespace': os.readlink('/proc/self/ns/pid')}))
 if args[:2] == ['pane', 'get']:
     print(json.dumps({'result': {'pane': {'workspace_id': os.environ.get('CALLER_WORKSPACE', os.environ['HERDR_PANE_ID'].split(':')[0])}}}))
 elif args[:2] == ['tab', 'create'] or args[:2] == ['pane', 'split']:
@@ -88,7 +97,11 @@ class HerdrSurfaces(unittest.TestCase):
 
     def run_probe(self, source):
         probe = self.root / "probe.ts"
-        probe.write_text(f"import * as mux from {json.dumps(str(SURFACES))};\n" + source)
+        probe.write_text(
+            f"import * as mux from {json.dumps(str(SURFACES))};\n"
+            f"import {{createStatusState}} from {json.dumps(str(SURFACES.with_name('status.ts')))};\n"
+            + source
+        )
         result = subprocess.run(
             [shutil.which("bun"), str(probe)],
             env=self.env,
@@ -139,9 +152,14 @@ const delivered = [];
 const manager = new ManagedRuns({moduleSignal: () => new AbortController().signal,
  shellReadyDelayMs: () => 0, refresh() {}, tick() {}, present: result => result.summary,
  sendMessage: (message, options) => delivered.push({message, options})});
-const candidate = {id:'fixture', name:'fixture', task:'offline', startTime:Date.now(),
- sessionFile:process.env.SESSION_FILE, statusState:{}, interactive:false};
-const prepare = () => ({kind:'command', command:'offline fixture',
+const startTime = Date.now();
+const candidate = {id:'fixture', name:'fixture', task:'offline', startTime,
+ parentArtifactDir:process.cwd(), activityFile:process.env.SESSION_FILE + '.activity.json',
+ sessionFile:process.env.SESSION_FILE,
+ statusState:createStatusState({source:'pi',startTimeMs:startTime}), interactive:false};
+const prepare = () => ({kind:'pi', parts:['pi', '--session', mux.shellEscape(candidate.sessionFile)],
+ loadout:{agent:null,toolAllowlist:'read',model:null,thinking:null,systemPromptMode:null,
+ identity:null,spawnable:null,autoExit:true,cwd:process.cwd(),agentDir:null}, autoExit:true,
  launchScriptFile:process.env.SESSION_FILE + '.sh', scriptPreamble:''});
 await manager.launch(candidate, {kind:'initial'}, prepare);
 const owner = JSON.parse(readFileSync(process.env.SESSION_FILE + '.owner.json','utf8'));
@@ -154,13 +172,16 @@ await wait(1);
 await manager.launch(candidate, {kind:'resume',sessionId:'fixture-child'}, prepare);
 await wait(2);
 console.log(JSON.stringify({delivered, owner,
- ownerRetained:existsSync(process.env.SESSION_FILE + '.owner.json')}));
+ finalOwner:JSON.parse(readFileSync(process.env.SESSION_FILE + '.owner.json','utf8')),
+ lockRetained:existsSync(process.env.SESSION_FILE + '.owner.lock')}));
 """
         )
         self.assertEqual([r["message"]["content"] for r in result["delivered"]], ["RUN_0", "RUN_2"])
         self.assertTrue(result["owner"]["mux"].startswith("herdr:"))
         self.assertEqual(result["owner"]["surface"], "w2:p7")
-        self.assertFalse(result["ownerRetained"])
+        self.assertEqual(result["owner"]["version"], 2)
+        self.assertTrue(result["finalOwner"]["delivered"])
+        self.assertFalse(result["lockRetained"])
         for record in result["delivered"]:
             self.assertEqual(record["message"]["details"]["exitCode"], 0)
             self.assertEqual(record["options"], {"triggerTurn": True, "deliverAs": "steer"})
@@ -175,30 +196,32 @@ console.log(JSON.stringify({delivered, owner,
         result = self.run_probe(
             f"import {{ManagedRuns}} from {json.dumps(str(managed))};\n"
             + """
-import {existsSync} from 'node:fs';
+import {existsSync,readFileSync} from 'node:fs';
 const delivered = [];
 const manager = new ManagedRuns({moduleSignal: () => new AbortController().signal,
  shellReadyDelayMs: () => 0, refresh() {}, tick() {}, present: result => result.summary,
  sendMessage: (message, options) => delivered.push({message, options})});
 const session = process.cwd() + '/claude-session.jsonl';
 const sentinel = process.cwd() + '/claude.done';
+const startTime = Date.now();
 await manager.launch({id:'claude-fixture', name:'claude-fixture', task:'offline',
- startTime:Date.now(), sessionFile:session, sentinelFile:sentinel, cli:'claude',
- statusState:{}, interactive:false}, {kind:'initial'}, () => ({kind:'command',
+ startTime, parentArtifactDir:process.cwd(), sessionFile:session, sentinelFile:sentinel, cli:'claude',
+ statusState:createStatusState({source:'claude',startTimeMs:startTime}), interactive:false}, {kind:'initial'}, () => ({kind:'command',
  command:'offline Claude fixture', launchScriptFile:session + '.sh', scriptPreamble:''}));
 const deadline = Date.now() + 3000;
 while(delivered.length < 1 && Date.now() < deadline) await Bun.sleep(10);
 if(delivered.length !== 1) throw new Error('Missing Claude delivery');
 console.log(JSON.stringify({delivered, running:manager.running.size,
- ownerRetained:existsSync(session + '.owner.json'),
+ owner:JSON.parse(readFileSync(session + '.owner.json','utf8')),
  lockRetained:existsSync(session + '.owner.lock'),
  sentinelRetained:existsSync(sentinel),
  transcriptSidecarRetained:existsSync(sentinel + '.transcript')}));
 """
         )
         self.assertEqual(result["running"], 0)
+        self.assertEqual(result["owner"]["version"], 2)
+        self.assertTrue(result["owner"]["delivered"])
         for key in [
-            "ownerRetained",
             "lockRetained",
             "sentinelRetained",
             "transcriptSidecarRetained",
@@ -286,23 +309,30 @@ import {execFileSync} from 'node:child_process';
 const session = process.cwd()+'/stale.jsonl';
 writeFileSync(session, JSON.stringify({type:'session',id:'child',version:3})+'\\n');
 const old = mux.muxIdentity();
-writeFileSync(session+'.owner.json',JSON.stringify({version:1,token:'old',
- sessionFile:session,surface:'w2:p7',mux:old}));
+const startTime = Date.now();
+const candidate = {id:'new',name:'new',task:'offline',startTime,
+ parentArtifactDir:process.cwd(),activityFile:session+'.activity.json',sessionFile:session,
+ statusState:createStatusState({source:'pi',startTimeMs:startTime}),interactive:false};
+const loadout = {agent:null,toolAllowlist:'read',model:null,thinking:null,systemPromptMode:null,
+ identity:null,spawnable:null,autoExit:true,cwd:process.cwd(),agentDir:null};
+writeFileSync(session+'.owner.json',JSON.stringify({version:2,token:'old',supervisor:'old-parent',
+ sessionFile:session,surface:'w2:p7',mux:old,run:{...candidate,surface:'w2:p7'},
+ policy:{kind:'initial'},loadout,delivered:false,phase:'dispatched'}));
 unlinkSync(process.env.HERDR_SOCKET_PATH);
 execFileSync('python3',['-c','import socket,sys; s=socket.socket(socket.AF_UNIX); s.bind(sys.argv[1])',process.env.HERDR_SOCKET_PATH]);
 const manager = new ManagedRuns({moduleSignal:()=>new AbortController().signal,
  shellReadyDelayMs:()=>0,refresh(){},tick(){},present:()=>'',sendMessage(){}});
 let error;
 try {
- await manager.launch({id:'new',name:'new',task:'offline',startTime:Date.now(),
- sessionFile:session,statusState:{},interactive:false}, {kind:'resume',sessionId:'child'},
- ()=>({kind:'command',command:'fixture',launchScriptFile:session+'.sh',scriptPreamble:''}));
+ await manager.launch(candidate, {kind:'resume',sessionId:'child'},
+ ()=>({kind:'pi',parts:['pi','--session',mux.shellEscape(session)],loadout,autoExit:true,
+ launchScriptFile:session+'.sh',scriptPreamble:''}));
 } catch(e) {error=String(e);}
 console.log(JSON.stringify({old,current:mux.muxIdentity(),error}));
 """
         )
         self.assertNotEqual(result["old"], result["current"])
-        self.assertIn("another or unknown", result["error"])
+        self.assertIn("foreign multiplexer", result["error"])
         self.assertFalse(
             (self.root / "calls").exists(), "stale ownership touched replacement panes"
         )
