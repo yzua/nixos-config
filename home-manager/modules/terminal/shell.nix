@@ -214,8 +214,9 @@ in
     baseIndex = 1;
     terminal = "tmux-256color";
     historyLimit = 10000;
-    # Focus reports trigger repeated palette queries in nested terminal apps.
-    focusEvents = false;
+    # Herdr needs FocusOut to alert when its active tab is hidden by outer tmux.
+    # The palette responses below keep nested focus-triggered queries safe.
+    focusEvents = true;
     # Use Shift-drag for Ghostty text selection while tmux handles the mouse.
     mouse = true;
     extraConfig = ''

@@ -10,7 +10,17 @@ at high, disables native MCP, and adds the model to the existing custom
 Responses provider if needed. Its existing endpoint limits and credentials
 are preserved. Later activations preserve settings saved in Pi.
 
-Run `p` inside tmux. `/thinking` changes the main level; Ctrl+S saves a new
+Run `p` inside Herdr or tmux. Inside Herdr, subagents use native Herdr splits
+with explicit caller-pane targeting, preserved focus, and geometry-aware direction.
+Inherited outer tmux variables are ignored; direct tmux sessions keep their existing
+layout and behavior. Nix's Herdr package embeds its desktop notification helper.
+Tmux focus events must stay enabled: Herdr suppresses alerts for its focused tab
+unless it receives outer-terminal focus loss. Other Herdr tabs still alert.
+After switching Home Manager, reload existing Pi sessions to load changed extensions.
+Detach and reattach existing tmux clients once so outer desktop focus reports are
+requested; new clients use the configured focus forwarding automatically.
+
+`/thinking` changes the main level; Ctrl+S saves a new
 default. Scout starts at medium; researcher, worker, and reviewer at high.
 Profiles use the configured default model and resolve the provider from the
 caller's settings. `/plan`, `/review`, and `/handoff` are reusable prompts.
@@ -50,7 +60,7 @@ only new output. Disposed runtimes stop delivering results without terminating
 children solely because of a reload or session replacement. Durable ownership
 claims prevent a second writer after reload or parent restart; surviving or
 uncertain ownership refuses resume until exit is established. Corrupt metadata,
-an abandoned launch lock, or a different tmux server also refuses resume rather
+an abandoned launch lock, or a different multiplexer server also refuses resume rather
 than guessing that it is safe.
 
 Children publish terminal errors and shut down at `agent_settled`, after Pi's
@@ -65,7 +75,12 @@ Use `nix develop`, then `just fmt-check` and `just lint-ts` when editing the
 extensions. `python3 tests/pi-config.py` and `python3 tests/pi-subagents.py`
 check writable-config migration and child reliability through the installed Pi
 loader, with isolated settings, a mock provider, and
-fake tmux. `python3 tests/pi-extensions.py` exercises web/PDF extraction,
+fake tmux. `python3 tests/pi-herdr.py` checks native Herdr selection even with
+outer tmux variables, atomic input, geometry-aware splits, ownership across server
+replacement, and pane-loss reporting. After activation, `python3 tests/pi-herdr-focus.py`
+uses a separate tmux server and named Herdr session to check real desktop attention
+alerts with focus forwarding disabled/enabled (requires a graphical session and strace).
+`python3 tests/pi-extensions.py` exercises web/PDF extraction,
 question answers/cancellation and Herdr waiting events, and the optional
 `safe_bash` tool through Pi's loader. It uses local HTTP fixtures and the
 installed web-fetch dependencies; set `PI_WEB_FETCH_DIR` to use another dependency
