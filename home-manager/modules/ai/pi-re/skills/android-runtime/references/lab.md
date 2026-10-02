@@ -8,6 +8,36 @@ samples and broader packs remain outside that evidence.
 
 ## Lifecycle
 
+### `lab start` vs `android start` — choose one deliberately
+
+`pi-re android start` boots **only** the selected owned emulator (root verified):
+no proxy assignment, no guest CA overlay, no capture listener, no Frida. Use it
+for plain UI/ADB work without interception. `pi-re lab start` boots or reuses
+the same emulator **and** provisions proxy, per-boot guest CA, mitmdump and
+Frida as one unit. Use it for any capture, guest-CA or lab-Frida work.
+
+Their state lifetimes differ, and that asymmetry is a real hazard: the guest
+**proxy setting is persistent** across VM reboots, while the **guest CA overlay
+is per-boot** and capture/Frida are host processes that leak if a session dies
+abruptly. A stale lease followed by a plain `android start` can therefore boot
+with the old proxy still set, an orphaned mitmdump still listening, and no CA
+overlay — every guest HTTPS is then intercepted by a proxy the fresh boot does
+not trust (`SSLHandshakeException: Trust anchor for certification path not
+found` app-wide, which apps may remap to misleading errors such as a
+"wrong date" screen). Before a plain start, check for leftovers:
+
+```bash
+pi-re lab status --json                     # staleLease / unexpected proxyPort
+pgrep -af mitmdump                          # orphaned capture listener?
+adb shell settings get global http_proxy    # non-empty with no lab running
+adb logcat -d | grep "Trust anchor"         # system-wide TLS failures
+```
+
+If any check fails, recover with `pi-re lab stop --json` (never manual kills
+or `adb kill-server`), then start only what is actually needed.
+
+### Coordinated lifecycle
+
 ```bash
 pi-re lab status --json
 pi-re lab start --visible --json

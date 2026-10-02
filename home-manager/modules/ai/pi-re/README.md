@@ -93,6 +93,8 @@ existing AVD settings and launch behavior.
 ```bash
 pi-re android create --json
 pi-re android start --json          # boot deadline, then adb root and UID 0
+                                     # plain boot: NO proxy/CA/capture/Frida —
+                                     # check lab leftovers first (lab.md Lifecycle)
 pi-re android status --json         # process-only; no ADB probe or root claim
 pi-re android root --json           # explicitly reverify root
 pi-re android stop --json
