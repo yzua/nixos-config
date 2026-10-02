@@ -3,6 +3,8 @@
 /result-*
 /.direnv/
 /.venv/
+__pycache__/
+*.py[cod]
 
 # Local notes and research; do not publish the docs folder.
 /docs/
