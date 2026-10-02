@@ -13,7 +13,9 @@ from pathlib import Path
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--pi", type=Path, required=True)
+    launch = parser.add_mutually_exclusive_group(required=True)
+    launch.add_argument("--pi", type=Path, help="Test checkout resources with this Pi executable")
+    launch.add_argument("--pi-re", type=Path, help="Test this installed global pi-re launcher")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     code = root / "home-manager/modules/ai/pi-re"
@@ -86,33 +88,84 @@ def main():
                     }
                 }
             }
+            data = home / "isolated-data"
+            state = home / "isolated-state"
+            agent = data / "pi-re/agent"
+            re_state = state / "pi-re"
+            destination = agent if args.pi_re else source
+            for directory in (agent, re_state):
+                directory.mkdir(parents=True, mode=0o700)
             for name, value in {
-                "settings.json": {"defaultProvider": "fixture", "defaultModel": "fixture"},
+                "settings.json": {
+                    "defaultProvider": "fixture",
+                    "defaultModel": "fixture",
+                    "defaultProjectTrust": "never",
+                    "extensions": ["-builtin:mcp"],
+                    "enableInstallTelemetry": False,
+                    "enableAnalytics": False,
+                },
                 "models.json": models,
                 "auth.json": {},
             }.items():
-                (source / name).write_text(json.dumps(value))
-            runtime = home / "config.json"
-            runtime.write_text(
-                json.dumps(
-                    {
-                        "pi": str(args.pi.resolve()),
-                        "resources": str(code),
-                        "sourceAgentDir": str(source),
-                        "capabilities": [],
-                    }
-                )
-            )
+                path = destination / name
+                path.write_text(json.dumps(value))
+                path.chmod(0o600)
             env = os.environ.copy()
             for key in list(env):
-                if key.startswith("PI_") or key.startswith("XDG_"):
+                if (
+                    key.startswith(("PI_", "XDG_"))
+                    or key.endswith(("_API_KEY", "_TOKEN"))
+                    or key in ("IN_NIX_SHELL", "NIX_BUILD_TOP")
+                ):
                     del env[key]
-            env.update(HOME=str(home), PI_RE_CONFIG=str(runtime))
+            env.update(HOME=str(home), XDG_DATA_HOME=str(data), XDG_STATE_HOME=str(state))
+            if args.pi_re:
+                # The marker short-circuits initialization before any real coding login is read.
+                marker_path = re_state / "initialized-v1.json"
+                marker_path.write_text(
+                    json.dumps({"version": 1, "credentialMode": "independent-copy"})
+                )
+                marker_path.chmod(0o600)
+                command = [str(args.pi_re.absolute())]
+                doctor = subprocess.run(
+                    [*command, "doctor", "--json"],
+                    cwd=project,
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                    check=False,
+                )
+                assert doctor.returncode == 0, doctor.stderr[-2000:]
+                available = {
+                    item["id"]
+                    for item in json.loads(doctor.stdout)["capabilities"]
+                    if item["enabled"]
+                }
+                assert {
+                    "android-static",
+                    "android-lab",
+                    "agent-device",
+                    "traffic",
+                    "frida",
+                } <= available
+            else:
+                runtime = home / "config.json"
+                runtime.write_text(
+                    json.dumps(
+                        {
+                            "pi": str(args.pi.resolve()),
+                            "resources": str(code),
+                            "sourceAgentDir": str(source),
+                            "capabilities": [],
+                        }
+                    )
+                )
+                env["PI_RE_CONFIG"] = str(runtime)
+                command = [os.sys.executable, "-B", str(code / "launcher.py")]
             result = subprocess.run(
                 [
-                    os.sys.executable,
-                    "-B",
-                    str(code / "launcher.py"),
+                    *command,
                     "--provider",
                     "fixture",
                     "--model",
@@ -137,18 +190,35 @@ def main():
             body = json.dumps(observed)
             assert "UNTRUSTED_CONTEXT_CANARY" not in body
             assert "UNREVIEWED_SKILL_CANARY" not in body
-            assert "FIXTURE_PRIVATE_KEY_CANARY" not in body
+            assert "FIXTURE_PRIVATE_KEY_CANARY" not in body + result.stdout + result.stderr
             assert "host" in body and "sandbox" in body
-            for name in ("re-intake", "android-static", "android-runtime", "re-device"):
+            for name in (
+                "re-intake",
+                "android-static",
+                "android-runtime",
+                "web-protocol",
+                "native-analysis",
+                "finding-validation",
+                "adapter-build",
+                "re-browser",
+                "re-device",
+            ):
                 assert name in body, f"Reviewed skill missing: {name}"
+            tool_names = {
+                tool["function"]["name"]
+                for request in observed
+                for tool in request.get("tools", [])
+            }
+            assert {"read", "bash", "edit", "write", "re_subagent"} <= tool_names, tool_names
             assert not marker.exists(), "Hostile project extension was loaded"
             # Initialization diagnostics belong on stderr, preserving JSON mode stdout.
             for line in result.stdout.splitlines():
                 json.loads(line)
-            sessions = list((home / ".local/state/pi-re/sessions").glob("*.jsonl"))
+            sessions = list((re_state / "sessions").glob("*.jsonl"))
             assert sessions, "No separate native session was written"
             print(
-                "Installed Pi loader: explicit RE skills/contract, hostile context excluded, isolated JSON/session state"
+                f"{'Global pi-re' if args.pi_re else 'Installed Pi'} loader: all nine reviewed skills, "
+                "contract/tools, hostile cwd excluded, isolated JSON/session state"
             )
         finally:
             server.shutdown()

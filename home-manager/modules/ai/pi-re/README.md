@@ -7,13 +7,29 @@ semantics. This rooted Android foundation does not certify every RE workflow.
 
 ## Profile and launch
 
+Home Manager installs `pi-re` on the user's `PATH`. Run it from any investigation
+folder; neither the configuration checkout nor `nix develop` is needed at runtime.
+The launcher uses absolute Nix-store paths for its bundled skills, prompts and
+pinned tools. The current folder is the work area, not a source of agent resources.
+
 ```bash
-nix run .#pi-re -- doctor --json
-nix run .#pi-re -- init
-nix run .#pi-re -- --print 'Plan an authorized Android investigation; do not mutate targets.'
+pi-re                              # interactive RE chat from any directory
+pi-re doctor --json                # read-only tool availability
+pi-re lab start --visible --json    # or ask the AI to prepare the owned lab
+pi-re --continue                   # latest conversation for the current folder
+pi-re --resume                     # choose a saved RE conversation
 ```
 
-Home Manager also installs `pi-re`. Initialization copies selected provider/model
+Opening the chat does not automatically start the emulator; give the AI a scoped
+investigation goal and it can prepare and operate the lab itself. Sessions and lab
+state remain in the independent RE profile when you change working folders.
+
+For development or use before Home Manager activation, `nix run .#pi-re -- ...`
+is an optional alternative **from the configuration checkout**. From elsewhere,
+use `nix run /path/to/config-checkout#pi-re -- ...`. These alternatives are not
+needed for the installed global command.
+
+Initialization copies selected provider/model
 settings, `models.json` and `auth.json` once into independent writable files under
 `${XDG_DATA_HOME:-$HOME/.local/share}/pi-re/agent`. Sessions and lab state live under
 `${XDG_STATE_HOME:-$HOME/.local/state}/pi-re`. No secrets enter the Nix store; copied
@@ -134,9 +150,17 @@ python3 -B tests/pi-re-runtime.py
 python3 -B tests/pi-re-traffic.py
 python3 -B tests/pi-re-subagent.py
 python3 -B tests/pi-re-lab.py
+python3 -B tests/pi-re-loader.py --pi-re "$(command -v pi-re)"
 just check
 just home-preview
 ```
+
+The loader check runs the installed global wrapper from an unrelated hostile
+working folder, using isolated HOME/XDG paths, synthetic preinitialized credentials
+and a loopback mock provider. It verifies all nine skills, the contract, model-visible
+tools, packaged capability availability and private sessions without reading the
+coding login, starting a device or calling a paid model. The `--pi` alternative
+checks checkout resources with an explicitly supplied Pi executable.
 
 `tests/fixtures/pi-re-android/` supplies a locally built counter/HTTPS APK for
 UI/static/native/Java/traffic qualification. It has INTERNET permission, a narrowly
