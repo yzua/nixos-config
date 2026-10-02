@@ -7,6 +7,7 @@ import select
 import shutil
 import socket
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -19,20 +20,42 @@ SOURCE = REPO / "home-manager/modules/ai/pi/extensions/interactive-subagents/pi-
 PI = os.environ.get("PI_BIN", shutil.which("pi"))
 
 FAKE_TMUX = """#!/usr/bin/env python3
-import json, os, shlex, sys, time
+import json, os, shlex, signal, sys, time
 from pathlib import Path
 root = Path(os.environ['PI_TEST_ROOT'])
 args = sys.argv[1:]
-def write_lease(session):
+def write_lease(session, pid=None):
+    pid = os.getpid() if pid is None else pid
     owner = json.loads(Path(str(session) + '.owner.json').read_text())
-    stat = Path('/proc/self/stat').read_text().rsplit(')', 1)[1].split()
+    stat = Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()
     Path(str(session) + '.writer.json').write_text(json.dumps({
         'version': 1, 'sessionFile': str(session.resolve()),
         'runningChildId': owner['run']['id'], 'token': owner['token'],
-        'pid': os.getpid(), 'startTime': stat[19],
+        'pid': pid, 'startTime': stat[19],
         'machineId': Path('/etc/machine-id').read_text().strip(),
         'bootId': Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
-        'pidNamespace': os.readlink('/proc/self/ns/pid')}))
+        'pidNamespace': os.readlink(f'/proc/{pid}/ns/pid')}))
+if args[0] == 'writer-finish':
+    session = Path(args[1])
+    owner = json.loads(Path(str(session) + '.owner.json').read_text())
+    lease = json.loads(Path(str(session) + '.writer.json').read_text())
+    assert lease['runningChildId'] == owner['run']['id'] and lease['token'] == owner['token']
+    assert lease['pid'] == int(os.environ['PI_TEST_WRITER_PID'])
+    stat = Path(f"/proc/{lease['pid']}/stat").read_text().rsplit(')', 1)[1].split()
+    assert stat[19] == lease['startTime']
+    os.kill(lease['pid'], signal.SIGTERM)
+    deadline = time.monotonic() + 2
+    while True:
+        try:
+            state = Path(f"/proc/{lease['pid']}/stat").read_text().rsplit(')', 1)[1].split()[0]
+        except FileNotFoundError:
+            break
+        if state in ('Z', 'X', 'x'):
+            break
+        if time.monotonic() >= deadline:
+            raise RuntimeError('private mock writer did not exit')
+        time.sleep(0.001)
+    sys.exit(0)
 if args[0] == 'writer-lease':
     # The shim is a real short-lived writer; after return this lease proves death.
     write_lease(Path(args[1]))
@@ -83,7 +106,9 @@ if args[0] == 'send-keys':
         if mode == 'managed-error':
             Path(str(session) + '.exit').write_text(json.dumps({
                 'type': 'error', 'errorMessage': 'OFFLINE_PROVIDER_FAILURE'}))
-        write_lease(session)
+        # A live mock writer is owned by the Python test, not by this transient
+        # CLI shim or Pi parent. It survives Pi shutdown/restart until finished.
+        write_lease(session, int(os.environ['PI_TEST_WRITER_PID']) if mode == 'managed-live' else None)
         if mode != 'managed-live':
             (root / f'done-{pane}').write_text('done')
 if args[0] == 'split-window':
@@ -297,6 +322,16 @@ class PiRegressions(unittest.TestCase):
         self.assertIn("provider_call:2", [event["event"] for event in self.events()])
 
     def probes(self, scenario):
+        if not hasattr(self, "mock_writer"):
+            self.mock_writer = subprocess.Popen(
+                [sys.executable, "-c", "import time; time.sleep(300)"],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                env=offline_environment(),
+            )
+            self.addCleanup(self.stop, self.mock_writer)
+            self.env["PI_TEST_WRITER_PID"] = str(self.mock_writer.pid)
         bindir = self.root / "bin"
         bindir.mkdir(exist_ok=True)
         shim = bindir / "tmux"
@@ -441,6 +476,7 @@ class PiRegressions(unittest.TestCase):
     def test_detached_child_keeps_exclusive_session_ownership(self):
         results = self.probes("ownership")
         self.assertEqual(results["panesAfterDetachedFollowup"], "1", results)
+        self.assertEqual(results["writerBeforeFollowup"], "live", results)
         self.assertEqual(results["detachedFollowup"]["status"], "steered", results)
         self.assertTrue(results["claimSurvives"], results)
         self.assertEqual(
@@ -459,6 +495,8 @@ class PiRegressions(unittest.TestCase):
         (self.root / "results.json").unlink()
         results = self.probes("ownership-restart")
         self.assertTrue(parked["claimSurvives"], parked)
+        self.assertEqual(parked["writerState"], "live", parked)
+        self.assertEqual(results["writerBeforeFollowup"], "live", results)
         self.assertEqual(results["liveFollowup"]["status"], "steered", results)
         self.assertEqual(results["panesAfterLiveFollowup"], "1", results)
         self.assertEqual(results["closedPaneResume"]["status"], "started", results)

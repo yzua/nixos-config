@@ -1,10 +1,11 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmdirSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import subagents, {
   __test__,
 } from "../../home-manager/modules/ai/pi/extensions/interactive-subagents/pi-extension/subagents/index.ts";
-import { writeSubagentWriterLease } from "../../home-manager/modules/ai/pi/extensions/interactive-subagents/pi-extension/subagents/session.ts";
+import { inspectSubagentWriterLease } from "../../home-manager/modules/ai/pi/extensions/interactive-subagents/pi-extension/subagents/session.ts";
 
 // Load through installed Pi and invoke its registered tools with fake tmux.
 // Cleanup fault coverage also injects a real filesystem failure at its adapter.
@@ -77,6 +78,14 @@ export default function (pi: ExtensionAPI) {
       if (__test__.runningSubagents.has(id)) throw new Error(`Run ${id} did not settle`);
     };
     const owner = (session: string) => JSON.parse(readFileSync(`${session}.owner.json`, "utf8"));
+    const writerState = (session: string) => {
+      const claim = owner(session);
+      return inspectSubagentWriterLease(session, claim.run.id, claim.token);
+    };
+    const finishWriter = (session: string) => {
+      execFileSync("tmux", ["writer-finish", session]);
+      if (writerState(session) !== "dead") throw new Error("Mock writer death not established");
+    };
     const calls = () =>
       readFileSync(join(root, "tmux-calls"), "utf8")
         .trim()
@@ -151,13 +160,16 @@ export default function (pi: ExtensionAPI) {
         writeFileSync(join(root, "parked-session"), initial.details.sessionFile);
         await event("session_shutdown");
         results.claimSurvives = existsSync(`${initial.details.sessionFile}.owner.json`);
+        results.writerState = writerState(initial.details.sessionFile);
       } else if (scenario === "ownership-restart") {
         const session = readFileSync(join(root, "parked-session"), "utf8");
         mode("healthy");
+        results.writerBeforeFollowup = writerState(session);
         results.liveFollowup = (await resume()).details;
         results.panesAfterLiveFollowup = readFileSync(join(root, "pane-count"), "utf8");
         // A closed detached pane plus a stale error sidecar must not poison
         // the next writer's result. Use the real pane-loss polling adapter.
+        finishWriter(session);
         writeFileSync(join(root, "closed-%1"), "closed");
         writeFileSync(
           `${session}.exit`,
@@ -170,13 +182,8 @@ export default function (pi: ExtensionAPI) {
       } else if (scenario === "ownership-refusals") {
         mode("managed-live");
         const initial = await spawn("managed");
-        // This probe acts as the still-live fake writer for refusal coverage.
-        // A dead shim lease would instead permit a guarded resume fallback.
-        writeSubagentWriterLease(
-          initial.details.sessionFile,
-          initial.details.id,
-          owner(initial.details.sessionFile).token,
-        );
+        if (writerState(initial.details.sessionFile) !== "live")
+          throw new Error("Refusal coverage requires a live mock writer");
         await event("session_shutdown");
         await event("session_start");
         const file = `${initial.details.sessionFile}.owner.json`;
@@ -209,10 +216,12 @@ export default function (pi: ExtensionAPI) {
         await new Promise((resolve) => setTimeout(resolve, 30));
         await event("session_start");
         mode("healthy");
+        results.writerBeforeFollowup = writerState(initial.details.sessionFile);
         results.detachedFollowup = (await resume()).details;
         results.panesAfterDetachedFollowup = readFileSync(join(root, "pane-count"), "utf8");
         results.claimSurvives = existsSync(`${initial.details.sessionFile}.owner.json`);
         // Terminal completion, not watcher disposal, settles the original run.
+        finishWriter(initial.details.sessionFile);
         writeFileSync(join(root, "done-%1"), "done");
         await waitForDelivery(1);
         mode("managed");
