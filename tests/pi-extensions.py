@@ -7,6 +7,7 @@ extension (override PI_WEB_FETCH_DIR); the TypeScript under test comes from Git.
 HTTP fixtures, sessions, and settings are private and temporary.
 """
 
+import gzip
 import http.server
 import json
 import os
@@ -25,10 +26,13 @@ PI = os.environ.get("PI_BIN", shutil.which("pi"))
 DEPENDENCIES = Path(
     os.environ.get("PI_WEB_FETCH_DIR", Path.home() / ".pi/agent/extensions/web-fetch")
 )
+TEXT_LIMIT = 5 * 1024 * 1024
+PDF_LIMIT = 20 * 1024 * 1024
 
 
-def pdf_fixture():
+def pdf_fixture(padding=0):
     content = b"BT /F1 16 Tf 72 720 Td (PI_PDF_MARKER: PDF extraction works.) Tj ET"
+    content += b" " * padding
     objects = [
         b"<< /Type /Catalog /Pages 2 0 R >>",
         b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
@@ -50,13 +54,71 @@ def pdf_fixture():
 
 
 class Fixtures(http.server.BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+
     def log_message(self, *_args):
         pass
 
+    def send_body(self, content_type, body, transport="length"):
+        transfer = self.server.transfers.get(self.path)
+        self.send_header("Content-Type", content_type)
+        if transport.startswith("gzip-"):
+            body = gzip.compress(body)
+            self.send_header("Content-Encoding", "gzip")
+            transport = transport.removeprefix("gzip-")
+        if transport == "length":
+            self.send_header("Content-Length", str(len(body)))
+        elif transport == "chunked":
+            self.send_header("Transfer-Encoding", "chunked")
+        self.send_header("Connection", "close")
+        self.close_connection = True
+        self.end_headers()
+        try:
+            for offset in range(0, len(body), 64 * 1024):
+                chunk = body[offset : offset + 64 * 1024]
+                if transport == "chunked":
+                    self.wfile.write(f"{len(chunk):x}\r\n".encode())
+                self.wfile.write(chunk)
+                if transport == "chunked":
+                    self.wfile.write(b"\r\n")
+                if transfer is not None:
+                    transfer["sent"] += len(chunk)
+            if transport == "chunked":
+                self.wfile.write(b"0\r\n\r\n")
+        except (BrokenPipeError, ConnectionResetError):
+            if transfer is not None:
+                transfer["cancelled"] = True
+        finally:
+            if transfer is not None:
+                transfer["finished"].set()
+
     def do_GET(self):
+        if self.path.startswith("/bounds/"):
+            _, _, kind, transport, boundary = self.path.split("/")
+            limit = PDF_LIMIT if kind == "pdf" else TEXT_LIMIT
+            size = {
+                "below": limit - 1,
+                "exact": limit,
+                "over": limit + 1,
+                "cancel": 32 * 1024 * 1024,
+            }[boundary]
+            if kind == "pdf":
+                padding = size - len(pdf_fixture())
+                body = pdf_fixture(padding)
+                body = pdf_fixture(padding - (len(body) - size))
+                content_type = "application/pdf"
+            else:
+                # UTF-8 proves the bound counts bytes, not decoded characters.
+                body = b"\xc3\xa9" * (size // 2) + b"x" * (size % 2)
+                content_type = "text/plain"
+            assert len(body) == size
+            self.send_response(200)
+            self.send_body(content_type, body, transport)
+            return
         if self.path == "/redirect":
             self.send_response(302)
             self.send_header("Location", "/article")
+            self.send_header("Content-Length", "0")
             self.end_headers()
             return
         article = (
@@ -73,16 +135,13 @@ class Fixtures(http.server.BaseHTTPRequestHandler):
             "/sample.pdf": ("application/pdf", pdf_fixture()),
             "/binary": ("application/octet-stream", b"Binary fixture"),
             "/large": ("text/plain", b"x" * (6 * 1024 * 1024)),
+            "/large-no-length": ("text/plain", b"x" * (5 * 1024 * 1024 + 1)),
         }.get(self.path)
         self.send_response(200 if response else 404)
         content_type, body = response or ("text/plain", b"Not found")
-        self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        try:
-            self.wfile.write(body)
-        except (BrokenPipeError, ConnectionResetError):
-            pass
+        self.send_body(
+            content_type, body, "no-length" if self.path == "/large-no-length" else "length"
+        )
 
 
 class Extensions(unittest.TestCase):
@@ -106,9 +165,10 @@ class Extensions(unittest.TestCase):
         (self.web / "node_modules").symlink_to(DEPENDENCIES / "node_modules")
         self.env = dict(os.environ, PI_CODING_AGENT_DIR=str(agent))
         for key in tuple(self.env):
-            if key.startswith("PI_SUBAGENT") or key in {"TMUX", "TMUX_PANE"}:
+            if key.startswith(("PI_SUBAGENT", "HERDR_")) or key in {"TMUX", "TMUX_PANE"}:
                 self.env.pop(key)
         self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Fixtures)
+        self.server.transfers = {}
         self.addCleanup(self.server.server_close)
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         self.addCleanup(self.server.shutdown)
@@ -155,6 +215,54 @@ class Extensions(unittest.TestCase):
     def fetch(self, path):
         return self.call("web_fetch", {"url": self.base + path}, self.web / "index.ts")
 
+    def check_fetch_before_exit(self, path, check):
+        # Keep Pi alive during the check: process exit must not masquerade as cancellation.
+        fixture = self.root / "case.json"
+        fixture.write_text(
+            json.dumps({"tool": "web_fetch", "arguments": {"url": self.base + path}})
+        )
+        process = subprocess.Popen(
+            self.command(self.web / "index.ts", "rpc"),
+            cwd=self.root,
+            env=dict(self.env, PI_EXTENSION_CASE=str(fixture)),
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+        )
+        events = queue.Queue()
+
+        def read_events():
+            for line in process.stdout:
+                events.put(json.loads(line))
+
+        reader = threading.Thread(target=read_events, daemon=True)
+        reader.start()
+        try:
+            process.stdin.write(
+                json.dumps({"type": "prompt", "message": "Run the tool fixture"}) + "\n"
+            )
+            process.stdin.flush()
+            deadline = time.monotonic() + 20
+            while True:
+                event = events.get(timeout=max(0.001, deadline - time.monotonic()))
+                if event["type"] == "tool_execution_end":
+                    self.assertEqual(event["toolName"], "web_fetch")
+                    check(event)
+                    self.assertIsNone(process.poll(), "Pi exited before the cancellation check")
+                    break
+        finally:
+            process.stdin.close()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
+            reader.join(timeout=1)
+            process.stdout.close()
+            process.stderr.close()
+
     def test_pdf_uses_packaged_pdfjs_through_pi_loader(self):
         result = self.fetch("/sample.pdf")
         self.assertFalse(result["isError"], result)
@@ -185,6 +293,102 @@ class Extensions(unittest.TestCase):
                 result = self.call("web_fetch", {"url": url}, self.web / "index.ts")
                 self.assertTrue(result["isError"], result)
                 self.assertIn(marker, json.dumps(result["result"]))
+
+    def test_web_rejects_overflow_without_content_length(self):
+        result = self.fetch("/large-no-length")
+        self.assert_size_error(result)
+
+    def assert_size_error(self, result):
+        self.assertTrue(result["isError"], "Oversize response was accepted")
+        error = json.dumps(result["result"])
+        self.assertIn("Response too large", error)
+        self.assertNotIn("Chrome DevTools CLI", error)
+
+    def test_web_rejects_chunked_and_decompressed_overflow(self):
+        for transport in ["chunked", "gzip-length", "gzip-chunked"]:
+            with self.subTest(transport=transport):
+                self.assert_size_error(self.fetch(f"/bounds/text/{transport}/over"))
+
+    def test_web_accepts_byte_exact_limits(self):
+        for transport, boundary in [
+            ("no-length", "below"),
+            ("no-length", "exact"),
+            ("chunked", "exact"),
+            ("length", "exact"),
+            ("gzip-length", "exact"),
+        ]:
+            with self.subTest(transport=transport, boundary=boundary):
+                result = self.fetch(f"/bounds/text/{transport}/{boundary}")
+                self.assertFalse(result["isError"], "Response within the byte limit was rejected")
+                chars = result["result"]["details"]["chars"]
+                self.assertEqual(chars, 2621440)
+                text = result["result"]["content"][0]["text"]
+                self.assertTrue(text.endswith("x" if boundary == "below" else "é"))
+                self.assertNotIn("�", text)
+
+    def test_web_cancels_oversize_streams_and_known_lengths(self):
+        for transport in ["chunked", "length"]:
+            with self.subTest(transport=transport):
+                path = f"/bounds/text/{transport}/cancel"
+                transfer = {"finished": threading.Event(), "sent": 0, "cancelled": False}
+                self.server.transfers[path] = transfer
+
+                def check(result):
+                    self.assert_size_error(result)
+                    self.assertTrue(
+                        transfer["finished"].wait(timeout=5), "HTTP fixture did not finish"
+                    )
+                    self.assertTrue(
+                        transfer["cancelled"], "Rejected response was drained, not cancelled"
+                    )
+                    self.assertLess(transfer["sent"], 32 * 1024 * 1024)
+
+                self.check_fetch_before_exit(path, check)
+
+    def test_web_keeps_size_error_when_cancellation_rejects(self):
+        # A synthetic fetch boundary is needed: native HTTP cancellation rarely rejects.
+        extension = self.web / "cancel-rejection.ts"
+        extension.write_text(
+            """
+import registerWebFetch from "./index.ts";
+import { writeFileSync } from "node:fs";
+export default function (pi) {
+  globalThis.fetch = async (url) => {
+    const knownLength = new URL(url).pathname === "/known-length";
+    const headers = { "Content-Type": "text/plain" };
+    if (knownLength) headers["Content-Length"] = String(5 * 1024 * 1024 + 1);
+    return new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(new Uint8Array(5 * 1024 * 1024));
+        controller.enqueue(new Uint8Array(1));
+      },
+      cancel() {
+        writeFileSync(process.env.PI_WEB_FETCH_CANCEL_LOG, "cancelled");
+        throw new Error("PI_CANCEL_FAILURE");
+      },
+    }), { headers });
+  };
+  registerWebFetch(pi);
+}
+"""
+        )
+        log = self.root / "cancelled"
+        self.env["PI_WEB_FETCH_CANCEL_LOG"] = str(log)
+        for path in ["/stream", "/known-length"]:
+            with self.subTest(path=path):
+                log.unlink(missing_ok=True)
+                result = self.call("web_fetch", {"url": self.base + path}, extension)
+                self.assert_size_error(result)
+                self.assertNotIn("PI_CANCEL_FAILURE", json.dumps(result["result"]))
+                self.assertEqual(log.read_text(), "cancelled")
+
+    def test_pdf_has_its_own_decompressed_byte_limit(self):
+        for transport in ["no-length", "chunked", "gzip-length", "length"]:
+            with self.subTest(transport=transport):
+                result = self.fetch(f"/bounds/pdf/{transport}/exact")
+                self.assertFalse(result["isError"], result)
+                self.assertIn("PI_PDF_MARKER", json.dumps(result["result"]))
+                self.assert_size_error(self.fetch(f"/bounds/pdf/{transport}/over"))
 
     def test_question_requires_ui_in_print_mode(self):
         for extra in [{}, {"options": [{"label": "Alpha"}]}, {"multiSelect": True}]:

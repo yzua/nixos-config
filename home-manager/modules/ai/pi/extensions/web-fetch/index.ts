@@ -328,6 +328,38 @@ function extractHeadingTitle(text: string): string | null {
 
 // ── Main HTTP Extraction ─────────────────────────────────────────────
 
+async function readBoundedResponse(response: Response, maxSize: number): Promise<ArrayBuffer> {
+  if (!response.body) return new ArrayBuffer(0);
+
+  // Fetch exposes decompressed bytes; Content-Length may describe compressed data.
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maxSize) {
+        // Cancellation failures must not hide the size error or trigger browser fallback.
+        await reader.cancel().catch(() => {});
+        throw new Error(`Response too large (${Math.round(size / 1024 / 1024)}MB)`);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes.buffer;
+}
+
 async function extractViaHttp(url: string, signal?: AbortSignal): Promise<FetchResult> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
@@ -367,6 +399,7 @@ async function extractViaHttp(url: string, signal?: AbortSignal): Promise<FetchR
     if (contentLengthHeader) {
       const contentLength = parseInt(contentLengthHeader, 10);
       if (contentLength > maxSize) {
+        await response.body?.cancel().catch(() => {});
         return {
           url,
           title: "",
@@ -377,7 +410,7 @@ async function extractViaHttp(url: string, signal?: AbortSignal): Promise<FetchR
     }
 
     if (isPDFContent) {
-      const buffer = await response.arrayBuffer();
+      const buffer = await readBoundedResponse(response, maxSize);
       return await extractPDF(buffer, url);
     }
 
@@ -396,7 +429,7 @@ async function extractViaHttp(url: string, signal?: AbortSignal): Promise<FetchR
       };
     }
 
-    const text = await response.text();
+    const text = new TextDecoder().decode(await readBoundedResponse(response, maxSize));
     const isHTML =
       contentType.includes("text/html") || contentType.includes("application/xhtml+xml");
 
