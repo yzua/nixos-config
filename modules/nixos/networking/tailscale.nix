@@ -1,7 +1,5 @@
 # Personal Tailscale client that preserves existing VPN routes and DNS.
 
-{ ... }:
-
 {
   services.tailscale = {
     enable = true;

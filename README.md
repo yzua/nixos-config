@@ -57,18 +57,6 @@ Edit `setup` in `flake.nix` for the host, user, locale, keyboard, display,
 graphics, and Git settings. Output names follow the configured host and user.
 Set `monitor = null` to use the display's preferred mode.
 
-Pi's reviewed extensions and agent profiles live in
-[`home-manager/modules/ai/pi`](home-manager/modules/ai/pi/README.md). Its live
-settings and credentials remain writable; `/thinking` changes reasoning effort.
-The separate [`pi-re` foundation](home-manager/modules/ai/pi-re/README.md) provides
-an independent host-mode RE profile and owned rooted Android emulator. Run
-`nix run .#pi-re -- doctor --json` without activation; configure the initial lab
-through `setup.androidLab`. Broader capability/workflow qualification is pending.
-
-Voice actions share conversation context until reset. Reset discards a recording
-or transcription that has not been submitted; an executing request finishes in
-its original context.
-
 For another machine, regenerate the host's `hardware-configuration.nix` and
 review its boot settings. Keep the installed `stateVersion` values when
 updating dependencies. Use your own Git signing and SOPS age keys outside the
