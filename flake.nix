@@ -124,7 +124,7 @@
             || nixpkgs.lib.hasPrefix "android-sdk-" name;
         };
       };
-      androidTools = import ./nix/android-re-toolchain.nix {
+      androidTools = import ./packages/android-re-toolchain.nix {
         inherit pkgs;
         inherit (setup) androidLab;
       };

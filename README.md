@@ -77,7 +77,10 @@ Nix store, and re-encrypt the SOPS secrets for your key.
 ## Layout
 
 - `flake.nix` and `flake.lock`: outputs and pinned dependencies.
-- `hosts/` and `modules/nixos/`: hardware and system settings.
+- `hosts/`: hardware and host settings. `modules/nixos/` holds reusable system
+  settings, grouped into `desktop/` infrastructure and `networking/` VPN/Tor
+  services, with explicit imports in each host.
+- `packages/`: custom package definitions shared by flake outputs and profiles.
 - `home-manager/`: user apps and preferences. Under `modules/`, `desktop/`
   groups GNOME, Niri, and Noctalia settings; `desktop-apps/` owns applications;
   `terminal/` groups CLI tools, terminal/shell settings, and Git.

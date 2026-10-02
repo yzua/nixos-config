@@ -7,17 +7,17 @@
     ./hardware-configuration.nix
     ./graphics.nix
     ../../modules/nixos/base.nix
-    ../../modules/nixos/audio.nix
-    ../../modules/nixos/gnome.nix
-    ../../modules/nixos/flatpak.nix
+    ../../modules/nixos/desktop/audio.nix
+    ../../modules/nixos/desktop/gnome.nix
+    ../../modules/nixos/desktop/flatpak.nix
     ../../modules/nixos/gaming.nix
-    ../../modules/nixos/niri.nix
-    ../../modules/nixos/mullvad-vpn.nix
-    ../../modules/nixos/netbird.nix
-    ../../modules/nixos/tailscale.nix
+    ../../modules/nixos/desktop/niri.nix
+    ../../modules/nixos/networking/mullvad-vpn.nix
+    ../../modules/nixos/networking/netbird.nix
+    ../../modules/nixos/networking/tailscale.nix
     ../../modules/nixos/numtide-cache.nix
-    ../../modules/nixos/tor.nix
-    ../../modules/nixos/tor-mullvad-bypass.nix
+    ../../modules/nixos/networking/tor.nix
+    ../../modules/nixos/networking/tor-mullvad-bypass.nix
   ];
 
   boot.loader.systemd-boot.enable = true;
