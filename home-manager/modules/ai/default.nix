@@ -44,6 +44,7 @@ in
     ./herdr.nix
     ./pnpm-tools.nix
     ./pi
+    ./pi-re
     ./skills.nix
     ./voice
   ];

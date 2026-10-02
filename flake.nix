@@ -73,6 +73,25 @@
           nvidiaOpen = false;
           nvidiaGsp = false;
         };
+        androidLab = {
+          acceptLicense = true;
+          apiLevel = "35";
+          imageType = "google_apis";
+          abi = "x86_64";
+          avdName = "pi-re-api35";
+          port = 5580;
+          cores = 4;
+          memoryMiB = 4096;
+          bootTimeoutSeconds = 180;
+          gpuMode = "swangle";
+          hardwareVideoDecoder = false;
+          display = {
+            width = 720;
+            height = 1600;
+            density = 320;
+          };
+          proxyPort = 8089;
+        };
         gitIdentity = {
           name = username;
           email = "git.remarry972@simplelogin.com";
@@ -84,12 +103,30 @@
       pkgs = import nixpkgs {
         inherit system;
         # Home Manager uses this package set; approve only the requested apps.
-        config.allowUnfreePredicate =
-          pkg:
-          builtins.elem (nixpkgs.lib.getName pkg) [
-            "google-chrome"
-            "vscode"
-          ];
+        config = {
+          android_sdk.accept_license = setup.androidLab.acceptLicense;
+          allowUnfreePredicate =
+            pkg:
+            let
+              name = nixpkgs.lib.getName pkg;
+            in
+            builtins.elem name [
+              "google-chrome"
+              "vscode"
+              "androidsdk"
+              "platform-tools"
+              "build-tools"
+              "emulator"
+              "platforms"
+              "cmdline-tools"
+              "system-image-${setup.androidLab.apiLevel}-${setup.androidLab.imageType}-${setup.androidLab.abi}"
+            ]
+            || nixpkgs.lib.hasPrefix "android-sdk-" name;
+        };
+      };
+      androidTools = import ./nix/android-re-toolchain.nix {
+        inherit pkgs;
+        inherit (setup) androidLab;
       };
       # Reuse one formatter for `nix fmt` and the development shell.
       formatter = pkgs.nixfmt-tree.override {
@@ -112,7 +149,7 @@
       home = home-manager.lib.homeManagerConfiguration {
         inherit pkgs;
         extraSpecialArgs = {
-          inherit setup;
+          inherit setup androidTools;
           aiPackages = llm-agents.packages.${system};
           inherit nixcord;
         };
@@ -138,25 +175,43 @@
 
       formatter.${system} = formatter;
 
-      # Project-only tooling; no change to the system or home packages.
-      devShells.${system}.default = pkgs.mkShell {
-        packages = [
-          pkgs.git
-          pkgs.just
-          pkgs.age
-          pkgs.sops
-          home-manager.packages.${system}.default
-          formatter
-          pkgs.nixfmt
-          pkgs.shfmt
-          pkgs.statix
-          pkgs.deadnix
-          pkgs.shellcheck
-          pkgs.biome
-          pkgs.ruff
-          pkgs.rumdl
-          pkgs.python3
-        ];
+      packages.${system} = {
+        pi-re = nixpkgs.lib.findFirst (
+          package: nixpkgs.lib.getName package == "pi-re"
+        ) (throw "The selected Home Manager profile does not provide pi-re") home.config.home.packages;
+        android-re-sdk = androidTools.sdk;
+        android-re-agent-device = androidTools.agentDevice;
+        android-re-guest-signal = androidTools.guestSignal;
+        android-re-toolchain = androidTools.environment;
+      };
+      devShells.${system} = {
+        android-re = pkgs.mkShell {
+          inherit (androidTools) packages;
+          ANDROID_HOME = androidTools.sdkRoot;
+          ANDROID_SDK_ROOT = androidTools.sdkRoot;
+          AGENT_DEVICE_NO_UPDATE_NOTIFIER = "1";
+        };
+
+        # Project-only tooling; no change to the system or home packages.
+        default = pkgs.mkShell {
+          packages = [
+            pkgs.git
+            pkgs.just
+            pkgs.age
+            pkgs.sops
+            home-manager.packages.${system}.default
+            formatter
+            pkgs.nixfmt
+            pkgs.shfmt
+            pkgs.statix
+            pkgs.deadnix
+            pkgs.shellcheck
+            pkgs.biome
+            pkgs.ruff
+            pkgs.rumdl
+            pkgs.python3
+          ];
+        };
       };
     };
 }
