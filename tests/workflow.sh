@@ -311,8 +311,8 @@ start_case() {
   [[ -L "$other" && -e "$other" ]] || fail 'foreign output root was deleted'
 )
 
-# Termination while waiting to publish must not leave an independent publisher
-# able to replace the prior saved link after cleanup removes its candidate.
+# Terminating the launched command (not an inner shell) while waiting to publish
+# must preserve the saved preview and leave no orphan that can publish later.
 (
   start_case terminated-publication
   just home-preview >"$case_root/output" 2>&1 || fail 'initial preview before termination'
@@ -330,12 +330,10 @@ start_case() {
     "$TEST_REAL_FLOCK" -u "$held_lock"; wait "$workflow_pid" 2>/dev/null || true' EXIT
   read -r -t 10 -u "$notify" event publication_pid || fail 'publication did not reach held lock'
   [[ "$event" == locking ]] || fail 'unexpected publication event'
-  preview_pid=$(ps -o pid= --ppid "$workflow_pid")
-  preview_pid="${preview_pid// /}"
-  [[ "$preview_pid" =~ ^[0-9]+$ ]] || fail 'cannot identify preview process'
-  kill -TERM "$preview_pid"
+  preview_pid="$workflow_pid"
+  kill -TERM "$workflow_pid"
   read -r -t 10 -u "$notify" event cleanup_pid || fail 'termination did not reach cleanup lock'
-  [[ "$event" == locking && "$cleanup_pid" == "$preview_pid" && "$publication_pid" == "$preview_pid" ]] || fail 'cleanup raced an independently surviving publisher'
+  [[ "$event" == locking && "$cleanup_pid" == "$workflow_pid" && "$publication_pid" == "$workflow_pid" ]] || fail 'launched command left an independently surviving preview'
   candidate=$(<"$TEST_CANDIDATE")
   [[ -L "$candidate" && $(readlink "$saved") == "$previous" && -e "$previous" ]] || fail 'termination removed roots before acquiring publication lock'
   "$TEST_REAL_FLOCK" -u "$held_lock"
@@ -368,7 +366,7 @@ start_case() {
   [[ "$event" == locking ]] || fail 'unexpected pre-rename event'
   read -r -t 10 -u "$notify" event rename_pid || fail 'publication did not reach rename'
   [[ "$event" == renaming ]] || fail 'unexpected rename event'
-  kill -TERM "$preview_pid"
+  kill -TERM "$workflow_pid"
   read -r -t 10 -u "$notify" event cleanup_pid || fail 'interrupted rename did not reach cleanup lock'
   [[ "$event" == locking && "$cleanup_pid" == "$preview_pid" ]] || fail 'rename cleanup did not lock'
   if read -r -t 1 -u "$notify" event; then

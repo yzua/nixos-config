@@ -73,14 +73,23 @@ review_home_generation() {
   fi
 }
 
-preview_generation() (
-  local actual candidate rooted publication_lock
+preview_generation() {
+  # Preview is the terminal command action. Stay in the launched shell so TERM
+  # cannot leave an unsupervised preview publishing after that command exits.
+  local actual candidate rooted publication_lock cleanup_command
   select_generation "$1"
   candidate=$(create_preview_root "$generation_saved")
-  trap 'cleanup_preview_root "$generation_saved" "$candidate" "${publication_lock:-}"' EXIT
+  # Capture escaped values: Bash can unwind function locals before running an
+  # EXIT trap on errexit. Initially no publication descriptor is open yet.
+  printf -v cleanup_command 'cleanup_preview_root %q %q' "$generation_saved" "$candidate"
+  # shellcheck disable=SC2064 # Arguments must survive function-local unwinding.
+  trap "$cleanup_command" EXIT
   # Children inherit this descriptor, so signal cleanup can wait for any
   # surviving publisher child. Opening it does not lock builds or reviews.
   exec {publication_lock}>"$generation_saved.roots/publication.lock"
+  printf -v cleanup_command 'cleanup_preview_root %q %q %q' "$generation_saved" "$candidate" "$publication_lock"
+  # shellcheck disable=SC2064 # Capture the descriptor as well as the paths.
+  trap "$cleanup_command" EXIT
   actual=$(nix build --no-write-lock-file --out-link "$candidate/result" --print-out-paths "$generation_build")
   rooted=$(saved_preview_target "$candidate/result")
   if [[ "$rooted" != "$actual" ]]; then
@@ -97,7 +106,7 @@ preview_generation() (
   fi
   # Publish only the exact built path, after every applicable review succeeds.
   publish_preview_root "$generation_saved" "$candidate" "$publication_lock"
-)
+}
 
 require_system_host() {
   local configured_host current_host
