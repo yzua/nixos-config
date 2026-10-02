@@ -8,7 +8,9 @@
 }:
 
 let
-  extensions = pkgs.buildNpmPackage {
+  # Web-fetch is the only extension with external dependencies. Fetch its lock,
+  # then assemble the complete local extension resource bundle below.
+  extensionResources = pkgs.buildNpmPackage {
     pname = "pi-personal-extensions";
     version = "local";
     src = ./extensions/web-fetch;
@@ -43,11 +45,12 @@ in
     ".pi/agent/prompts".source = ./prompts;
     ".pi/agent/agents".source = ./agents;
     ".pi/agent/extensions/ask-user-question.ts".source =
-      "${extensions}/lib/pi-config/ask-user-question.ts";
-    ".pi/agent/extensions/prompt-snippets".source = "${extensions}/lib/pi-config/prompt-snippets";
-    ".pi/agent/extensions/web-fetch".source = "${extensions}/lib/pi-config/web-fetch";
+      "${extensionResources}/lib/pi-config/ask-user-question.ts";
+    ".pi/agent/extensions/prompt-snippets".source =
+      "${extensionResources}/lib/pi-config/prompt-snippets";
+    ".pi/agent/extensions/web-fetch".source = "${extensionResources}/lib/pi-config/web-fetch";
     ".pi/agent/extensions/interactive-subagents".source =
-      "${extensions}/lib/pi-config/interactive-subagents";
+      "${extensionResources}/lib/pi-config/interactive-subagents";
   };
 
   # The first activation applies agreed defaults. Later UI changes remain user-owned.

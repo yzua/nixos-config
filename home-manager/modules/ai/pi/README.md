@@ -46,6 +46,11 @@ The initial sources were copied from `amosblomqvist/pi-config` commit
 `amosblomqvist/pi-interactive-subagents` commit
 `c3e8b53c0754ae5ccc19fdab5a7481ec039bc2f7`. Source files, lockfiles, and the
 subagent license/tests are in this repository; builds use those local files.
+The extension's bundled `agents/` retains upstream fallback examples. This
+workstation's configured profiles in the adjacent `agents/` directory override
+those examples; edit the configured profiles for local model/tool policy. An
+alternate Pi profile without those overrides can select the upstream fallbacks,
+whose model and tool requirements differ and must be reviewed before use.
 Web-fetch dependencies use the
 upstream npm lockfile with lifecycle scripts disabled. Pi provides extension
 API and TypeBox imports, including legacy aliases.
