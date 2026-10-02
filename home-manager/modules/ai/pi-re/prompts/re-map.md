@@ -20,7 +20,8 @@ Implemented device/Frida wrappers are documented in their guides; Frida status i
 a live guest operation. Catalog installed-unqualified is not workflow readiness;
 developer manual qualification may invoke approved wrappers to gather evidence.
 
-Host/yolo is not a sandbox/VM. Keep ordinary coding resources unchanged; optional
-MCP/delegation remain disabled. No installs, target connections, device discovery
-or credential inspection is implied by mapping. Continue routine in-scope work
+Host/yolo is not a sandbox/VM. Keep ordinary coding resources unchanged. MCP remains
+disabled; root-only delegation and child restrictions follow the authoritative
+[contract](../contract.md#interfaces). No installs, target connections, device
+discovery or credential inspection is implied by mapping. Continue routine in-scope work
 autonomously once the baseline is complete; ask only for material missing scope.

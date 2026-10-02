@@ -149,6 +149,28 @@ class ProfileTests(unittest.TestCase):
         self.assertEqual(args[-2:], ["--print", "inspect"])
         self.assertIn(str(locations["sessions"]), args)
 
+    def test_mapping_prompt_agrees_with_root_only_delegation(self):
+        prompt = (CODE / "prompts/re-map.md").read_text()
+        contract = (CODE / "contract.md").read_text()
+        self.assertIn("MCP remains", prompt)
+        self.assertIn("root-only delegation", prompt)
+        self.assertIn("../contract.md#interfaces", prompt)
+        self.assertNotIn("MCP/delegation remain disabled", prompt)
+        self.assertIn("enabled root-only delegation", contract)
+        resources = self.root / "resources"
+        for skill in launcher.SKILLS:
+            directory = resources / "skills" / skill
+            directory.mkdir(parents=True)
+            (directory / "SKILL.md").write_text("fixture")
+        extension = resources / "flash-subagent.ts"
+        extension.write_text("fixture")
+        config = {"pi": "/fixture/bin/pi", "resources": str(resources)}
+        locations = {"sessions": self.state / "sessions"}
+        with patch.dict(os.environ, {"PI_RE_CHILD": "0"}):
+            self.assertIn(str(extension), launcher.pi_arguments(config, locations, []))
+        with patch.dict(os.environ, {"PI_RE_CHILD": "1"}):
+            self.assertNotIn(str(extension), launcher.pi_arguments(config, locations, []))
+
     def test_protected_flags_rejected(self):
         for flag in ("--approve", "--skill", "--extension", "--session-dir", "--system-prompt"):
             with self.subTest(flag=flag), self.assertRaises(ValueError):

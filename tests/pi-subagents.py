@@ -10,6 +10,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 REPO = Path(__file__).resolve().parents[1]
 FIXTURES = REPO / "tests" / "pi-subagents"
@@ -118,6 +119,15 @@ elif args[0] == 'list-panes':
 """
 
 
+def offline_environment():
+    """Keep fixture processes away from the caller's live multiplexer/children."""
+    return {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith(("PI_SUBAGENT", "HERDR_")) and key not in {"TMUX", "TMUX_PANE"}
+    }
+
+
 class PiRegressions(unittest.TestCase):
     def setUp(self):
         if not PI:
@@ -135,10 +145,7 @@ class PiRegressions(unittest.TestCase):
                 }
             )
         )
-        self.env = os.environ.copy()
-        for key in tuple(self.env):
-            if key.startswith("PI_SUBAGENT") or key in {"TMUX", "TMUX_PANE"}:
-                self.env.pop(key)
+        self.env = offline_environment()
         self.env.update(
             PI_CODING_AGENT_DIR=str(self.agent),
             PI_TEST_ROOT=str(self.root),
@@ -290,6 +297,11 @@ class PiRegressions(unittest.TestCase):
         shim = bindir / "tmux"
         shim.write_text(FAKE_TMUX)
         shim.chmod(0o755)
+        forbidden = bindir / "herdr"
+        forbidden.write_text(
+            "#!/usr/bin/env bash\necho 'Offline fixture reached Herdr' >&2\nexit 1\n"
+        )
+        forbidden.chmod(0o755)
         self.env.update(
             PATH=f"{bindir}:{self.env['PATH']}",
             TMUX="offline-fixture",
@@ -328,6 +340,24 @@ class PiRegressions(unittest.TestCase):
         results = json.loads((self.root / "results.json").read_text())
         self.assertNotIn("failure", results, results)
         return results
+
+    def test_offline_environment_drops_inherited_multiplexer_and_child_state(self):
+        inherited = {
+            "HERDR_ENV": "1",
+            "HERDR_SOCKET_PATH": "/fixture/live-herdr.sock",
+            "HERDR_PANE_ID": "w1:p1",
+            "HERDR_FUTURE_SETTING": "must-not-leak",
+            "TMUX": "live-server",
+            "TMUX_PANE": "%99",
+            "PI_SUBAGENT_SESSION": "/fixture/live-child.jsonl",
+            "PI_TEST_KEEP": "fixture",
+        }
+        with patch.dict(os.environ, inherited):
+            isolated = offline_environment()
+        self.assertEqual(isolated["PI_TEST_KEEP"], "fixture")
+        self.assertFalse(any(key.startswith(("HERDR_", "PI_SUBAGENT")) for key in isolated))
+        self.assertNotIn("TMUX", isolated)
+        self.assertNotIn("TMUX_PANE", isolated)
 
     def test_missing_pane_reports_failure_and_late_sidecar_wins(self):
         results = self.probes("panes")
