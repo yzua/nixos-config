@@ -64,6 +64,10 @@ lint-python:
 lint-markdown:
     rumdl check --no-cache .
 
+# Run isolated offline regressions; no activation, live desktop/lab, or paid calls.
+test:
+    @bash scripts/test.sh
+
 # Show the desired, saved preview, and active system/home generations (no build or switch).
 status:
     @./scripts/status.sh
