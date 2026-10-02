@@ -21,6 +21,9 @@ let
       jdk = "${pkgs.jdk}";
       pi = lib.getExe aiPackages.pi;
       resources = "${resources}/lib/pi-re";
+      # Explicit, immutable root integrations; never load the coding profile's directory.
+      herdrIntegration = "${aiPackages.herdr}/share/herdr/integrations/pi/herdr-agent-state.ts";
+      questionExtension = "${../pi/extensions/ask-user-question.ts}";
       sourceAgentDir = "${config.home.homeDirectory}/.pi/agent";
       android = setup.androidLab // {
         inherit (androidTools) sdkRoot;

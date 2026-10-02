@@ -90,6 +90,13 @@ export default function (pi: ExtensionAPI) {
       if (active.size >= 2) throw new Error("At most two RE children may run concurrently");
       if (signal?.aborted) throw new Error("RE delegation cancelled before launch");
       const environment = { ...process.env };
+      // This headless helper owns no terminal surface. Never give it the root
+      // pane/socket or outer subagent identity, even if extensions change later.
+      for (const name of Object.keys(environment)) {
+        if (["HERDR_", "TMUX", "PI_SUBAGENT"].some((prefix) => name.startsWith(prefix))) {
+          delete environment[name];
+        }
+      }
       for (const name of [
         "PI_SESSION_FILE",
         "PI_SESSION_ID",

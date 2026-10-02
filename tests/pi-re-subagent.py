@@ -30,7 +30,7 @@ sessions = Path(os.environ["PI_RE_CHILD_SESSION_DIR"])
 (sessions / "native.jsonl").write_text(json.dumps({"type": "session", "id": sessions.parent.name}) + "\n")
 os.chmod(sessions / "native.jsonl", 0o600)
 (sessions / "invocation.json").write_text(json.dumps({"args": sys.argv[1:], "cwd": os.getcwd(),
-    "pid": os.getpid(), "env": {k: v for k, v in os.environ.items() if k.startswith("PI_") or k.startswith("TEST_")}}))
+    "pid": os.getpid(), "env": {k: v for k, v in os.environ.items() if k.startswith(("PI_", "TEST_", "HERDR_", "TMUX"))}}))
 os.chmod(sessions / "invocation.json", 0o600)
 mode = os.environ.get("TEST_MODE", "ok")
 def emit(value):
@@ -127,6 +127,15 @@ class FlashTests(unittest.TestCase):
             PI_MODEL="foreign",
             PI_REASONING_LEVEL="max",
             PI_CODING_AGENT_SESSION_DIR="/foreign/sessions",
+            HERDR_ENV="1",
+            HERDR_SOCKET_PATH="/foreign/herdr.sock",
+            HERDR_PANE_ID="wA:pB",
+            HERDR_FUTURE_VARIABLE="foreign",
+            TMUX="foreign,1,0",
+            TMUX_PANE="%9",
+            TMUX_FUTURE_VARIABLE="foreign",
+            PI_SUBAGENT_PARENT_ID="foreign",
+            PI_SUBAGENT_FUTURE_VARIABLE="foreign",
         )
         self.env.pop("PI_RE_CHILD", None)
         self.env.pop("PI_RE_CHILD_SESSION_DIR", None)
@@ -224,6 +233,9 @@ class FlashTests(unittest.TestCase):
             "PI_REASONING_LEVEL",
         ):
             self.assertNotIn(key, call["env"])
+        self.assertFalse(
+            any(key.startswith(("HERDR_", "TMUX", "PI_SUBAGENT")) for key in call["env"])
+        )
         self.assertEqual(self.env, self.original)
         self.assertTrue((session / "native.jsonl").is_file())
 
@@ -545,7 +557,12 @@ time.sleep(60)
     def test_extension_execution_registration_child_guard_and_cancel(self):
         # Exercise our real TS execute method with an API/schema stub and real fake Python
         # launcher. Installed Pi help-load is a separate API/import smoke check.
-        (self.resources / "subagent.py").write_text(HELPER.read_text())
+        self.env["TEST_HELPER_ENV"] = str(self.root / "helper-env.json")
+        (self.resources / "subagent.py").write_text(
+            "import json, os\n"
+            'with open(os.environ["TEST_HELPER_ENV"], "w") as f: json.dump(dict(os.environ), f)\n'
+            + HELPER.read_text()
+        )
         harness = self.root / "extension-test.ts"
         harness.write_text(r"""
 import { readFileSync } from "node:fs";
@@ -573,6 +590,10 @@ assert.equal(result.details.model, "glm-5.3-flash");
 assert.equal(result.isError, false);
 assert(Buffer.byteLength(result.content[0].text) <= 16384);
 assert.equal(result.usage.input, 2);
+const helperEnv = JSON.parse(readFileSync(process.env.TEST_HELPER_ENV, "utf8"));
+assert(!Object.keys(helperEnv).some(key => ["HERDR_", "TMUX", "PI_SUBAGENT"].some(prefix => key.startsWith(prefix))));
+assert.equal(process.env.HERDR_PANE_ID, "wA:pB");
+assert.equal(process.env.TMUX_PANE, "%9");
 const already = new AbortController(); already.abort();
 await assert.rejects(tool.execute("cancelled", {task: "task"}, already.signal, undefined, {cwd: process.argv[3]}), /cancelled/);
 process.env.TEST_MODE = "sleep";

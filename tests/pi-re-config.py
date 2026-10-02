@@ -140,9 +140,34 @@ class ProfileTests(unittest.TestCase):
             path = resources / "skills" / skill
             path.mkdir(parents=True)
             (path / "SKILL.md").write_text("fixture")
-        config = {"pi": "/fixture/bin/pi", "resources": str(resources)}
+        extensions = [resources / name for name in ("flash-subagent.ts", "herdr.ts", "question.ts")]
+        for extension in extensions:
+            extension.write_text("export default function() {}")
+        config = {
+            "pi": "/fixture/bin/pi",
+            "resources": str(resources),
+            "herdrIntegration": str(extensions[1]),
+            "questionExtension": str(extensions[2]),
+        }
         locations = {"sessions": self.state / "sessions"}
-        args = launcher.pi_arguments(config, locations, ["--print", "inspect"])
+        with patch.dict(os.environ, {"PI_RE_CHILD": "0"}):
+            args = launcher.pi_arguments(config, locations, ["--print", "inspect"])
+        self.assertEqual(
+            [args[i + 1] for i, arg in enumerate(args) if arg == "--extension"],
+            list(map(str, extensions)),
+        )
+        with patch.dict(os.environ, {"PI_RE_CHILD": "1"}):
+            child = launcher.pi_arguments(config, locations, [])
+        self.assertIn("--no-extensions", child)
+        self.assertNotIn("--extension", child)
+        for extension in extensions:
+            extension.unlink()
+            with (
+                patch.dict(os.environ, {"PI_RE_CHILD": "0"}),
+                self.assertRaisesRegex(ValueError, "root extension is missing"),
+            ):
+                launcher.pi_arguments(config, locations, [])
+            extension.write_text("export default function() {}")
         for flag in ("--no-approve", "--no-context-files", "--no-extensions", "--no-skills"):
             self.assertIn(flag, args)
         self.assertEqual(args.count("--skill"), len(launcher.SKILLS))

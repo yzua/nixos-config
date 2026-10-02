@@ -28,20 +28,37 @@ export function herdrIdentity(): string {
   return `herdr:${socket}:${stat.dev}:${stat.ino}:${stat.ctimeNs}`;
 }
 
-export function createHerdrSurfaceAuto(): string {
+export function createHerdrTab(name: string): string {
   const parent = process.env.HERDR_PANE_ID!;
-  const response = JSON.parse(execFileSync("herdr", ["pane", "layout", "--pane", parent], options));
-  const rect = response.result?.layout?.panes?.find(
-    (pane: { pane_id: string }) => pane.pane_id === parent,
-  )?.rect;
-  if (!rect || !Number.isFinite(rect.width) || !Number.isFinite(rect.height)) {
-    throw new Error("Cannot determine the calling Herdr pane's geometry");
+  // Resolve the live caller, not the UI-focused workspace or the inherited
+  // workspace ID (which can be stale after a pane move).
+  const caller = JSON.parse(execFileSync("herdr", ["pane", "get", parent], options));
+  const workspace = caller.result?.pane?.workspace_id;
+  if (typeof workspace !== "string" || !/^w[0-9A-HJKMNP-TV-Z]+$/.test(workspace)) {
+    throw new Error("Cannot determine the calling Herdr pane's workspace");
   }
-  // Prefer useful columns; switch to rows once columns would be too narrow.
-  return createHerdrSurface(
-    rect.width >= 100 && rect.width >= rect.height * 2 ? "right" : "down",
-    parent,
+  const response = JSON.parse(
+    execFileSync(
+      "herdr",
+      [
+        "tab",
+        "create",
+        "--workspace",
+        workspace,
+        "--cwd",
+        process.cwd(),
+        "--label",
+        name,
+        "--no-focus",
+      ],
+      options,
+    ),
   );
+  const pane = response.result?.root_pane?.pane_id;
+  if (typeof pane !== "string" || !isHerdrSurface(pane)) {
+    throw new Error(`Unexpected Herdr tab response: ${JSON.stringify(response)}`);
+  }
+  return pane;
 }
 
 export function createHerdrSurface(direction: "right" | "down", parent?: string): string {

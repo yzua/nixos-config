@@ -10,8 +10,9 @@ at high, disables native MCP, and adds the model to the existing custom
 Responses provider if needed. Its existing endpoint limits and credentials
 are preserved. Later activations preserve settings saved in Pi.
 
-Run `p` inside Herdr or tmux. Inside Herdr, subagents use native Herdr splits
-with explicit caller-pane targeting, preserved focus, and geometry-aware direction.
+Run `p` inside Herdr or tmux. Inside Herdr, each subagent gets a separate named
+background tab in the caller's live workspace. The parent keeps its full size and
+focus; completed runs close only their owned pane (and its now-empty tab).
 Inherited outer tmux variables are ignored; direct tmux sessions keep their existing
 layout and behavior. Nix's Herdr package embeds its desktop notification helper.
 Tmux focus events must stay enabled: Herdr suppresses alerts for its focused tab
@@ -81,8 +82,12 @@ extensions. `python3 tests/pi-config.py` and `python3 tests/pi-subagents.py`
 check writable-config migration and child reliability through the installed Pi
 loader, with isolated settings, a mock provider, and
 fake tmux. `python3 tests/pi-herdr.py` checks native Herdr selection even with
-outer tmux variables, atomic input, geometry-aware splits, ownership across server
-replacement, and pane-loss reporting. After activation, `python3 tests/pi-herdr-focus.py`
+outer tmux variables, atomic input, separate named tabs, ownership across server
+replacement, and pane-loss reporting. `python3 tests/pi-herdr-live.py` checks real
+tab naming, focus/geometry preservation and cleanup in its own temporary session.
+`python3 tests/pi-resume-dispatch.py` checks that Herdr's `pi --session` restore
+command routes RE root sessions through `pi-re`; ordinary coding Pi is unchanged.
+After activation, `python3 tests/pi-herdr-focus.py`
 uses a separate tmux server and named Herdr session to check real desktop attention
 alerts with focus forwarding disabled/enabled (requires a graphical session and strace).
 `python3 tests/pi-extensions.py` exercises web/PDF extraction,

@@ -338,8 +338,9 @@ def child_running(proc):
 
 def child_environment(config_path, sessions, env):
     result = dict(env)
-    for name in SESSION_ENV:
-        result.pop(name, None)
+    for name in list(result):
+        if name in SESSION_ENV or name.startswith(("HERDR_", "TMUX", "PI_SUBAGENT")):
+            del result[name]
     result.update(
         PI_RE_CONFIG=str(config_path),
         PI_RE_CHILD="1",

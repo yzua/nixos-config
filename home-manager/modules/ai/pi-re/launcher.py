@@ -118,8 +118,17 @@ def pi_arguments(config, locations, args):
             raise ValueError(f"Reviewed skill is missing: {skill}")
         result.extend(("--skill", str(path)))
     result.extend(("--prompt-template", str(resources / "prompts")))
-    if os.environ.get("PI_RE_CHILD") != "1" and (resources / "flash-subagent.ts").is_file():
-        result.extend(("--extension", str(resources / "flash-subagent.ts")))
+    if os.environ.get("PI_RE_CHILD") != "1":
+        # Share only reviewed root question/reporting resources, not ambient
+        # coding extensions. Headless Flash children retain no extensions.
+        for extension in (
+            resources / "flash-subagent.ts",
+            Path(config["herdrIntegration"]),
+            Path(config["questionExtension"]),
+        ):
+            if not extension.is_absolute() or not extension.is_file():
+                raise ValueError(f"Reviewed root extension is missing: {extension}")
+            result.extend(("--extension", str(extension)))
     return result + checked_args(args, locations["sessions"])
 
 

@@ -21,7 +21,7 @@ import {
   herdrIdentity,
   isHerdrSurface,
   createHerdrSurface,
-  createHerdrSurfaceAuto,
+  createHerdrTab,
   sendHerdrCommand,
   readHerdrScreen,
   readHerdrScreenAsync,
@@ -142,7 +142,7 @@ export function createSurface(name: string): string {
   void name; // The pi process inside shows its own title.
   if (isHerdrContext()) {
     requireTmux();
-    return createHerdrSurfaceAuto();
+    return createHerdrTab(name);
   }
   return createSurfaceSplit(name, "right", process.env.TMUX_PANE);
 }

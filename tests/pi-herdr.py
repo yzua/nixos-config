@@ -31,11 +31,14 @@ if args[:2] == ['pane', 'run'] and os.environ.get('SESSION_FILE'):
         session.write_text(json.dumps({'type': 'session', 'id': 'fixture-child', 'version': 3}) + '\\n')
     with session.open('a') as f:
         f.write(json.dumps({'type': 'message', 'message': {'role': 'assistant', 'content': [{'type': 'text', 'text': f'RUN_{n}'}]}}) + '\\n')
-if args[:2] == ['pane', 'layout']:
-    width = 70 if os.environ.get('NARROW_PANE') == '1' else 160
-    print(json.dumps({'result': {'layout': {'panes': [{'pane_id': os.environ['HERDR_PANE_ID'], 'rect': {'width': width, 'height': 50}}]}}}))
-elif args[:2] == ['pane', 'split']:
-    print(json.dumps({'result': {'pane': {'pane_id': os.environ.get('NEW_PANE', 'w2:p7')}}}))
+if args[:2] == ['pane', 'get']:
+    print(json.dumps({'result': {'pane': {'workspace_id': os.environ.get('CALLER_WORKSPACE', os.environ['HERDR_PANE_ID'].split(':')[0])}}}))
+elif args[:2] == ['tab', 'create'] or args[:2] == ['pane', 'split']:
+    counter = Path(os.environ['MUX_CALLS'] + '.count')
+    n = int(counter.read_text()) if counter.exists() else 7
+    counter.write_text(str(n + 1))
+    pane = {'pane_id': os.environ.get('NEW_PANE', f'w2:p{n}')}
+    print(json.dumps({'result': {'root_pane' if args[0] == 'tab' else 'pane': pane}}))
 elif args[:2] == ['pane', 'read']:
     if os.environ.get('MISSING_PANE') == '1':
         raise SystemExit(1)
@@ -114,10 +117,15 @@ console.log(JSON.stringify({available, pane, screen, asyncScreen, done}));
         self.assertIn("__SUBAGENT_DONE_0__", result["screen"])
         calls = [json.loads(line) for line in (self.root / "calls").read_text().splitlines()]
         self.assertTrue(all(name == "herdr" for name, _ in calls), calls)
-        split = next(args for _, args in calls if args[:2] == ["pane", "split"])
-        self.assertIn("w2:p3", split)
-        self.assertIn("--no-focus", split)
-        self.assertEqual(split[split.index("--cwd") + 1], str(self.root))
+        create = next(args for _, args in calls if args[:2] == ["tab", "create"])
+        self.assertIn(["herdr", ["pane", "get", "w2:p3"]], calls)
+        self.assertEqual(create[create.index("--workspace") + 1], "w2")
+        self.assertEqual(create[create.index("--label") + 1], "fixture")
+        self.assertIn("--no-focus", create)
+        self.assertEqual(create[create.index("--cwd") + 1], str(self.root))
+        self.assertFalse(
+            any(args[:2] in (["pane", "layout"], ["pane", "split"]) for _, args in calls)
+        )
         self.assertIn(["herdr", ["pane", "run", "w2:p7", "printf 'literal ; $ text'"]], calls)
 
     def test_managed_herdr_run_completes_and_resume_reports_only_new_output(self):
@@ -299,12 +307,31 @@ console.log(JSON.stringify({old,current:mux.muxIdentity(),error}));
             (self.root / "calls").exists(), "stale ownership touched replacement panes"
         )
 
-    def test_narrow_herdr_panes_split_down(self):
-        self.env["NARROW_PANE"] = "1"
-        self.run_probe('console.log(JSON.stringify(mux.createSurface("fixture")));')
+    def test_many_agents_have_named_tabs_in_callers_workspace_not_focused_workspace(self):
+        self.env.update(CALLER_WORKSPACE="wA", HERDR_WORKSPACE_ID="wB")
+        panes = self.run_probe(
+            'console.log(JSON.stringify(["scout", "reviewer", "worker"].map(mux.createSurface)));'
+        )
+        self.assertEqual(len(set(panes)), 3)
+        calls = [json.loads(line) for line in (self.root / "calls").read_text().splitlines()]
+        creates = [args for _, args in calls if args[:2] == ["tab", "create"]]
+        self.assertEqual(
+            [args[args.index("--label") + 1] for args in creates], ["scout", "reviewer", "worker"]
+        )
+        for args in creates:
+            self.assertEqual(args[args.index("--workspace") + 1], "wA")
+            self.assertIn("--no-focus", args)
+        self.assertFalse(any(args[:2] == ["pane", "split"] for _, args in calls))
+
+    def test_explicit_split_still_targets_requested_parent(self):
+        self.run_probe(
+            'console.log(JSON.stringify(mux.createSurfaceSplit("fixture", "down", "w2:pA")));'
+        )
         calls = [json.loads(line) for line in (self.root / "calls").read_text().splitlines()]
         split = next(args for _, args in calls if args[:2] == ["pane", "split"])
+        self.assertEqual(split[2], "w2:pA")
         self.assertEqual(split[split.index("--direction") + 1], "down")
+        self.assertIn("--no-focus", split)
 
     def test_missing_herdr_pane_reports_loss_without_outer_tmux_probe(self):
         self.env["MISSING_PANE"] = "1"

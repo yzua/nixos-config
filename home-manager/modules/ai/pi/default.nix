@@ -1,6 +1,7 @@
 # Package local Pi sources while keeping settings, models, and credentials writable.
 
 {
+  aiPackages,
   config,
   lib,
   pkgs,
@@ -40,6 +41,16 @@ let
   stateDir = "${config.xdg.stateHome}/pi-config";
 in
 {
+  # Herdr cold restore calls `pi --session PATH`, not the original launcher.
+  # Keep RE root sessions on pi-re without changing the pinned Pi executable.
+  home.packages = [
+    (lib.hiPrio (
+      pkgs.writeShellScriptBin "pi" ''
+        exec ${pkgs.python3}/bin/python3 ${./resume-dispatch.py} ${lib.getExe aiPackages.pi} -- "$@"
+      ''
+    ))
+  ];
+
   home.file = {
     ".pi/agent/AGENTS.md".source = ./AGENTS.md;
     ".pi/agent/prompts".source = ./prompts;

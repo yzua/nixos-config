@@ -1,7 +1,7 @@
 # Separate Pi RE foundation
 
 `pi-re` is an autonomous **host-mode** profile, not a sandbox. Normal coding Pi,
-its extensions, skills and launcher are unchanged. Read the authoritative
+its extensions, skills and ordinary launch behavior are unchanged. Read the authoritative
 [open-box autonomy rule](contract.md#open-box-autonomy) for task scope and capture
 semantics. This rooted Android foundation does not certify every RE workflow.
 
@@ -40,12 +40,36 @@ The launcher retains Pi's default system prompt and explicitly loads the compact
 contract, nine reviewed skills and four prompts. Ambient context, project trust,
 skills, extensions, themes and prompts are suppressed. Foreign session files and
 resource-control flags are rejected. The root profile explicitly loads only its
-reviewed `re_subagent` extension; children load none. Main sessions are configured
+reviewed `re_subagent` extension plus the shared user-question UI and pinned official
+Herdr reporter; children load none. These root integrations are explicit immutable
+resources, not discovery of the coding profile's mutable extension directory.
+Questions report blocked/working/idle to Herdr and use its existing notification
+transport (including tmux focus forwarding). Headless Flash helpers/children strip
+inherited Herdr, tmux and outer-subagent identity.
+
+Herdr's cold restore reconstructs `pi --session PATH`. The managed `pi` dispatcher
+routes paths in the caller's `${XDG_STATE_HOME:-$HOME/.local/state}/pi-re/sessions`
+through `pi-re`, preserving the RE contract, resource whitelist and independent
+profile. Normal coding invocations pass unchanged to the same pinned Pi binary.
+For manual resume in either terminal, use `pi-re --continue`, `pi-re --resume`, or
+`pi-re --session PATH`. Flash job artifacts are not interactive root sessions and
+cannot be promoted through this dispatcher. RE delegation remains bounded and
+non-resumable; regular Pi's interactive subagents are a separate feature.
+
+ Main sessions are configured
 privately for Z.ai Coding Plan GLM-5.3/high, with GLM-5.3-Flash/high for fresh
 180-second child jobs (maximum two, 16 KiB summaries). GPT/copied providers remain
 available. Credentials and model defaults remain independent writable state,
 never Nix secrets. The Coding Plan endpoint is `https://api.z.ai/api/coding/paas/v4`.
 MCP, broader browser/native/scanner/gateway packs remain unfinished.
+
+`python3 tests/pi-herdr-reporting.py` checks the pinned reporter with a fake socket.
+`python3 tests/pi-resume-dispatch.py` checks profile-safe restore routing, and
+`python3 tests/pi-re-loader.py --pi /path/to/pinned/pi` checks the real loader.
+`python3 tests/pi-herdr-re.py --pi /path/to/pinned/pi` uses only a private temporary
+profile and named Herdr/tmux session to verify actual questions and cold restoration
+without credentials or model calls. It seeds a native fixture conversation because
+Pi does not persist an empty chat until its first assistant turn.
 
 ## Owned rooted emulator
 

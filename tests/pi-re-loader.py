@@ -5,6 +5,7 @@ import argparse
 import http.server
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import threading
@@ -157,6 +158,13 @@ def main():
                             "pi": str(args.pi.resolve()),
                             "resources": str(code),
                             "sourceAgentDir": str(source),
+                            "herdrIntegration": str(
+                                Path(shutil.which("herdr")).resolve().parents[1]
+                                / "share/herdr/integrations/pi/herdr-agent-state.ts"
+                            ),
+                            "questionExtension": str(
+                                root / "home-manager/modules/ai/pi/extensions/ask-user-question.ts"
+                            ),
                             "capabilities": [],
                         }
                     )
@@ -209,7 +217,15 @@ def main():
                 for request in observed
                 for tool in request.get("tools", [])
             }
-            assert {"read", "bash", "edit", "write", "re_subagent"} <= tool_names, tool_names
+            assert {
+                "read",
+                "bash",
+                "edit",
+                "write",
+                "re_subagent",
+                "ask_user_question",
+            } <= tool_names, tool_names
+            assert not {"subagent", "subagent_message", "ask_question"} & tool_names, tool_names
             assert not marker.exists(), "Hostile project extension was loaded"
             # Initialization diagnostics belong on stderr, preserving JSON mode stdout.
             for line in result.stdout.splitlines():
