@@ -1,13 +1,13 @@
 /**
- * tmux surface layer — the only terminal multiplexer this extension supports.
+ * Surface layer: native Herdr panes inside Herdr, otherwise tmux panes.
  *
  * Everything the extension does to a pane goes through the small API in this
  * file: create/split a pane, type a command into it, read its screen, close
  * it, and poll for exit. Keeping the tmux calls isolated here means index.ts
  * stays testable without a multiplexer running.
  *
- * Panes are identified by tmux pane ids (e.g. `%12`). Splits always target
- * the parent pi's pane (`$TMUX_PANE`) so they follow the agent rather than
+ * Panes use backend-specific IDs (`%12` or `w1:p2`). Splits always target
+ * the parent pi's pane, so they follow the agent rather than
  * the user's focus.
  */
 import { execFile, execFileSync } from "node:child_process";
@@ -15,6 +15,19 @@ import { promisify } from "node:util";
 import { existsSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import {
+  isHerdrContext,
+  herdrConfigured,
+  herdrIdentity,
+  isHerdrSurface,
+  createHerdrSurface,
+  createHerdrSurfaceAuto,
+  sendHerdrCommand,
+  readHerdrScreen,
+  readHerdrScreenAsync,
+  closeHerdrSurface,
+  herdrSurfaceExists,
+} from "./herdr.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -48,16 +61,27 @@ export function isTmuxAvailable(): boolean {
 }
 
 export function isMuxAvailable(): boolean {
-  return isTmuxAvailable();
+  // Herdr inherits the outer TMUX variables. Never fall through to that server.
+  return isHerdrContext() ? herdrConfigured() && hasCommand("herdr") : isTmuxAvailable();
 }
 
 export function muxSetupHint(): string {
-  return "Start pi inside tmux (`tmux new -A -s pi 'pi'`).";
+  return "Start pi inside Herdr or tmux (`tmux new -A -s pi 'pi'`).";
+}
+
+export function muxIdentity(): string {
+  if (isHerdrContext()) return herdrIdentity();
+  // Preserve existing tmux owner identities; final field is the session, not server.
+  return (process.env.TMUX ?? "").split(",").slice(0, 2).join(",");
+}
+
+export function isSurfaceId(surface: string): boolean {
+  return isHerdrContext() ? isHerdrSurface(surface) : /^%\d+$/.test(surface);
 }
 
 function requireTmux(): void {
-  if (!isTmuxAvailable()) {
-    throw new Error(`tmux is required for subagents. ${muxSetupHint()}`);
+  if (!isMuxAvailable()) {
+    throw new Error(`Herdr or tmux is required for subagents. ${muxSetupHint()}`);
   }
 }
 
@@ -88,6 +112,7 @@ let rebalanceTimer: ReturnType<typeof setTimeout> | null = null;
  */
 function rebalanceSurfaces(hintPane?: string): void {
   // Prefer the parent pi pane (stable; survives a closing subagent pane).
+  if (isHerdrContext()) return; // Herdr owns its layout, not the inherited tmux window.
   const target = process.env.TMUX_PANE ?? hintPane;
   if (!target) return;
   if (rebalanceTimer) clearTimeout(rebalanceTimer);
@@ -114,7 +139,11 @@ function rebalanceSurfaces(hintPane?: string): void {
  * Returns the new pane id (e.g. `%12`).
  */
 export function createSurface(name: string): string {
-  void name; // tmux panes are not named; the pi process inside shows its own title.
+  void name; // The pi process inside shows its own title.
+  if (isHerdrContext()) {
+    requireTmux();
+    return createHerdrSurfaceAuto();
+  }
   return createSurfaceSplit(name, "right", process.env.TMUX_PANE);
 }
 
@@ -129,6 +158,12 @@ export function createSurfaceSplit(
 ): string {
   void name;
   requireTmux();
+  if (isHerdrContext()) {
+    if (direction === "left" || direction === "up") {
+      throw new Error("Herdr supports right and down splits only.");
+    }
+    return createHerdrSurface(direction, fromSurface);
+  }
 
   const args = ["split-window", "-d"];
   if (direction === "left" || direction === "right") {
@@ -160,6 +195,10 @@ export function createSurfaceSplit(
  */
 export function sendCommand(surface: string, command: string): void {
   requireTmux();
+  if (isHerdrContext()) {
+    sendHerdrCommand(surface, command);
+    return;
+  }
   execFileSync("tmux", ["send-keys", "-t", surface, "-l", command], { encoding: "utf8" });
   execFileSync("tmux", ["send-keys", "-t", surface, "Enter"], { encoding: "utf8" });
 }
@@ -207,6 +246,7 @@ export function sendLongCommand(
  */
 export function readScreen(surface: string, lines = 50): string {
   requireTmux();
+  if (isHerdrContext()) return readHerdrScreen(surface, lines);
   return execFileSync(
     "tmux",
     ["capture-pane", "-p", "-t", surface, "-S", `-${Math.max(1, lines)}`],
@@ -221,6 +261,7 @@ export function readScreen(surface: string, lines = 50): string {
  */
 export async function readScreenAsync(surface: string, lines = 50): Promise<string> {
   requireTmux();
+  if (isHerdrContext()) return readHerdrScreenAsync(surface, lines);
   const { stdout } = await execFileAsync(
     "tmux",
     ["capture-pane", "-p", "-t", surface, "-S", `-${Math.max(1, lines)}`],
@@ -234,6 +275,10 @@ export async function readScreenAsync(surface: string, lines = 50): Promise<stri
  */
 export function closeSurface(surface: string): void {
   requireTmux();
+  if (isHerdrContext()) {
+    closeHerdrSurface(surface);
+    return;
+  }
   execFileSync("tmux", ["kill-pane", "-t", surface], { encoding: "utf8" });
   rebalanceSurfaces();
 }
@@ -341,10 +386,14 @@ export async function pollForExit(
 
       let paneExists: boolean | undefined;
       try {
-        const { stdout } = await execFileAsync("tmux", ["list-panes", "-a", "-F", "#{pane_id}"], {
-          encoding: "utf8",
-        });
-        paneExists = stdout.trim().split("\n").includes(surface);
+        if (isHerdrContext()) {
+          paneExists = await herdrSurfaceExists(surface);
+        } else {
+          const { stdout } = await execFileAsync("tmux", ["list-panes", "-a", "-F", "#{pane_id}"], {
+            encoding: "utf8",
+          });
+          paneExists = stdout.trim().split("\n").includes(surface);
+        }
       } catch {
         // The tmux server itself may have gone away. Repeated inability to
         // inspect it is a monitoring failure, rather than an endless wait.
@@ -360,7 +409,7 @@ export async function pollForExit(
             errorMessage:
               paneExists === false
                 ? `Subagent pane ${surface} disappeared before reporting completion.`
-                : `Cannot monitor subagent pane ${surface}: tmux is unavailable.`,
+                : `Cannot monitor subagent pane ${surface}: ${isHerdrContext() ? "Herdr" : "tmux"} is unavailable.`,
           };
         }
       }

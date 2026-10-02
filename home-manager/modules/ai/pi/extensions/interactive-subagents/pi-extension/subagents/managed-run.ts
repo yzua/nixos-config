@@ -11,6 +11,7 @@ import {
 import { randomUUID } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import type { SubagentActivityState } from "./activity.ts";
+import { isHerdrSurface } from "./herdr.ts";
 import {
   countSessionEntryLines,
   findLastAssistantMessage,
@@ -28,6 +29,8 @@ import {
   readScreen,
   sendLongCommand,
   shellEscape,
+  muxIdentity,
+  isSurfaceId,
 } from "./tmux.ts";
 
 export interface SubagentResult {
@@ -133,8 +136,7 @@ export class ManagedRuns {
   }
 
   private muxIdentity(): string {
-    // The final TMUX field identifies the caller's session, not the server.
-    return (process.env.TMUX ?? "").split(",").slice(0, 2).join(",");
+    return muxIdentity();
   }
 
   private readOwner(sessionFile: string): SessionOwner | undefined {
@@ -147,7 +149,7 @@ export class ManagedRuns {
         !owner.token ||
         owner.sessionFile !== resolve(sessionFile) ||
         typeof owner.surface !== "string" ||
-        !/^%\d+$/.test(owner.surface) ||
+        !(/^%\d+$/.test(owner.surface) || isHerdrSurface(owner.surface)) ||
         typeof owner.mux !== "string" ||
         !owner.mux
       )
@@ -167,9 +169,9 @@ export class ManagedRuns {
     try {
       const owner = this.readOwner(sessionFile);
       if (owner) {
-        if (owner.mux !== this.muxIdentity()) {
+        if (owner.mux !== this.muxIdentity() || !isSurfaceId(owner.surface)) {
           throw new RunOwnershipError(
-            "Cannot safely resume: child belongs to another or unknown tmux server.",
+            "Cannot safely resume: child belongs to another or unknown multiplexer server.",
           );
         }
         const probe = new AbortController();
