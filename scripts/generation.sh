@@ -73,10 +73,17 @@ review_home_generation() {
   fi
 }
 
-preview_generation() {
-  local actual
+preview_generation() (
+  local actual candidate rooted
   select_generation "$1"
-  actual=$(nix build --no-write-lock-file --no-link --print-out-paths "$generation_build")
+  candidate=$(create_preview_root "$generation_saved")
+  trap 'cleanup_preview_root "$generation_saved" "$candidate"' EXIT
+  actual=$(nix build --no-write-lock-file --out-link "$candidate/result" --print-out-paths "$generation_build")
+  rooted=$(saved_preview_target "$candidate/result")
+  if [[ "$rooted" != "$actual" ]]; then
+    echo 'Built generation does not match its candidate GC root; refusing to save preview.' >&2
+    return 1
+  fi
   if [[ -e "$generation_active" || "$generation_kind" == system ]]; then
     nix store diff-closures "$generation_active" "$actual"
   else
@@ -86,9 +93,8 @@ preview_generation() {
     review_home_generation "$actual" "$generation_active"
   fi
   # Publish only the exact built path, after every applicable review succeeds.
-  mkdir -p "$(dirname "$generation_saved")"
-  ln -sfnT "$actual" "$generation_saved"
-}
+  publish_preview_root "$generation_saved" "$candidate"
+)
 
 require_system_host() {
   local configured_host current_host

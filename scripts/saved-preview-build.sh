@@ -12,6 +12,71 @@ saved_preview_link() {
   esac
 }
 
+# Keep each registered out-link at its original pathname for its whole lifetime.
+# The public saved link points through that root, not directly at the store path.
+create_preview_root() {
+  local saved="$1" directory candidate
+  directory="$saved.roots"
+  mkdir -p "$directory" || return 1
+  directory=$(cd "$directory" && pwd -P) || return 1
+  candidate=$(mktemp -d "$directory/candidate.XXXXXXXX") || return 1
+  if ! printf '%s\n' "$saved" >"$candidate/owner"; then
+    rmdir -- "$candidate"
+    return 1
+  fi
+  printf '%s\n' "$candidate"
+}
+
+# Delete only a root allocated by this workflow for this exact saved output.
+# Never follow a legacy saved link to remove its target or recursively delete.
+discard_preview_root() {
+  local saved="$1" root="$2" directory candidate leaf
+  [[ "$root" == */result ]] || return 0
+  directory=$(cd "$saved.roots" && pwd -P) || return 0
+  candidate="${root%/result}"
+  [[ "${candidate%/*}" == "$directory" && ! -L "$candidate" ]] || return 0
+  leaf="${candidate##*/}"
+  [[ "$leaf" =~ ^candidate\.[[:alnum:]]{8}$ ]] || return 0
+  [[ -f "$candidate/owner" && ! -L "$candidate/owner" && "$(<"$candidate/owner")" == "$saved" ]] || return 0
+  [[ ! -e "$root" || -L "$root" ]] || return 0
+  if [[ -L "$candidate/saved" ]]; then
+    rm -- "$candidate/saved" || return 1
+  fi
+  if [[ -L "$root" ]]; then
+    rm -- "$root" || return 1
+  fi
+  rm -- "$candidate/owner" || return 1
+  # Leave any unexpected contents alone.
+  rmdir -- "$candidate" 2>/dev/null || true
+}
+
+cleanup_preview_root() {
+  local saved="$1" candidate="$2"
+  # Also covers a signal immediately after atomic publication: never unroot
+  # the candidate now referenced by the public saved link.
+  if [[ -L "$saved" && "$(readlink "$saved")" == "$candidate/result" ]]; then
+    return
+  fi
+  discard_preview_root "$saved" "$candidate/result"
+}
+
+publish_preview_root() (
+  local saved="$1" candidate="$2" previous='' lock
+  # Serialize publication/retirement for this output, not other outputs or builds.
+  exec {lock}>"$saved.roots/publication.lock"
+  flock "$lock"
+  if [[ -L "$saved" ]]; then
+    previous=$(readlink "$saved")
+  fi
+  ln -s "$candidate/result" "$candidate/saved"
+  # Only the public alias is renamed; Nix registered candidate/result, not saved.
+  mv -Tf -- "$candidate/saved" "$saved"
+  if [[ -n "$previous" ]]; then
+    discard_preview_root "$saved" "$previous" ||
+      printf 'Warning: could not retire superseded preview root: %s\n' "$previous" >&2
+  fi
+)
+
 generation_target() {
   if [[ -e "$1" ]]; then
     readlink -f "$1"

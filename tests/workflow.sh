@@ -11,24 +11,48 @@ mkdir -p "$test_root/bin" "$test_root/generation/home-files"
 
 cat >"$test_root/bin/nix" <<'SH'
 #!/usr/bin/env bash
+printf '%s\n' "$*" >> "$TEST_NIX_LOG"
 if [[ "${TEST_FAIL_DESIRED:-}" == 1 && "$*" == *'.outPath'* ]]; then
   echo 'Fixture flake evaluation failed' >&2
   exit 1
 fi
 case "$*" in
+  flake\ check\ --no-build\ --no-write-lock-file\ .) exit 0 ;;
   build\ --no-write-lock-file*)
     case "$*" in
       *'.#nixosConfigurations.'*) target="$TEST_SYSTEM_EXPECTED" ;;
       *'.#homeConfigurations.'*) target="$TEST_EXPECTED" ;;
       *) printf 'Unexpected build: %s\n' "$*" >&2; exit 1 ;;
     esac
-    [[ "$*" == *'--no-link --print-out-paths'* ]] || {
-      printf 'Preview build must use --no-link --print-out-paths: %s\n' "$*" >&2
+    root=''
+    while [[ $# -gt 0 ]]; do
+      if [[ "$1" == --out-link ]]; then
+        root="$2"
+        shift
+      fi
+      shift
+    done
+    [[ -n "$root" && "$root" == /* && ! -e "$root" && ! -L "$root" ]] || {
+      printf 'Preview build needs a unique absolute out-link: %s\n' "$root" >&2
       exit 1
     }
-    printf '%s\n' "$*" >> "$TEST_BUILD_LOG"
+    # Model Nix's indirect registration: it refers to this exact pathname.
+    ln -s "$target" "$root" || exit 1
+    printf '%s\n' "$root" >> "$TEST_BUILD_LOG"
+    printf '%s\n' "$root" > "$TEST_CANDIDATE"
+    [[ "${TEST_FAIL_BUILD:-}" != 1 ]] || exit 1
+    case "${TEST_BAD_ROOT:-}" in
+      missing) rm "$root" ;;
+      dangling) ln -sfn "$target-missing" "$root" ;;
+      mismatch) target="$TEST_OTHER_TARGET" ;;
+    esac
     printf '%s\n' "$target" ;;
   store\ diff-closures*)
+    candidate=$(<"$TEST_CANDIDATE")
+    [[ -L "$candidate" && -e "$candidate" && $(readlink -f "$candidate") == "$4" ]] || {
+      echo 'Candidate was not rooted before comparison' >&2
+      exit 1
+    }
     [[ $(readlink -f "$4") == "$TEST_DIFF_EXPECTED" ]] || {
       printf 'Compared the wrong saved build: %s\n' "$4" >&2
       exit 1
@@ -46,6 +70,13 @@ case "$*" in
   *) printf 'Unexpected nix call: %s\n' "$*" >&2; exit 1 ;;
 esac
 SH
+export TEST_REAL_MV
+TEST_REAL_MV=$(command -v mv)
+cat >"$test_root/bin/mv" <<'SH'
+#!/usr/bin/env bash
+[[ "${TEST_FAIL_PUBLICATION:-}" != 1 ]] || exit 1
+exec "$TEST_REAL_MV" "$@"
+SH
 cat >"$test_root/bin/nix-env" <<'SH'
 #!/usr/bin/env bash
 printf 'profile %s\n' "$*" >> "$TEST_LOG"
@@ -53,6 +84,11 @@ SH
 cat >"$test_root/bin/dconf" <<'SH'
 #!/usr/bin/env bash
 [[ "$*" == 'read /org/gnome/desktop/input-sources/sources' ]] || exit 1
+candidate=$(<"$TEST_CANDIDATE")
+[[ -L "$candidate" && -e "$candidate" && $(readlink -f "$candidate") == "$TEST_EXPECTED" ]] || {
+  echo 'Candidate was not rooted during dconf review' >&2
+  exit 1
+}
 [[ "${TEST_FAIL_DCONF:-}" != 1 ]] || exit 1
 printf '%s\n' "$TEST_ACTIVE_SOURCES"
 SH
@@ -89,10 +125,11 @@ start_case() {
   TEST_USER=$(id -un) || return 1
   export TEST_USER TEST_HOME="$HOME"
   export TEST_EXPECTED="$case_root/generation" TEST_SYSTEM_EXPECTED="$case_root/generation"
-  export TEST_LOG="$case_root/actions" TEST_BUILD_LOG="$case_root/builds"
+  export TEST_LOG="$case_root/actions" TEST_BUILD_LOG="$case_root/builds" TEST_CANDIDATE="$case_root/candidate"
+  export TEST_NIX_LOG="$case_root/nix-calls"
   export TEST_DIFF_EXPECTED="$case_root/generation"
   export TEST_SOURCES='' TEST_ACTIVE_SOURCES=''
-  unset NIXOS_CONFIG HOME_CONFIG TEST_RUNNING_HOST TEST_FAIL_DIFF TEST_FAIL_DESIRED TEST_FAIL_DCONF
+  unset NIXOS_CONFIG HOME_CONFIG TEST_RUNNING_HOST TEST_FAIL_DIFF TEST_FAIL_DESIRED TEST_FAIL_DCONF TEST_FAIL_BUILD TEST_FAIL_PUBLICATION TEST_BAD_ROOT
 }
 
 # Selection stays explicit when a flake has several outputs.
@@ -127,6 +164,7 @@ start_case() {
 (
   start_case read-only
   just status >"$case_root/output" 2>&1 || fail 'status'
+  just check >"$case_root/output" 2>&1 || fail 'check'
   [[ ! -s "$TEST_BUILD_LOG" && ! -s "$TEST_LOG" ]] || fail 'read-only command built or activated'
 )
 
@@ -136,6 +174,8 @@ start_case() {
   system_link="$XDG_STATE_HOME/nixos/result-system-host-a"
   just preview >"$case_root/output" 2>&1 || fail 'system preview'
   [[ $(readlink -f "$system_link") == "$case_root/generation" ]] || fail 'system preview saved wrong build'
+  candidate=$(<"$TEST_CANDIDATE")
+  [[ -L "$candidate" && $(readlink "$system_link") == "$candidate" ]] || fail 'saved preview did not retain the registered out-link'
   [[ ! -s "$TEST_LOG" ]] || fail 'system preview activated'
 
   rm "$system_link"
@@ -208,6 +248,66 @@ start_case() {
       [[ $(readlink -f "$XDG_STATE_HOME/nixos/result-$kind-$output") == "$case_root/generation" ]] || fail 'per-output shared-path retention'
     done
   done
+  [[ $(sort -u "$TEST_BUILD_LOG" | wc -l) -eq 4 ]] || fail 'outputs shared registered root path'
+  mapfile -t roots <"$TEST_BUILD_LOG"
+  for root in "${roots[@]}"; do
+    [[ -L "$root" && -e "$root" ]] || fail 'another output lost its root'
+  done
+  NIXOS_CONFIG=host-a just preview >"$case_root/output" 2>&1 || fail 'successful system re-preview'
+  [[ ! -L "${roots[0]}" ]] || fail 'superseded system root was retained'
+  for root in "${roots[@]:1}"; do
+    [[ -L "$root" && -e "$root" ]] || fail 'system re-preview retired another output root'
+  done
+  system_root=$(<"$TEST_CANDIDATE")
+  HOME_CONFIG=test-user@host-a just home-preview >"$case_root/output" 2>&1 || fail 'successful Home re-preview'
+  [[ ! -L "${roots[2]}" ]] || fail 'superseded Home root was retained'
+  for root in "$system_root" "${roots[1]}" "${roots[3]}"; do
+    [[ -L "$root" && -e "$root" ]] || fail 'Home re-preview retired another output root'
+  done
+)
+
+# Publication must not delete legacy targets, arbitrary paths, or another output's root.
+(
+  start_case safe-retirement
+  saved="$XDG_STATE_HOME/nixos/result-system-host-a"
+  legacy="$XDG_STATE_HOME/nixos/result-system"
+  ln -s "$case_root/generation" "$legacy"
+  ln -s "$legacy" "$saved"
+  just preview >"$case_root/output" 2>&1 || fail 'preview replacing legacy link'
+  [[ -L "$legacy" && -d "$case_root/generation" ]] || fail 'legacy path was deleted'
+
+  arbitrary="$saved.roots/candidate.ABC12345"
+  mkdir -p "$arbitrary"
+  ln -s "$case_root/generation" "$arbitrary/result"
+  ln -sfn "$arbitrary/result" "$saved"
+  just preview >"$case_root/output" 2>&1 || fail 'preview replacing arbitrary link'
+  [[ -L "$arbitrary/result" ]] || fail 'unowned lookalike root was deleted'
+
+  export TEST_SYSTEM_NAMES=$'host-a\nhost-b'
+  NIXOS_CONFIG=host-b just preview >"$case_root/output" 2>&1 || fail 'other output root'
+  other=$(readlink "$XDG_STATE_HOME/nixos/result-system-host-b")
+  ln -sfn "$other" "$saved"
+  NIXOS_CONFIG=host-a just preview >"$case_root/output" 2>&1 || fail 'preview replacing foreign output link'
+  [[ -L "$other" && -e "$other" ]] || fail 'foreign output root was deleted'
+)
+
+# A dangling saved preview is never eligible, even if desired still matches its old target.
+(
+  start_case dangling-preview
+  just preview >"$case_root/output" 2>&1 || fail 'system preview before dangling root'
+  just home-preview >"$case_root/output" 2>&1 || fail 'Home preview before dangling root'
+  while IFS= read -r root; do
+    rm "$root"
+  done <"$TEST_BUILD_LOG"
+  for command in switch home-switch; do
+    if just "$command" >"$case_root/output" 2>&1; then
+      fail 'dangling saved preview activated'
+    fi
+    grep -Fq 'No valid saved preview build' "$case_root/output" || fail 'dangling refusal not explained'
+  done
+  just status >"$case_root/output" 2>&1 || fail 'status with dangling preview'
+  grep -Fq 'broken symlink' "$case_root/output" || fail 'status hid dangling preview'
+  [[ ! -s "$TEST_LOG" ]] || fail 'dangling preview activated'
 )
 
 # A failed later preview must not replace the previous successfully saved build.
@@ -233,6 +333,58 @@ start_case() {
   done
   [[ ! -s "$TEST_LOG" ]] || fail 'failed re-preview activated'
 )
+
+# Every failure boundary keeps the prior saved build rooted and removes only
+# the failed candidate (including a partially successful build's out-link).
+for kind in system home; do
+  for failure in BUILD DIFF DCONF PUBLICATION; do
+    [[ "$kind" == home || "$failure" != DCONF ]] || continue
+    (
+      start_case "root-failure-$kind-$failure"
+      command=preview
+      output=host-a
+      if [[ "$kind" == home ]]; then
+        command=home-preview
+        output=test-user@host-a
+        ln -s "$case_root/generation" "$XDG_STATE_HOME/nix/profiles/home-manager"
+      fi
+      saved="$XDG_STATE_HOME/nixos/result-$kind-$output"
+      just "$command" >"$case_root/output" 2>&1 || fail 'initial rooted preview'
+      previous=$(readlink "$saved")
+      cp -a "$case_root/generation" "$case_root/new-generation"
+      export TEST_EXPECTED="$case_root/new-generation" TEST_SYSTEM_EXPECTED="$case_root/new-generation"
+      export TEST_DIFF_EXPECTED="$case_root/new-generation" TEST_SOURCES="[('xkb', 'us')]"
+      export "TEST_FAIL_$failure=1"
+      if just "$command" >"$case_root/output" 2>&1; then
+        fail "$kind $failure failure succeeded"
+      fi
+      [[ $(readlink "$saved") == "$previous" && -e "$previous" && -L "$previous" ]] || fail "$kind $failure failure lost prior root"
+      candidate=$(<"$TEST_CANDIDATE")
+      [[ "$candidate" != "$previous" && ! -L "$candidate" ]] || fail "$kind $failure failure leaked candidate root"
+      [[ ! -s "$TEST_LOG" ]] || fail 'failed preview activated'
+    )
+  done
+done
+
+# A successful build must have rooted exactly the path it returned, even on
+# first Home activation where no closure comparison or dconf read is needed.
+for bad_root in missing dangling mismatch; do
+  (
+    start_case "invalid-candidate-$bad_root"
+    just home-preview >"$case_root/output" 2>&1 || fail 'initial valid Home root'
+    saved="$XDG_STATE_HOME/nixos/result-home-test-user@host-a"
+    previous=$(readlink "$saved")
+    cp -a "$case_root/generation" "$case_root/other-generation"
+    export TEST_BAD_ROOT="$bad_root" TEST_OTHER_TARGET="$case_root/other-generation"
+    if just home-preview >"$case_root/output" 2>&1; then
+      fail "$bad_root candidate was published"
+    fi
+    [[ $(readlink "$saved") == "$previous" && -e "$previous" ]] || fail 'invalid candidate lost prior root'
+    candidate=$(<"$TEST_CANDIDATE")
+    [[ ! -L "$candidate" ]] || fail 'invalid candidate root leaked'
+    [[ ! -s "$TEST_LOG" ]] || fail 'invalid candidate activated'
+  )
+done
 
 # Failed desired-generation evaluation must never authorize a saved build.
 (
@@ -269,7 +421,11 @@ start_case() {
   grep -Fq 'Host mismatch' "$case_root/output" || fail 'hostname mismatch was not explained'
 
   export TEST_RUNNING_HOST=host-a
+  : >"$TEST_NIX_LOG"
   just switch >"$case_root/output" 2>&1 || fail 'current system preview was not switched'
+  mapfile -t calls <"$TEST_NIX_LOG"
+  [[ "${calls[-1]}" == *'.config.system.build.toplevel.outPath' && $(grep -Fc '.outPath' "$TEST_NIX_LOG") -eq 1 ]] || fail 'system switch re-evaluated after saved-current guard'
+  [[ $(wc -l <"$TEST_BUILD_LOG") -eq 1 ]] || fail 'system switch rebuilt'
   grep -Fxq "system nixos-rebuild switch --no-reexec --store-path $case_root/generation" "$TEST_LOG" || fail 'system switch used wrong build'
 
   TEST_RUNNING_HOST=host-b ALLOW_HOST_RENAME=1 just switch >"$case_root/output" 2>&1 || fail 'explicit hostname rename was refused'
@@ -322,7 +478,11 @@ start_case() {
   [[ ! -s "$TEST_LOG" ]] || fail 'rejected Home switch changed the profile'
   printf '1\n' >"$case_root/generation/gen-version"
 
+  : >"$TEST_NIX_LOG"
   just home-switch >"$case_root/output" 2>&1 || fail 'current Home preview was not switched'
+  mapfile -t calls <"$TEST_NIX_LOG"
+  [[ "${calls[-1]}" == *'.activationPackage.outPath' && $(grep -Fc '.outPath' "$TEST_NIX_LOG") -eq 1 ]] || fail 'Home switch re-evaluated after saved-current guard'
+  [[ $(wc -l <"$TEST_BUILD_LOG") -eq 1 ]] || fail 'Home switch rebuilt'
   grep -Fxq "profile --profile $XDG_STATE_HOME/nix/profiles/home-manager --set $case_root/generation" "$TEST_LOG" || fail 'Home profile used wrong build'
   grep -Fxq "activate $case_root/generation/activate --driver-version 1" "$TEST_LOG" || fail 'Home activation used wrong build'
   [[ $(wc -l <"$TEST_LOG") -eq 2 ]] || fail 'Home switch performed extra actions'
