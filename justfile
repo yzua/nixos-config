@@ -68,6 +68,10 @@ lint-markdown:
 test:
     @bash scripts/test.sh
 
+# Prove preview retention with GC only in a fresh disposable local Nix store.
+test-preview-roots-gc:
+    @bash tests/preview-roots-gc.sh
+
 # Show the desired, saved preview, and active system/home generations (no build or switch).
 status:
     @./scripts/status.sh

@@ -7,8 +7,8 @@ source scripts/saved-preview-build.sh
 proof=$(mktemp -d "${TMPDIR:-/tmp}/preview-roots-gc.XXXXXXXX")
 trap 'chmod -R u+w -- "$proof"; rm -rf -- "$proof"' EXIT
 # The local-store URI must refer only to the freshly allocated directory; reject
-# query delimiters in a caller-provided TMPDIR rather than risking URI ambiguity.
-[[ "$proof" == /* && "$proof" != *'?'* && "$proof" != *'&'* ]]
+# URI delimiters/escapes in a caller-provided TMPDIR rather than risking ambiguity.
+[[ "$proof" == /* && "$proof" != *'?'* && "$proof" != *'&'* && "$proof" != *'#'* && "$proof" != *'%'* ]]
 unset NIX_STORE_DIR NIX_STATE_DIR
 store="local?root=$proof/store"
 isolated_nix() {
