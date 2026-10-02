@@ -1,12 +1,13 @@
 # Install everyday CLI tools and import terminal, shell, and Git configuration.
 
-{ pkgs, setup, ... }:
+{ pkgs, ... }:
 
 {
   imports = [
     ./ghostty.nix
-    (import ./git.nix { inherit (setup) gitIdentity; })
+    ./git.nix
     ./shell.nix
+    ./tmux.nix
   ];
 
   # Everyday CLI tools without shell-managed packages.

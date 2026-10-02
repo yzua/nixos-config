@@ -1,4 +1,4 @@
-# VS Code's default profile; Home Manager owns settings.json as a read-only symlink.
+# VS Code's writable default-profile baseline, backed up and reset on activation.
 
 { pkgs }:
 

@@ -5,8 +5,8 @@
 let
   src = ./.;
   chromeDevtools = pkgs.stdenvNoCC.mkDerivation (finalAttrs: {
-    pname = "pnpm-global-tools";
-    version = "1";
+    pname = "chrome-devtools-mcp";
+    version = (builtins.fromJSON (builtins.readFile ./package.json)).dependencies.chrome-devtools-mcp;
     inherit src;
 
     pnpmDeps = pkgs.fetchPnpmDeps {
@@ -29,14 +29,15 @@ let
       substituteInPlace node_modules/chrome-devtools-mcp/build/src/config/mcp-options.js \
         --replace-fail "args.channel = 'stable';" \
         "args.executablePath = '${pkgs.google-chrome}/bin/google-chrome-stable';"
-      mkdir -p "$out/bin" "$out/lib/pnpm-global-tools"
-      cp -r node_modules "$out/lib/pnpm-global-tools/"
-      for bin in "$out/lib/pnpm-global-tools/node_modules/.bin/"*; do
+      mkdir -p "$out/bin" "$out/lib/${finalAttrs.pname}"
+      cp -r node_modules "$out/lib/${finalAttrs.pname}/"
+      for bin in "$out/lib/${finalAttrs.pname}/node_modules/.bin/"*; do
         [ -f "$bin" ] || continue
         makeWrapper "$bin" "$out/bin/$(basename "$bin")" \
           --prefix PATH : "${pkgs.nodejs}/bin"
       done
       test -x "$out/bin/chrome-devtools"
+      test -x "$out/bin/chrome-devtools-mcp"
       runHook postInstall
     '';
   });

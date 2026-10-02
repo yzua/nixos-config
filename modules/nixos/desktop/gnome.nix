@@ -1,4 +1,4 @@
-# Opt-in GNOME desktop stack: input method, login, and printing.
+# Enable GNOME login, input methods, and the setup-selected X11 keyboard fallback.
 
 { setup, ... }:
 

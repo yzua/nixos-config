@@ -1,6 +1,11 @@
 # Route the Tor daemon outside Mullvad's VPN tunnel on hosts that use both.
 
-{ config, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 let
   # Mullvad's Linux split-tunnel marks; priority must stay between -200 and 0.
@@ -17,17 +22,31 @@ let
   '';
 in
 {
-  # Apply the rule before Tor starts; fail Tor startup if the rule cannot load.
-  # Do not enable the general mullvad-exclude setuid wrapper or weaken Tor's sandbox.
-  systemd.services.tor-mullvad-bypass = {
-    description = "Exclude the Tor daemon from Mullvad's VPN tunnel";
-    before = [ "tor.service" ];
-    requiredBy = [ "tor.service" ];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-      ExecStart = "${pkgs.nftables}/bin/nft -f ${rules}";
-      ExecStop = "${pkgs.nftables}/bin/nft delete table inet tor_mullvad_bypass";
-    };
-  };
+  assertions = [
+    {
+      assertion = config.services.tor.enable;
+      message = "Tor/Mullvad bypass requires services.tor.enable.";
+    }
+    {
+      assertion = config.services.mullvad-vpn.enable;
+      message = "Tor/Mullvad bypass requires services.mullvad-vpn.enable.";
+    }
+  ];
+
+  # Gate the unit too, so missing prerequisites report assertions rather than
+  # trying to evaluate the absent Tor user's UID while constructing the rule.
+  # Fail Tor startup if the rule cannot load, without weakening its sandbox.
+  systemd.services.tor-mullvad-bypass =
+    lib.mkIf (config.services.tor.enable && config.services.mullvad-vpn.enable)
+      {
+        description = "Exclude the Tor daemon from Mullvad's VPN tunnel";
+        before = [ "tor.service" ];
+        requiredBy = [ "tor.service" ];
+        serviceConfig = {
+          Type = "oneshot";
+          RemainAfterExit = true;
+          ExecStart = "${pkgs.nftables}/bin/nft -f ${rules}";
+          ExecStop = "${pkgs.nftables}/bin/nft delete table inet tor_mullvad_bypass";
+        };
+      };
 }

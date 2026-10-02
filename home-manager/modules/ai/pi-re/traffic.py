@@ -378,8 +378,8 @@ class Traffic:
             if not self.backend.port_free(self.port):
                 raise LabError("Traffic proxy port already occupied; refusing foreign listener")
             code, output = self.tool("mitmdump", ["--version"])
-            if code or not re.search(r"(?m)^Mitmproxy:\s*12\.2\.3\s*$", output):
-                raise LabError("Only pinned mitmdump 12.2.3 is supported")
+            if code or not re.search(rf"(?m)^Mitmproxy:\s*{re.escape(VERSION)}\s*$", output):
+                raise LabError(f"Only pinned mitmdump {VERSION} is supported")
             owner = self.owner(create=True)
             run = self.root / ("run-" + uuid.uuid4().hex)
             run.mkdir(mode=0o700)

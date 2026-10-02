@@ -1,9 +1,15 @@
 # Configure user Git identity, signing, and opt-in secret scanning hooks.
 
-# Keep account-specific identity values in the importing profile.
-{ gitIdentity }:
-{ config, pkgs, ... }:
+{
+  config,
+  pkgs,
+  setup,
+  ...
+}:
 
+let
+  inherit (setup) gitIdentity;
+in
 {
   programs.git = {
     enable = true;

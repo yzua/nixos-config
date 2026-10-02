@@ -5,7 +5,7 @@
 {
   imports = [
     ./hardware-configuration.nix
-    ./graphics.nix
+    ../../modules/nixos/graphics.nix
     ../../modules/nixos/base.nix
     ../../modules/nixos/desktop/audio.nix
     ../../modules/nixos/desktop/gnome.nix

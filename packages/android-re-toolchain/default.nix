@@ -1,6 +1,8 @@
 # Pin the rooted-emulator lab's SDK, static tools, device CLI and Frida artifacts.
 { pkgs, androidLab }:
 let
+  emulatorVersion = "36.5.11";
+  abi = "x86_64";
   sdk =
     (pkgs.androidenv.composeAndroidPackages {
       cmdLineToolsVersion = "20.0";
@@ -8,7 +10,7 @@ let
       platformToolsVersion = "37.0.0";
       buildToolsVersions = [ "35.0.0" ];
       includeEmulator = true;
-      emulatorVersion = "36.5.11";
+      inherit emulatorVersion;
       platformVersions = [ androidLab.apiLevel ];
       includeSystemImages = true;
       systemImageTypes = [ androidLab.imageType ];
@@ -21,7 +23,7 @@ let
   fridaVersion = pkgs.python3Packages.frida-python.version;
   # This artifact was checked against the official release's SHA-256 digest.
   fridaServer =
-    assert fridaVersion == "17.5.1" && androidLab.abi == "x86_64";
+    assert fridaVersion == "17.5.1" && androidLab.abi == abi;
     pkgs.stdenvNoCC.mkDerivation {
       pname = "pi-re-frida-server-android-x86_64";
       version = fridaVersion;
@@ -79,7 +81,7 @@ let
   # A tiny static Linux helper also runs on the x86_64 Android kernel. It uses
   # pidfds to stop the exact guest process, never a check-then-kill bare PID.
   guestSignal =
-    assert androidLab.abi == "x86_64";
+    assert androidLab.abi == abi;
     pkgs.runCommandCC "pi-re-guest-signal-x86_64"
       {
         buildInputs = [ pkgs.glibc.static ];
@@ -87,7 +89,7 @@ let
       ''
         mkdir -p "$out/share/pi-re"
         $CC -O2 -Wall -Wextra -Werror -static \
-          ${../home-manager/modules/ai/pi-re/guest-signal.c} \
+          ${./guest-signal.c} \
           -o "$out/share/pi-re/guest-signal"
       '';
   python = pkgs.python3.withPackages (p: [
@@ -116,6 +118,8 @@ let
 in
 {
   inherit
+    emulatorVersion
+    abi
     sdk
     fridaVersion
     fridaServer

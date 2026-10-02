@@ -39,7 +39,7 @@ let
         version = androidTools.fridaVersion;
         cli = "${pkgs.frida-tools}/bin/frida";
         javaBridge = "${pkgs.frida-tools}/${pkgs.python3.sitePackages}/frida_tools/bridges/java.js";
-        abi = "x86_64";
+        inherit (androidTools) abi;
         server = "${androidTools.fridaServer}/share/pi-re/frida-server";
         signalHelper = "${androidTools.guestSignal}/share/pi-re/guest-signal";
       };
@@ -65,7 +65,7 @@ let
           };
           versions = {
             api = setup.androidLab.apiLevel;
-            emulator = "36.5.11";
+            emulator = androidTools.emulatorVersion;
           };
         }
         {
