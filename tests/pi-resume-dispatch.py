@@ -37,11 +37,11 @@ class ResumeRouting(unittest.TestCase):
             "XDG_STATE_HOME": str(self.state),
         }
 
-    def run_dispatch(self, args, expected="real-pi", expected_args=None):
+    def run_dispatch(self, args, expected="real-pi", expected_args=None, cwd=None):
         process = subprocess.run(
             [sys.executable, str(DISPATCH), str(self.bin / "real-pi"), "--", *args],
             env=self.env,
-            cwd=self.root,
+            cwd=self.root if cwd is None else cwd,
             capture_output=True,
             text=True,
             timeout=5,
@@ -79,6 +79,13 @@ class ResumeRouting(unittest.TestCase):
             ["--append-system-prompt", "--session", str(self.session)],
         ):
             self.run_dispatch(args)
+
+    def test_native_session_ids_are_not_resolved_against_re_artifact_cwd(self):
+        flash = self.state / "pi-re/subagents/jobs/fixture/sessions"
+        flash.mkdir(parents=True)
+        for cwd in (self.re, flash):
+            for selector in ("--session", "--fork"):
+                self.run_dispatch([selector, "coding-session-id"], cwd=cwd)
 
     def test_component_boundaries_are_not_string_prefixes(self):
         self.run_dispatch(["--session", str(self.state / "pi-re/sessions-other/test.jsonl")])

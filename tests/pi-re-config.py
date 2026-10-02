@@ -189,7 +189,15 @@ class ProfileTests(unittest.TestCase):
             (directory / "SKILL.md").write_text("fixture")
         extension = resources / "flash-subagent.ts"
         extension.write_text("fixture")
-        config = {"pi": "/fixture/bin/pi", "resources": str(resources)}
+        reporter, question = resources / "herdr.ts", resources / "question.ts"
+        for resource in (reporter, question):
+            resource.write_text("fixture")
+        config = {
+            "pi": "/fixture/bin/pi",
+            "resources": str(resources),
+            "herdrIntegration": str(reporter),
+            "questionExtension": str(question),
+        }
         locations = {"sessions": self.state / "sessions"}
         with patch.dict(os.environ, {"PI_RE_CHILD": "0"}):
             self.assertIn(str(extension), launcher.pi_arguments(config, locations, []))

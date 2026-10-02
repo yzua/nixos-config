@@ -68,6 +68,10 @@ def target(args, environment):
     session = session_argument(args)
     if session is None:
         return "pi"
+    # Pi treats bare selectors as IDs, not cwd-relative paths. Do not hijack
+    # coding ID lookup just because the caller is inspecting an RE directory.
+    if "/" not in session and "\\" not in session and not session.endswith(".jsonl"):
+        return "pi"
     home = Path(environment["HOME"])
     state = Path(environment.get("XDG_STATE_HOME") or home / ".local/state")
     if not home.is_absolute() or not state.is_absolute():
