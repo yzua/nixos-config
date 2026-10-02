@@ -64,10 +64,17 @@ level. This applies to both initial launches and resumed follow-ups.
 for both initial and resumed runs. Resumes replay saved restrictions and report
 only new output. Disposed runtimes stop delivering results without terminating
 children solely because of a reload or session replacement. Durable ownership
-claims prevent a second writer after reload or parent restart; surviving or
-uncertain ownership refuses resume until exit is established. Corrupt metadata,
-an abandoned launch lock, or a different multiplexer server also refuses resume rather
-than guessing that it is safe.
+claims prevent a second writer after reload or parent restart. A replacement
+parent recalls its own live children on the same surface and can steer them by
+name; obsolete watchers cannot close them or replay their results. Token-bound
+PID/start-time, boot and namespace leases let proven-dead Pi writers resume after
+a mux cold restart without touching replacement-server panes. Completed runs
+retain delivery tombstones; results are delivered at most once (a crash during
+handoff can lose a notification). Known completed pre-v2 handles migrate only
+with matching completion/launch evidence in the parent's native branch and an
+old scoped launch script. Unknown ownership, active legacy runs, corrupt metadata
+and abandoned launch locks remain fail-closed rather than risking two writers.
+Finish active pre-v2 children before the first reload into this version.
 
 Children publish terminal errors and shut down at `agent_settled`, after Pi's
 retries and queued continuations finish. Pending questions and nested children
@@ -80,8 +87,9 @@ children's handles for later follow-ups.
 Use `nix develop`, then `just fmt-check` and `just lint-ts` when editing the
 extensions. `python3 tests/pi-config.py` and `python3 tests/pi-subagents.py`
 check writable-config migration and child reliability through the installed Pi
-loader, with isolated settings, a mock provider, and
-fake tmux. `python3 tests/pi-herdr.py` checks native Herdr selection even with
+loader, with isolated settings, a mock provider, and fake tmux.
+`node --test tests/pi-subagents-recall.test.mjs` checks steering, reload/restart
+recall, supervisor fencing, cold recovery and legacy migration on both backends. `python3 tests/pi-herdr.py` checks native Herdr selection even with
 outer tmux variables, atomic input, separate named tabs, ownership across server
 replacement, and pane-loss reporting. `python3 tests/pi-herdr-live.py` checks real
 tab naming, focus/geometry preservation and cleanup in its own temporary session.

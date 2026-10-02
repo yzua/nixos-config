@@ -215,6 +215,34 @@ if (mode === "restart-writer") {
   assert.equal(old.messages.length, 0);
   await verifyCompletionAndFollowup(recalled, run);
   assert.equal(old.messages.length, 0);
+} else if (["legacy-completed", "legacy-pending", "modern-completed-missing"].includes(mode)) {
+  const old = await runtime("pre-v2-parent");
+  const run = await launch(old);
+  old.stop();
+  const metadata = owner(run);
+  unlinkSync(`${run.sessionFile}.owner.json`);
+  unlinkSync(`${run.sessionFile}.writer.json`);
+  if (mode !== "modern-completed-missing") unlinkSync(`${run.sessionFile}.owner-v2`);
+  save(`surface-${metadata.surface}.json`, {closed:true});
+  mkdirSync(join(run.launchScriptFile, ".."), {recursive:true});
+  writeFileSync(run.launchScriptFile, `# Session: ${run.sessionFile}\n# Pre-v2 fixture has no writer token.\n`);
+  const branch = [
+    {type:"message", message:{role:"toolResult", toolName:"subagent", details:run}},
+    {type:"custom_message", customType:"subagent_result", details:{name:run.name, sessionFile:run.sessionFile, exitCode:0}},
+  ];
+  if (mode === "legacy-pending") branch.push({type:"message", message:{role:"toolResult", toolName:"subagent_message", details:{...run, status:"started"}}});
+  ctx.sessionManager.getBranch = () => branch;
+  const rt = await runtime("legacy-followup");
+  const response = await rt.tool("subagent_message", {name:run.name, message:"legacy followup"});
+  if (mode === "legacy-completed") {
+    assert.equal(response.details.status, "started", "known completed pre-v2 handles remain resumable");
+    assert.equal(response.details.sessionFile, run.sessionFile);
+    assert.equal(calls("spawn").length, 2);
+  } else {
+    assert.ok(response.details.error, "pending launch or missing modern ownership stays fail-closed");
+    assert.equal(calls("spawn").length, 1);
+  }
+  rt.stop();
 } else if (mode === "prepare-replacement") {
   const { ManagedRuns } = await import(new URL("managed-run.ts", source));
   const { createStatusState } = await import(new URL("status.ts", source));
@@ -230,6 +258,24 @@ if (mode === "restart-writer") {
     }), /preparation failed/);
   assert.equal(calls("close").length, 0, "failed preparation cannot close replacement-server panes");
   manager.dispose();
+} else if (mode === "completion-during-recall") {
+  const rt = await runtime("concurrent-completion");
+  const run = await launch(rt);
+  save("async-read-delay.json", 75);
+  const followup = rt.tool("subagent_message", {name:run.name, message:"followup at completion boundary"});
+  await delay(10);
+  finishSurface(run, "CONCURRENT_ORIGINAL_RESULT");
+  save("proc-mode.json", "dead");
+  const response = await followup;
+  assert.equal(response.details.status, "started");
+  assert.equal(rt.messages.length, 1, "lock contention cannot discard the original completion");
+  assert.match(rt.messages[0].content, /CONCURRENT_ORIGINAL_RESULT/);
+  assert.equal(calls("steer").length, 0, "a completed writer is not steered into its shell");
+  assert.equal(calls("spawn").length, 2);
+  finishSurface(response.details, "CONCURRENT_FOLLOWUP_RESULT");
+  await waitFor(() => rt.messages.length === 2);
+  assert.doesNotMatch(rt.messages[1].content, /CONCURRENT_ORIGINAL_RESULT/);
+  rt.stop();
 } else if (mode === "dead-missing-surface") {
   const old = await runtime("dead-original");
   const run = await launch(old);

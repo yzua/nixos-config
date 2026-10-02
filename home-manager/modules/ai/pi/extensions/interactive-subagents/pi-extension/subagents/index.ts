@@ -2,7 +2,7 @@ import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-age
 import { keyHint } from "@mariozechner/pi-coding-agent";
 import { Type, type Static } from "@sinclair/typebox";
 import { Box, Text, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve, relative, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   readdirSync,
@@ -1428,6 +1428,56 @@ function deliverPendingQuestion(running: RunningSubagent): void {
   );
 }
 
+function completedLegacyRun(
+  ctx: ExtensionContext,
+  artifactDir: string,
+  name: string,
+  sessionFile: string,
+): boolean {
+  // Pre-v2 successful cleanup removed ownership rather than retaining a
+  // tombstone. Recover only an old run whose latest launch completed; a later
+  // launch acknowledgement invalidates that evidence. Modern provenance is
+  // durable independently of the claim, so this never excuses a lost v2 owner.
+  try {
+    if (existsSync(`${sessionFile}.owner.json`) || existsSync(`${sessionFile}.owner-v2`))
+      return false;
+    let finished = false;
+    let scriptFile: string | undefined;
+    for (const entry of ctx.sessionManager.getBranch?.() ?? []) {
+      const details =
+        entry.type === "custom_message"
+          ? entry.details
+          : entry.type === "message" && entry.message.role === "toolResult"
+            ? entry.message.details
+            : undefined;
+      if (!details || typeof details !== "object") continue;
+      const record = details as Record<string, unknown>;
+      if (record.name !== name || record.sessionFile !== sessionFile) continue;
+      if (entry.type === "custom_message" && entry.customType === "subagent_result") {
+        finished = Number.isInteger(record.exitCode);
+      } else if (
+        entry.type === "message" &&
+        entry.message.role === "toolResult" &&
+        ["subagent", "subagent_message"].includes(entry.message.toolName) &&
+        record.status === "started"
+      ) {
+        finished = false;
+        if (typeof record.launchScriptFile === "string") scriptFile = record.launchScriptFile;
+      }
+    }
+    if (!finished || !scriptFile) return false;
+    const scoped = relative(resolve(artifactDir), resolve(scriptFile));
+    if (scoped.startsWith("..") || isAbsolute(scoped)) return false;
+    const script = readFileSync(scriptFile, "utf8");
+    return (
+      script.includes(`# Session: ${sessionFile}\n`) &&
+      !script.includes("PI_SUBAGENT_WRITER_TOKEN=")
+    );
+  } catch {
+    return false; // Missing or ambiguous evidence is not migration authority.
+  }
+}
+
 export default function subagentsExtension(pi: ExtensionAPI) {
   latestPi = pi;
   // Capture the UI context for widget updates
@@ -1901,7 +1951,11 @@ export default function subagentsExtension(pi: ExtensionAPI) {
             interactive,
             statusState: createStatusState({ source: "pi", startTimeMs: startTime }),
           },
-          { kind: "resume", sessionId: resumedSessionId },
+          {
+            kind: "resume",
+            sessionId: resumedSessionId,
+            completedLegacyRun: completedLegacyRun(ctx, parentArtifactDir, name, sessionPath),
+          },
           ({ surface }) => {
             // Build pi resume command
             const parts = ["pi", "--approve", "--session", shellEscape(sessionPath)];

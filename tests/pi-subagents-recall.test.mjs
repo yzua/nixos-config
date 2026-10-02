@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 const fixture = (name) => fileURLToPath(new URL(`pi-subagents-recall/${name}`, import.meta.url));
-const scenarios = ["prepare-replacement", "dead-missing-surface", "reload", "terminal-at-recall", "registry-failure", "late-watcher", "fenced-live-runtime", "delivery-throws", "restart", "reused-incarnation", "foreign-mux", "foreign-parent", "foreign-name", "legacy", "missing-owner", "corrupt", "corrupt-loadout", "unknown-mux", "unknown-surface", "incomplete-dispatch", "busy-lock", "live-lost-pane", "unknown-lost-pane", "live-stale-sentinel", ...["dead", "reused", "zombie", "oldboot", "live", "missing", "wrong-token", "legacy-lease", "corrupt-lease", "corrupt-proc", "foreign-machine", "foreign-namespace", "unknown", "proc-unavailable"].map((name) => `cold-${name}`)];
+const scenarios = ["completion-during-recall", "legacy-completed", "legacy-pending", "modern-completed-missing", "prepare-replacement", "dead-missing-surface", "reload", "terminal-at-recall", "registry-failure", "late-watcher", "fenced-live-runtime", "delivery-throws", "restart", "reused-incarnation", "foreign-mux", "foreign-parent", "foreign-name", "legacy", "missing-owner", "corrupt", "corrupt-loadout", "unknown-mux", "unknown-surface", "incomplete-dispatch", "busy-lock", "live-lost-pane", "unknown-lost-pane", "live-stale-sentinel", ...["dead", "reused", "zombie", "oldboot", "live", "missing", "wrong-token", "legacy-lease", "corrupt-lease", "corrupt-proc", "foreign-machine", "foreign-namespace", "unknown", "proc-unavailable"].map((name) => `cold-${name}`)];
 for (const backend of ["tmux", "herdr"]) {
   for (const scenario of scenarios) {
     test(`${backend}: ${scenario}`, () => {

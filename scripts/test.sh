@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-for tool in python3 just bun nix git tmux herdr niri; do
+for tool in python3 just bun node nix git tmux herdr niri; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     printf 'Missing regression prerequisite: %s. Run from nix develop with the managed apps available.\n' "$tool" >&2
     exit 1
@@ -29,6 +29,7 @@ if not (extensions / "node_modules").is_dir():
 PY
 
 bash tests/workflow.sh
+node --test tests/pi-subagents-recall.test.mjs
 for suite in \
   config-artifacts voice-action pi-config pi-subagents pi-extensions pi-herdr \
   pi-resume-dispatch pi-herdr-reporting \

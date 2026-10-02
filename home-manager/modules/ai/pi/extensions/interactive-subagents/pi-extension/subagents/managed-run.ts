@@ -265,13 +265,14 @@ export class ManagedRuns {
     signal: AbortSignal,
     parentArtifactDir: string,
     requireExisting: boolean,
+    completedLegacyRun = false,
   ): Promise<() => void> {
     // Synchronous lock acquisition precedes the first await in any launch.
     const unlock = this.lockSession(sessionFile);
     try {
       this.muxIdentity(); // Reject unknown incarnations before creating any surface.
       const owner = this.readOwner(sessionFile);
-      if (!owner && requireExisting) {
+      if (!owner && requireExisting && !completedLegacyRun) {
         throw new RunOwnershipError(
           "Cannot safely resume: missing durable session ownership (legacy or unknown writer).",
         );
@@ -430,6 +431,8 @@ export class ManagedRuns {
           "Cannot safely recall: multiplexer incarnation changed during inspection.",
         );
       }
+      terminal ||=
+        inspectSubagentWriterLease(owner.sessionFile, owner.run.id, owner.token) === "dead";
       if (current && this.owns(current)) {
         running = current;
       } else {
@@ -484,9 +487,11 @@ export class ManagedRuns {
 
   async launch(
     candidate: Omit<RunningSubagent, "surface" | "abortController">,
-    policy: { kind: "initial" } | { kind: "resume"; sessionId: string },
+    policy:
+      | { kind: "initial" }
+      | { kind: "resume"; sessionId: string; completedLegacyRun?: boolean },
     prepare: (running: RunningSubagent) => LaunchPlan,
-    register?: (running: RunningSubagent) => (() => void) | void,
+    register?: ((running: RunningSubagent) => void) | ((running: RunningSubagent) => () => void),
   ): Promise<RunningSubagent> {
     // Capture this runtime's signal, not whatever a later session installs.
     const moduleSignal = AbortSignal.any([this.hooks.moduleSignal(), this.lifecycle.signal]);
@@ -495,10 +500,11 @@ export class ManagedRuns {
       moduleSignal,
       candidate.parentArtifactDir,
       policy.kind === "resume",
+      policy.kind === "resume" && policy.completedLegacyRun === true,
     );
     let running: RunningSubagent | undefined;
     let resultPolicy: ResultPolicy;
-    let rollbackRegistration: (() => void) | void;
+    let rollbackRegistration: (() => void) | undefined;
     try {
       // Sample only after the previous writer has truly exited: any final
       // detached output is old history, never this follow-up's summary.
@@ -541,8 +547,13 @@ export class ManagedRuns {
       this.owners.set(running, owner);
       // Persist the pane BEFORE dispatch: even parent death cannot hide a writer.
       writeFileSync(`${owner.sessionFile}.owner.json`, JSON.stringify(owner), { flag: "wx" });
+      // Retain protocol provenance even if ownership is later missing/corrupt;
+      // old completed-run migration must never excuse a missing modern claim.
+      const marker = `${owner.sessionFile}.owner-v2`;
+      if (!existsSync(marker)) writeFileSync(marker, "2\n", { flag: "wx" });
       // The registry must survive parent death immediately after dispatch too.
-      rollbackRegistration = register?.(running);
+      const registered = register?.(running);
+      if (typeof registered === "function") rollbackRegistration = registered;
       await new Promise<void>((resolve) => setTimeout(resolve, this.hooks.shellReadyDelayMs()));
       if (moduleSignal.aborted) throw new Error("Aborted while launching subagent");
       if (!this.owns(running))
@@ -617,10 +628,23 @@ export class ManagedRuns {
     }
   }
 
-  private finish(running: RunningSubagent): boolean {
+  private async finish(running: RunningSubagent, signal: AbortSignal): Promise<boolean> {
+    // Recall can hold the lock across an asynchronous screen read. Contention
+    // must not abandon an otherwise valid watcher's undelivered completion.
     let unlock: (() => void) | undefined;
+    while (!signal.aborted && this.owns(running)) {
+      try {
+        unlock = this.lockSession(running.sessionFile);
+        break;
+      } catch {
+        await new Promise<void>((resolve) => setTimeout(resolve, 25));
+      }
+    }
+    if (!unlock) {
+      if (this.running.get(running.id) === running) this.running.delete(running.id);
+      return false;
+    }
     try {
-      unlock = this.lockSession(running.sessionFile);
       if (!this.owns(running)) return false;
       const owner = this.readOwner(running.sessionFile)!;
       if (owner.delivered) return false;
@@ -684,7 +708,7 @@ export class ManagedRuns {
       }
     }
     // Fence cleanup and delivery together under the same cross-process lock.
-    if (moduleSignal.aborted || !this.finish(running)) return;
+    if (moduleSignal.aborted || !(await this.finish(running, moduleSignal))) return;
     let content: string;
     try {
       content = this.hooks.present(result, running.name);
