@@ -57,6 +57,53 @@ focus, browser, and Android lab checks remain separate opt-in commands.
 `just test-preview-roots-gc` separately verifies preview retention by running GC
 only in a disposable local Nix store, never on the workstation store.
 
+## Bluetooth and AirPods
+
+Bluetooth adapters use BlueZ with Blueman for pairing and PipeWire/WirePlumber
+for audio and media buttons. Firmware remains part of the host's normal hardware
+support; no adapter address is hardcoded.
+
+LibrePods uses the pinned upstream Rust client in `packages/librepods-rust/`, not
+Nixpkgs's legacy Qt client. NixOS owns its application and restricted
+`CAP_NET_ADMIN` wrapper; the configured account belongs to the `librepods` group.
+Home Manager owns its desktop launcher and minimized graphical-session startup.
+GNOME uses AppIndicator support for the tray; Noctalia provides the tray in Niri.
+The pinned source is packaged without local application patches. Its tray uses
+a battery ring or percentage text, not the app logo. The sidebar may display a
+disconnected case as `0%`; consult the tooltip, where `C: -` means unavailable.
+Upstream logs can include device identifiers and proximity keys; do not share
+raw logs without redacting them.
+
+Preview both outputs before activation. Apply the NixOS preview with `just switch`
+and the Home Manager preview with `just home-switch`. A new supplementary group
+requires a fresh login/user-manager session; merely opening a new terminal or
+restarting a user service may retain the old groups. For a one-off test without
+logging out, after activation run:
+
+```sh
+sg librepods -c '/run/wrappers/bin/librepods'
+```
+
+Do not run LibrePods as root or manually apply capabilities to a writable binary.
+The capability permits low-level network administration, so only grant group
+membership to accounts intended to use it. User settings and pairing credentials
+stay outside Git and the Nix store.
+
+For AirPods Pro 3, open the case with the earbuds inside and double-tap its front
+until the light flashes white, then pair/trust/connect through Blueman. Launch
+LibrePods after pairing. Use the tray's **Open Window** menu, then select the
+AirPods under **Devices**. Check battery reporting, listening-mode changes,
+ear detection, and playback controls. For a case battery update, put at least
+one earbud in the case and wait a few seconds; case-only reporting with both
+buds out is not implemented. Features depend on firmware and upstream
+implementation; the Rust rewrite is still development software. Apple-identity
+spoofing and experimental disconnected-device monitoring are not enabled.
+
+Ordinary Bluetooth headset microphone use can reduce playback quality compared
+with the A2DP music profile. This setup does not promise Apple's high-quality
+two-way audio, spatial audio, Find My, or heart-rate monitoring. Keep a separate
+microphone when high-quality music playback matters.
+
 ## Customize
 
 Edit `setup` in `flake.nix` for the host, user, locale, keyboard, display,

@@ -128,6 +128,8 @@
         inherit pkgs;
         inherit (setup) androidLab;
       };
+      # The Rust rewrite is newer than Nixpkgs's legacy Qt LibrePods package.
+      librepodsPackage = pkgs.callPackage ./packages/librepods-rust { };
       # Reuse one formatter for `nix fmt` and the development shell.
       formatter = pkgs.nixfmt-tree.override {
         runtimeInputs = [ pkgs.shfmt ];
@@ -164,7 +166,7 @@
       nixosConfigurations.${setup.hostName} = nixpkgs.lib.nixosSystem {
         inherit system;
         specialArgs = {
-          inherit setup;
+          inherit setup librepodsPackage;
           xwaylandSatellite = nixpkgs-xwayland-satellite.legacyPackages.${system}.xwayland-satellite;
         };
         modules = [ ./hosts/PC/default.nix ];
@@ -176,6 +178,7 @@
       formatter.${system} = formatter;
 
       packages.${system} = {
+        librepods-rust = librepodsPackage;
         pi-re = nixpkgs.lib.findFirst (
           package: nixpkgs.lib.getName package == "pi-re"
         ) (throw "The selected Home Manager profile does not provide pi-re") home.config.home.packages;

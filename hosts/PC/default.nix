@@ -8,6 +8,8 @@
     ../../modules/nixos/graphics.nix
     ../../modules/nixos/base.nix
     ../../modules/nixos/desktop/audio.nix
+    ../../modules/nixos/desktop/bluetooth.nix
+    ../../modules/nixos/desktop/librepods.nix
     ../../modules/nixos/desktop/gnome.nix
     ../../modules/nixos/desktop/flatpak.nix
     ../../modules/nixos/gaming.nix

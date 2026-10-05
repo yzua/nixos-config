@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Validate generated configs and activation/hooks using only isolated fixtures."""
 
+import ast
 import json
 import os
 import shutil
@@ -275,6 +276,141 @@ in map check modes
                     expected[1],
                 )
                 self.assertEqual(result["unit"], all(expected))
+
+
+class BluetoothContracts(unittest.TestCase):
+    def test_bluetooth_pairing_and_media_controls(self):
+        result = evaluate(
+            """
+  lib = flake.inputs.nixpkgs.lib;
+  system = lib.nixosSystem {
+    system = builtins.currentSystem;
+    modules = [ (root + "/modules/nixos/desktop/bluetooth.nix") {
+      boot.isContainer = true;
+      system.stateVersion = "26.05";
+      services.pipewire.enable = true;
+    } ];
+  };
+  config = system.config;
+in {
+  enabled = config.hardware.bluetooth.enable;
+  powered = config.hardware.bluetooth.powerOnBoot;
+  pairing = config.services.blueman.enable;
+  media = config.services.pipewire.wireplumber.extraConfig
+    ."51-bluetooth-media-controls"."monitor.bluez.properties"."bluez5.dummy-avrcp-player";
+  proxy = builtins.hasAttr "mpris-proxy" config.systemd.user.services;
+  settings = config.hardware.bluetooth.settings;
+}
+""",
+            {},
+        )
+        for setting in ("enabled", "powered", "pairing", "media"):
+            self.assertTrue(result[setting], setting)
+        self.assertFalse(result["proxy"], "mpris-proxy conflicts with WirePlumber AVRCP")
+        self.assertNotIn("DeviceID", result["settings"].get("General", {}))
+
+    def test_librepods_capability_is_restricted_to_configured_account(self):
+        result = evaluate(
+            """
+  lib = flake.inputs.nixpkgs.lib;
+  pkgs = flake.inputs.nixpkgs.legacyPackages.${builtins.currentSystem};
+  fixture = pkgs.hello;
+  system = lib.nixosSystem {
+    system = builtins.currentSystem;
+    specialArgs = {
+      librepodsPackage = fixture;
+      setup.username = "bluetooth-fixture";
+    };
+    modules = [ (root + "/modules/nixos/desktop/librepods.nix") {
+      boot.isContainer = true;
+      system.stateVersion = "26.05";
+      users.users.bluetooth-fixture.isNormalUser = true;
+    } ];
+  };
+in {
+  wrapper = system.config.security.wrappers.librepods;
+  groups = system.config.users.users.bluetooth-fixture.extraGroups;
+  groupExists = builtins.hasAttr "librepods" system.config.users.groups;
+  packageInstalled = builtins.elem fixture system.config.environment.systemPackages;
+  expectedSource = lib.getExe fixture;
+}
+""",
+            {},
+        )
+        wrapper = result["wrapper"]
+        self.assertEqual(wrapper["capabilities"], "cap_net_admin+ep")
+        self.assertEqual(wrapper["source"], result["expectedSource"])
+        self.assertEqual(wrapper["owner"], "root")
+        self.assertEqual(wrapper["group"], "librepods")
+        self.assertEqual(wrapper["permissions"], "u+rx,g+x")
+        self.assertFalse(wrapper["setuid"])
+        self.assertFalse(wrapper["setgid"])
+        self.assertTrue(result["groupExists"])
+        self.assertTrue(result["packageInstalled"])
+        self.assertIn("librepods", result["groups"])
+
+    def test_librepods_login_service_uses_wrapper_and_graphical_lifecycle(self):
+        service = evaluate(
+            """
+  lib = flake.inputs.nixpkgs.lib;
+  pkgs = flake.inputs.nixpkgs.legacyPackages.${builtins.currentSystem};
+in (import (root + "/home-manager/modules/desktop-apps/librepods.nix") { inherit lib pkgs; })
+  .systemd.user.services.librepods
+""",
+            {},
+        )
+        self.assertEqual(
+            service["Service"]["ExecStart"], "/run/wrappers/bin/librepods --start-minimized"
+        )
+        self.assertEqual(
+            service["Unit"]["ConditionPathIsExecutable"], "/run/wrappers/bin/librepods"
+        )
+        self.assertEqual(service["Unit"]["PartOf"], ["graphical-session.target"])
+        self.assertEqual(service["Install"]["WantedBy"], ["graphical-session.target"])
+        self.assertEqual(service["Service"]["Restart"], "on-failure")
+
+    def test_librepods_indicator_preserves_extensions_and_is_idempotent(self):
+        hook = evaluate(
+            """
+  pkgs = flake.inputs.nixpkgs.legacyPackages.${builtins.currentSystem};
+  lib = pkgs.lib // { hm.dag.entryAfter = _: script: script; };
+in (import (root + "/home-manager/modules/desktop-apps/librepods.nix") { inherit lib pkgs; })
+  .home.activation.enableLibrePodsIndicator
+""",
+            {},
+        )
+        script = hook.split("<<'PY'\n", 1)[1].rsplit("\nPY", 1)[0]
+        with tempfile.TemporaryDirectory(prefix="indicator-test-") as directory:
+            root = Path(directory)
+            state = root / "extensions.json"
+            gsettings = root / "gsettings"
+            gsettings.write_text(
+                "#!/usr/bin/env python3\n"
+                "import json, os, sys\n"
+                "from pathlib import Path\n"
+                "p = Path(os.environ['EXTENSION_FIXTURE'])\n"
+                "if sys.argv[1] == 'get': print(json.loads(p.read_text())['value'])\n"
+                "else:\n"
+                " data = json.loads(p.read_text())\n"
+                " data['value'] = sys.argv[-1]; data['writes'] += 1\n"
+                " p.write_text(json.dumps(data))\n"
+            )
+            gsettings.chmod(0o700)
+            for initial in ("['existing-theme@example.test']", "@as []"):
+                with self.subTest(initial=initial):
+                    state.write_text(json.dumps({"value": initial, "writes": 0}))
+                    for _ in range(2):
+                        subprocess.run(
+                            ["python3", "-c", script, str(gsettings), "indicator@example.test"],
+                            env=dict(os.environ, EXTENSION_FIXTURE=str(state)),
+                            check=True,
+                            timeout=10,
+                        )
+                    result = json.loads(state.read_text())
+                    self.assertEqual(result["writes"], 1)
+                    enabled = ast.literal_eval(result["value"])
+                    expected = ast.literal_eval(initial.removeprefix("@as "))
+                    self.assertEqual(enabled, expected + ["indicator@example.test"])
 
 
 class DesktopArtifacts(unittest.TestCase):
