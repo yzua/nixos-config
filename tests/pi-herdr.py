@@ -48,8 +48,17 @@ elif args[:2] == ['tab', 'create'] or args[:2] == ['pane', 'split']:
     counter.write_text(str(n + 1))
     pane = {'pane_id': os.environ.get('NEW_PANE', f'w2:p{n}')}
     print(json.dumps({'result': {'root_pane' if args[0] == 'tab' else 'pane': pane}}))
+elif args[:2] == ['pane', 'close'] and os.environ.get('TRACK_CLOSED_PANES') == '1':
+    closed = Path(os.environ['MUX_CALLS'] + '.closed-' + args[2])
+    if closed.exists():
+        print(json.dumps({'error': {'code': 'pane_not_found',
+                                   'message': f'pane {args[2]} not found'},
+                          'id': 'cli:pane:close'}), file=sys.stderr)
+        raise SystemExit(1)
+    closed.touch()
 elif args[:2] == ['pane', 'read']:
-    if os.environ.get('MISSING_PANE') == '1':
+    closed = Path(os.environ['MUX_CALLS'] + '.closed-' + args[2])
+    if os.environ.get('MISSING_PANE') == '1' or closed.exists():
         raise SystemExit(1)
     print('__SUBAGENT_DONE_0__')
 elif args[:2] == ['pane', 'list']:
@@ -83,6 +92,7 @@ class HerdrSurfaces(unittest.TestCase):
                     "MISSING_PANE",
                     "NARROW_PANE",
                     "NEW_PANE",
+                    "TRACK_CLOSED_PANES",
                 }
             },
             HOME=str(self.root / "home"),
@@ -111,6 +121,7 @@ class HerdrSurfaces(unittest.TestCase):
             timeout=10,
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stderr, "", "Mux errors leaked into Pi's terminal")
         return json.loads(result.stdout)
 
     def test_nested_herdr_uses_own_panes_and_atomic_input(self):
@@ -140,6 +151,23 @@ console.log(JSON.stringify({available, pane, screen, asyncScreen, done}));
             any(args[:2] in (["pane", "layout"], ["pane", "split"]) for _, args in calls)
         )
         self.assertIn(["herdr", ["pane", "run", "w2:p7", "printf 'literal ; $ text'"]], calls)
+
+    def test_caught_close_of_missing_pane_does_not_write_to_pi_terminal(self):
+        self.env["TRACK_CLOSED_PANES"] = "1"
+        result = self.run_probe("""
+mux.closeSurface("w2:p7");
+let error;
+try { mux.closeSurface("w2:p7"); } catch (e) {
+ error = {status: e.status, stderr: String(e.stderr)};
+}
+console.log(JSON.stringify({error}));
+""")
+        self.assertEqual(result["error"]["status"], 1)
+        self.assertIn("pane_not_found", result["error"]["stderr"])
+
+    def test_managed_resume_of_closed_pane_does_not_write_to_pi_terminal(self):
+        self.env["TRACK_CLOSED_PANES"] = "1"
+        self.test_managed_herdr_run_completes_and_resume_reports_only_new_output()
 
     def test_managed_herdr_run_completes_and_resume_reports_only_new_output(self):
         self.env["SESSION_FILE"] = str(self.root / "child.jsonl")

@@ -120,12 +120,40 @@ def main():
             new_tabs = [tab for tab in tabs["tabs"] if tab["tab_id"] not in old_ids]
             assert {tab["label"] for tab in new_tabs} == {"scout", "reviewer", "worker"}, new_tabs
             assert all(not tab["focused"] for tab in new_tabs), new_tabs
-            for pane in panes:
-                api("pane", "close", pane)
+            # Exercise the adapter's actual cleanup, including resume's repeated
+            # close of a missing pane. A caught error must not overwrite Pi's UI.
+            probe.write_text(
+                f"import * as mux from {json.dumps(str(MUX))};\n"
+                f"const panes = {json.dumps(panes)};\n"
+                "const errors = [];\n"
+                "for (const pane of panes) {\n"
+                " mux.closeSurface(pane);\n"
+                " try { mux.closeSurface(pane); } catch (e) {\n"
+                "  errors.push({status: e.status, stderr: String(e.stderr)});\n"
+                " }\n"
+                "}\n"
+                "console.log(JSON.stringify(errors));\n"
+            )
+            result = subprocess.run(
+                [shutil.which("bun"), str(probe)],
+                env=child_env,
+                cwd=root,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            assert result.returncode == 0, result.stderr
+            assert result.stderr == "", f"Cleanup leaked into Pi's terminal: {result.stderr}"
+            errors = json.loads(result.stdout)
+            assert len(errors) == 3, errors
+            assert all(
+                error["status"] != 0 and "pane_not_found" in error["stderr"] for error in errors
+            ), errors
             remaining = api("tab", "list", "--workspace", workspace)
             assert remaining == tabs_before, (tabs_before, remaining)
             print(
-                "Live Herdr: three separate named tabs; parent geometry/focus preserved; owned cleanup removes tabs"
+                "Live Herdr: three separate named tabs; parent geometry/focus preserved; "
+                "owned cleanup removes tabs; repeated close captures errors without terminal leakage"
             )
         finally:
             if started:

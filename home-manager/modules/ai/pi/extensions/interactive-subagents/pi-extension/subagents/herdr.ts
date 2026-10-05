@@ -4,7 +4,10 @@ import { promisify } from "node:util";
 import { statSync } from "node:fs";
 
 const execFileAsync = promisify(execFile);
-const options = { encoding: "utf8" as const, timeout: 5000 };
+// execFileSync forwards stderr on failure unless stdio is explicit, even when
+// the caller catches the error (e.g. resume cleanup of an already-closed pane).
+// Capture diagnostics for the caller without writing over Pi's terminal UI.
+const options = { encoding: "utf8" as const, timeout: 5000, stdio: "pipe" as const };
 
 export function isHerdrContext(): boolean {
   return process.env.HERDR_ENV === "1";
