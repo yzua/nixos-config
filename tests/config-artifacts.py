@@ -435,8 +435,37 @@ class DesktopArtifacts(unittest.TestCase):
             """
   home = flake.homeConfigurations.${builtins.getEnv "CONFIG_TEST_OUTPUT"};
   custom = home.extendModules { modules = [{ xdg.configHome = builtins.getEnv "CONFIG_TEST_HOME"; }]; };
+  niriFor = monitors: (import (root + "/home-manager/modules/desktop/niri.nix") {
+    inherit (home) pkgs;
+    inherit (home) config;
+    lib = flake.inputs.nixpkgs.lib;
+    aiPackages = flake.inputs.llm-agents.packages.${builtins.currentSystem};
+    setup = {
+      inherit monitors;
+      keyboard = { layouts = [ "us" ]; toggle = "grp:caps_toggle"; };
+    };
+  }).xdg.configFile."niri/config.kdl".text;
 in {
   niri = home.config.xdg.configFile."niri/config.kdl".text;
+  niriAutomatic = niriFor [];
+  niriMultiple = niriFor [
+    {
+      match = "Fixture Portrait";
+      mode = "1920x1080@120.000";
+      scale = 1;
+      transform = "90";
+      position = { x = 2560; y = -420; };
+      primary = false;
+    }
+    {
+      match = "Fixture Main";
+      mode = "2560x1080@74.991";
+      scale = 1;
+      transform = "normal";
+      position = { x = 0; y = 0; };
+      primary = true;
+    }
+  ];
   tmux = custom.config.programs.tmux.extraConfig;
 }
 """,
@@ -444,15 +473,51 @@ in {
         )
 
     def test_niri_configuration_is_accepted(self):
-        config = self.root / "niri.kdl"
-        config.write_text(self.generated["niri"])
-        result = subprocess.run(
-            ["niri", "validate", "--config", str(config)],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
+        for name in ("niri", "niriAutomatic", "niriMultiple"):
+            with self.subTest(config=name):
+                config = self.root / f"{name}.kdl"
+                config.write_text(self.generated[name])
+                result = subprocess.run(
+                    ["niri", "validate", "--config", str(config)],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_niri_multiple_outputs_and_primary_startup(self):
+        config = self.generated["niriMultiple"]
+        portrait = config.split('output "Fixture Portrait" {', 1)[1].split("}", 1)[0]
+        main = config.split('output "Fixture Main" {', 1)[1].split("}", 1)[0]
+        self.assertIn('mode "1920x1080@120.000"', portrait)
+        self.assertIn('transform "90"', portrait)
+        self.assertIn("position x=2560 y=-420", portrait)
+        self.assertNotIn("focus-at-startup", portrait)
+        self.assertIn("scale 1", main)
+        self.assertIn("position x=0 y=0", main)
+        self.assertIn("focus-at-startup", main)
+        self.assertEqual(config.count('open-on-output "Fixture Main"'), 4)
+        self.assertNotIn('open-on-output "Fixture Portrait"', config)
+
+    def test_niri_automatic_outputs_have_no_fixed_placement(self):
+        config = self.generated["niriAutomatic"]
+        self.assertNotIn("\noutput ", config)
+        self.assertNotIn("focus-at-startup", config)
+        self.assertNotIn("open-on-output", config)
+        self.assertIn('workspace "1" {', config)
+
+    def test_niri_monitor_shortcuts_and_named_workspaces(self):
+        config = self.generated["niri"]
+        for key, direction in (("Left", "left"), ("Right", "right"), ("H", "left"), ("L", "right")):
+            self.assertIn(f"Mod+Shift+{key} {{ move-window-to-monitor-{direction}; }}", config)
+            self.assertIn(f"Mod+Ctrl+{key} {{ move-column-{direction}; }}", config)
+        for key, direction in (("Left", "left"), ("Right", "right")):
+            self.assertIn(f"Mod+Alt+{key} {{ focus-monitor-{direction}; }}", config)
+            self.assertIn(f"Mod+Shift+Ctrl+{key} {{ move-column-to-monitor-{direction}; }}", config)
+        for index in range(1, 5):
+            self.assertIn(f'Mod+{index} {{ focus-workspace "{index}"; }}', config)
+            self.assertIn(f'Mod+Shift+{index} {{ move-window-to-workspace "{index}"; }}', config)
+            self.assertIn(f'Mod+Ctrl+{index} {{ move-column-to-workspace "{index}"; }}', config)
 
     def test_tmux_reload_uses_quoted_custom_xdg_path(self):
         socket = str(self.root / "tmux.sock")

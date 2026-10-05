@@ -63,10 +63,31 @@
           ];
           toggle = "grp:caps_toggle";
         };
-        monitor = {
-          match = "LG Electronics LG ULTRAWIDE 0x00021DA6";
-          mode = "2560x1080@74.991";
-        };
+        monitors = [
+          {
+            match = "LG Electronics LG ULTRAWIDE 0x00021DA6";
+            mode = "2560x1080@74.991";
+            scale = 1;
+            transform = "normal";
+            position = {
+              x = 0;
+              y = 0;
+            };
+            primary = true;
+          }
+          {
+            match = "Samsung Electric Company C24FG70 HTHJ200179";
+            mode = "1920x1080@120.000";
+            scale = 1;
+            transform = "90";
+            # Portrait screen on the right, with both screen centers aligned.
+            position = {
+              x = 2560;
+              y = -420;
+            };
+            primary = false;
+          }
+        ];
         graphics = {
           videoDrivers = [ "nvidia" ];
           # Test the proprietary kernel module without GSP after GPU hangs.

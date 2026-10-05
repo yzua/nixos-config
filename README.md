@@ -108,7 +108,32 @@ microphone when high-quality music playback matters.
 
 Edit `setup` in `flake.nix` for the host, user, locale, keyboard, display,
 graphics, and Git settings. Output names follow the configured host and user.
-Set `monitor = null` to use the display's preferred mode.
+`setup.monitors` declares each display's match string (from `niri msg outputs`),
+mode, scale, transform, logical position, and primary status. Keep one display
+`primary = true` to focus it at startup and place named startup workspaces there.
+Set `monitors = [ ];` for automatic output placement and preferred display modes.
+Transforms `"90"` and `"270"` rotate counter-clockwise; positions use the scaled,
+rotated desktop dimensions, not the unrotated display mode.
+
+### Niri monitor controls
+
+`Super` is the Windows key. The configured displays form one extended desktop;
+move the pointer across their shared edge to switch screens.
+
+| Shortcut | Action |
+| --- | --- |
+| Super + Alt + Arrow | Focus the monitor in that direction |
+| Super + Shift + Arrow | Move the focused window to that monitor |
+| Super + Ctrl + Shift + Arrow | Move the whole column to that monitor |
+| Super + Ctrl + Arrow | Rearrange windows/columns within the current monitor |
+| Super + 1–4 | Focus the named startup workspace, including across monitors |
+
+H/J/K/L also work for window movement and local rearrangement. Workspace 1–4
+shortcuts target names rather than monitor-local indices; 5–9 target indices on
+the focused monitor. Startup placement is not a lock: windows and workspaces can
+still be moved afterward. Noctalia shows a bar on each connected monitor, with
+that monitor's windows in its taskbar. Shortcut-opened panels (launcher,
+clipboard, control center) follow the focused monitor.
 
 For another machine, regenerate the host's `hardware-configuration.nix` and
 review its boot settings. Keep the installed `stateVersion` values when

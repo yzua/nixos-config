@@ -14,14 +14,19 @@ let
   ghostty = lib.getExe pkgs.ghostty;
   noctalia = lib.getExe pkgs.noctalia;
   voiceAction = lib.getExe (import ../ai/voice/action.nix { inherit aiPackages pkgs; });
+  primaryMonitor = lib.findFirst (monitor: monitor.primary) null setup.monitors;
 in
 {
   xdg.configFile."niri/config.kdl".text = ''
-    ${lib.optionalString (setup.monitor != null) ''
-      output "${setup.monitor.match}" {
-        mode "${setup.monitor.mode}"
+    ${lib.concatMapStringsSep "\n" (monitor: ''
+      output "${monitor.match}" {
+        mode "${monitor.mode}"
+        scale ${toString monitor.scale}
+        transform "${monitor.transform}"
+        position x=${toString monitor.position.x} y=${toString monitor.position.y}
+        ${lib.optionalString monitor.primary "focus-at-startup"}
       }
-    ''}
+    '') setup.monitors}
 
     input {
       keyboard {
@@ -73,11 +78,20 @@ in
       open-floating true
     }
 
-    // Keep the startup destinations available and ordered, even while empty.
-    workspace "1"
-    workspace "2"
-    workspace "3"
-    workspace "4"
+    // Keep startup workspaces on the main display; they remain movable.
+    ${lib.concatMapStringsSep "\n"
+      (name: ''
+        workspace "${name}" {
+          ${lib.optionalString (primaryMonitor != null) ''open-on-output "${primaryMonitor.match}"''}
+        }
+      '')
+      [
+        "1"
+        "2"
+        "3"
+        "4"
+      ]
+    }
 
     // Placement expires after Niri's first 60 seconds; windows remain movable.
     window-rule {
@@ -165,14 +179,15 @@ in
       Mod+Ctrl+K { move-window-up; }
       Mod+Ctrl+L { move-column-right; }
 
-      Mod+Shift+Left { move-column-left; }
-      Mod+Shift+Down { move-window-down; }
-      Mod+Shift+Up { move-window-up; }
-      Mod+Shift+Right { move-column-right; }
-      Mod+Shift+H { move-column-left; }
-      Mod+Shift+J { move-window-down; }
-      Mod+Shift+K { move-window-up; }
-      Mod+Shift+L { move-column-right; }
+      // Shift moves an individual window between screens; Ctrl stays local.
+      Mod+Shift+Left { move-window-to-monitor-left; }
+      Mod+Shift+Down { move-window-to-monitor-down; }
+      Mod+Shift+Up { move-window-to-monitor-up; }
+      Mod+Shift+Right { move-window-to-monitor-right; }
+      Mod+Shift+H { move-window-to-monitor-left; }
+      Mod+Shift+J { move-window-to-monitor-down; }
+      Mod+Shift+K { move-window-to-monitor-up; }
+      Mod+Shift+L { move-window-to-monitor-right; }
 
       Mod+Alt+Left { focus-monitor-left; }
       Mod+Alt+Down { focus-monitor-down; }
@@ -192,28 +207,29 @@ in
       Mod+Ctrl+U { move-column-to-workspace-down; }
       Mod+Ctrl+I { move-column-to-workspace-up; }
 
-      Mod+1 { focus-workspace 1; }
-      Mod+2 { focus-workspace 2; }
-      Mod+3 { focus-workspace 3; }
-      Mod+4 { focus-workspace 4; }
+      // Named startup workspaces stay unambiguous across monitor-local indices.
+      Mod+1 { focus-workspace "1"; }
+      Mod+2 { focus-workspace "2"; }
+      Mod+3 { focus-workspace "3"; }
+      Mod+4 { focus-workspace "4"; }
       Mod+5 { focus-workspace 5; }
       Mod+6 { focus-workspace 6; }
       Mod+7 { focus-workspace 7; }
       Mod+8 { focus-workspace 8; }
       Mod+9 { focus-workspace 9; }
-      Mod+Shift+1 { move-window-to-workspace 1; }
-      Mod+Shift+2 { move-window-to-workspace 2; }
-      Mod+Shift+3 { move-window-to-workspace 3; }
-      Mod+Shift+4 { move-window-to-workspace 4; }
+      Mod+Shift+1 { move-window-to-workspace "1"; }
+      Mod+Shift+2 { move-window-to-workspace "2"; }
+      Mod+Shift+3 { move-window-to-workspace "3"; }
+      Mod+Shift+4 { move-window-to-workspace "4"; }
       Mod+Shift+5 { move-window-to-workspace 5; }
       Mod+Shift+6 { move-window-to-workspace 6; }
       Mod+Shift+7 { move-window-to-workspace 7; }
       Mod+Shift+8 { move-window-to-workspace 8; }
       Mod+Shift+9 { move-window-to-workspace 9; }
-      Mod+Ctrl+1 { move-column-to-workspace 1; }
-      Mod+Ctrl+2 { move-column-to-workspace 2; }
-      Mod+Ctrl+3 { move-column-to-workspace 3; }
-      Mod+Ctrl+4 { move-column-to-workspace 4; }
+      Mod+Ctrl+1 { move-column-to-workspace "1"; }
+      Mod+Ctrl+2 { move-column-to-workspace "2"; }
+      Mod+Ctrl+3 { move-column-to-workspace "3"; }
+      Mod+Ctrl+4 { move-column-to-workspace "4"; }
       Mod+Ctrl+5 { move-column-to-workspace 5; }
       Mod+Ctrl+6 { move-column-to-workspace 6; }
       Mod+Ctrl+7 { move-column-to-workspace 7; }

@@ -143,6 +143,8 @@ in
 
     widget.taskbar = {
       type = "taskbar";
+      # Each screen's bar shows its own windows; panels follow Niri's focus.
+      show_all_outputs = false;
       group_by_workspace = true;
       group_single_icon_per_app = false;
       hide_empty_workspaces = false;
