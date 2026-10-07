@@ -55,6 +55,8 @@ in
     # Use Shift-drag for Ghostty text selection while tmux handles the mouse.
     mouse = true;
     extraConfig = ''
+      # Preserve OSC 8 web/file links and advertise them to apps such as Pi.
+      set -as terminal-features ',xterm-ghostty:hyperlinks'
       # Answer palette queries inside tmux, so nested TUIs cannot receive
       # fragmented OSC 4 replies from the outer terminal as typed text.
       ${tmuxPalette}

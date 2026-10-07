@@ -3,14 +3,67 @@
 let
   firefox = "firefox.desktop";
   telegram = "org.telegram.desktop.desktop";
-  textEditor = "org.gnome.TextEditor.desktop";
+  textEditor = "code.desktop";
   papers = "org.gnome.Papers.desktop";
   loupe = "org.gnome.Loupe.desktop";
   decibels = "org.gnome.Decibels.desktop";
   showtime = "org.gnome.Showtime.desktop";
   nautilus = "org.gnome.Nautilus.desktop";
 
-  defaults = {
+  # xdg-open's generic desktop path does not inherit text/plain defaults for
+  # these types; define them explicitly so these files do not fall back to a browser.
+  textDefaults = builtins.listToAttrs (
+    map
+      (mime: {
+        name = mime;
+        value = textEditor;
+      })
+      [
+        "text/plain"
+        "text/markdown"
+        "text/x-markdown"
+        "text/csv"
+        "text/tab-separated-values"
+        "text/x-log"
+        "text/css"
+        "text/x-scss"
+        "text/javascript"
+        "application/javascript"
+        "application/json"
+        "application/schema+json"
+        "application/ld+json"
+        "application/xml"
+        "text/xml"
+        "application/yaml"
+        "application/x-yaml"
+        "text/yaml"
+        "text/x-yaml"
+        "application/toml"
+        "application/sql"
+        "text/x-csharp"
+        "text/x-patch"
+        "application/x-shellscript"
+        "text/x-shellscript"
+        "text/x-python"
+        "text/x-python3"
+        "text/x-csrc"
+        "text/x-chdr"
+        "text/x-c++src"
+        "text/x-c++hdr"
+        "text/x-java"
+        "text/x-go"
+        "text/rust"
+        "text/x-rust"
+        "text/x-makefile"
+        "text/x-cmake"
+        "text/x-lua"
+        "text/x-perl"
+        "application/x-ruby"
+        "application/x-php"
+      ]
+  );
+
+  defaults = textDefaults // {
     # Web and Telegram links.
     "x-scheme-handler/http" = firefox;
     "x-scheme-handler/https" = firefox;
@@ -25,8 +78,8 @@ let
     "x-scheme-handler/tg" = telegram;
     "x-scheme-handler/tonsite" = telegram;
 
-    # Documents and images.
-    "text/plain" = textEditor;
+    # Folders, documents, and images. File URIs use the target's MIME type.
+    "inode/directory" = nautilus;
     "application/pdf" = papers;
     "image/jpeg" = loupe;
     "image/png" = loupe;

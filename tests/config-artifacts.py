@@ -2,11 +2,19 @@
 """Validate generated configs and activation/hooks using only isolated fixtures."""
 
 import ast
+import fcntl
 import json
 import os
+import pty
+import select
+import shlex
 import shutil
+import struct
 import subprocess
+import sys
 import tempfile
+import termios
+import time
 import unittest
 from pathlib import Path
 
@@ -467,6 +475,7 @@ in {
     }
   ];
   tmux = custom.config.programs.tmux.extraConfig;
+  mimeDefaults = home.config.xdg.mimeApps.defaultApplications;
 }
 """,
             {"CONFIG_TEST_OUTPUT": selection.stdout, "CONFIG_TEST_HOME": str(cls.config_home)},
@@ -518,6 +527,193 @@ in {
             self.assertIn(f'Mod+{index} {{ focus-workspace "{index}"; }}', config)
             self.assertIn(f'Mod+Shift+{index} {{ move-window-to-workspace "{index}"; }}', config)
             self.assertIn(f'Mod+Ctrl+{index} {{ move-column-to-workspace "{index}"; }}', config)
+
+    def test_xdg_open_routes_local_files_and_web_links(self):
+        # Run the real opener with generated MIME defaults but harmless fake
+        # desktop launchers. No GUI apps or live user settings are touched.
+        with tempfile.TemporaryDirectory(prefix="mime-routing-test-") as temporary:
+            root = Path(temporary)
+            config = root / "config"
+            applications = root / "data/applications"
+            config.mkdir()
+            applications.mkdir(parents=True)
+            defaults = self.generated["mimeDefaults"]
+            (config / "mimeapps.list").write_text(
+                "[Default Applications]\n"
+                + "".join(f"{mime}={';'.join(apps)};\n" for mime, apps in defaults.items())
+            )
+            log = root / "opened.json"
+            launcher = root / "launcher"
+            launcher.write_text(
+                f"#!{sys.executable}\nimport json, sys\nfrom pathlib import Path\n"
+                f"Path({str(log)!r}).write_text(json.dumps(sys.argv[1:]))\n"
+            )
+            launcher.chmod(0o700)
+            for desktop in {app for apps in defaults.values() for app in apps}:
+                (applications / desktop).write_text(
+                    "[Desktop Entry]\nType=Application\nName=Routing Fixture\n"
+                    f"Exec={launcher} {desktop} %u\n"
+                )
+            fallback = root / "browser-fallback"
+            fallback.write_text(f'#!/bin/sh\nexec "{launcher}" browser-fallback "$@"\n')
+            fallback.chmod(0o700)
+            # Keep only executable/locale/MIME-data discovery. Inherited KDE,
+            # GNOME, portal or D-Bus settings must not select a live GUI backend.
+            env = {
+                key: os.environ[key]
+                for key in ("PATH", "LANG", "LC_ALL", "XDG_DATA_DIRS")
+                if key in os.environ
+            }
+            runtime = root / "runtime"
+            runtime.mkdir(mode=0o700)
+            env.update(
+                HOME=str(root),
+                XDG_CONFIG_HOME=str(config),
+                XDG_CONFIG_DIRS=str(config),
+                XDG_DATA_HOME=str(root / "data"),
+                XDG_RUNTIME_DIR=str(runtime),
+                XDG_CURRENT_DESKTOP="X-Generic",
+                DBUS_SESSION_BUS_ADDRESS=f"unix:path={runtime / 'no-session-bus'}",
+                BROWSER=str(fallback),
+                DISPLAY=":fixture",
+            )
+            samples = [
+                ("folder with spaces", None, "org.gnome.Nautilus.desktop"),
+                ("notes.txt", b"editable plain text\n", "code.desktop"),
+                ("README.md", b"# Editable Markdown\n", "code.desktop"),
+                ("settings.json", b'{"editable": true}\n', "code.desktop"),
+                ("settings.yaml", b"editable: true\n", "code.desktop"),
+                ("settings.toml", b"editable = true\n", "code.desktop"),
+                ("module.nix", b"{ }: { editable = true; }\n", "code.desktop"),
+                ("script.py", b"print('editable')\n", "code.desktop"),
+                ("script.sh", b"#!/bin/sh\nprintf editable\n", "code.desktop"),
+                ("main.rs", b"fn main() {}\n", "code.desktop"),
+                ("query.sql", b"SELECT 1;\n", "code.desktop"),
+                ("Program.cs", b"class Program {}\n", "code.desktop"),
+                ("change.patch", b"--- a/file\n+++ b/file\n", "code.desktop"),
+                ("table.csv", b"name,value\neditable,true\n", "code.desktop"),
+                ("image.png", b"\x89PNG\r\n\x1a\n", "org.gnome.Loupe.desktop"),
+                ("report.pdf", b"%PDF-1.7\n", "org.gnome.Papers.desktop"),
+                ("audio.mp3", b"ID3\x04\x00\x00\x00\x00\x00\x00", "org.gnome.Decibels.desktop"),
+                ("archive.zip", b"PK\x03\x04", "org.gnome.Nautilus.desktop"),
+                ("page.html", b"<!doctype html><title>Fixture</title>\n", "firefox.desktop"),
+            ]
+            for name, content, expected in samples:
+                target = root / name
+                if content is None:
+                    target.mkdir()
+                else:
+                    target.write_bytes(content)
+                # Both raw paths and OSC 8 file URIs must use the file's MIME
+                # type; a generic file-scheme browser handler is not a fix.
+                for argument in (str(target), target.as_uri()):
+                    with self.subTest(target=argument):
+                        log.unlink(missing_ok=True)
+                        subprocess.run(
+                            ["xdg-open", argument],
+                            env=env,
+                            capture_output=True,
+                            check=True,
+                            timeout=10,
+                        )
+                        self.assertEqual(json.loads(log.read_text()), [expected, argument])
+            log.unlink(missing_ok=True)
+            subprocess.run(
+                ["xdg-open", "https://example.com/issue/386"],
+                env=env,
+                capture_output=True,
+                check=True,
+                timeout=10,
+            )
+            self.assertEqual(
+                json.loads(log.read_text()), ["firefox.desktop", "https://example.com/issue/386"]
+            )
+
+    def test_tmux_preserves_ghostty_labelled_web_and_file_links(self):
+        # Exercise tmux's actual terminal output, not capture-pane (which can
+        # retain link metadata even when tmux strips it before Ghostty sees it).
+        with tempfile.TemporaryDirectory(prefix="tmux-links-test-") as temporary:
+            root = Path(temporary)
+            command = ["tmux", "-S", str(root / "tmux.sock")]
+            env = {
+                key: value
+                for key, value in os.environ.items()
+                if key not in {"TMUX", "TMUX_PANE"} and not key.startswith("HERDR_")
+            }
+            env.update(HOME=str(root), TERM="xterm-ghostty")
+            config = root / "tmux.conf"
+            config.write_text(self.generated["tmux"] + "\nset -g mouse on\n")
+            urls = ("https://example.com/issue/386", (root / "file with spaces.txt").as_uri())
+            payload = (
+                "".join(
+                    f"\x1b]8;;{url}\x1b\\Label {index}\x1b]8;;\x1b\\\r\n"
+                    for index, url in enumerate(urls)
+                )
+                + "LINK_FIXTURE_READY\r\n"
+            )
+            fixture = root / "fixture.py"
+            fixture.write_text(f"import os\nos.write(1, {payload.encode()!r})\nos.read(0, 1)\n")
+            master, slave = pty.openpty()
+            fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 100, 0, 0))
+
+            def controlling_terminal():
+                os.setsid()
+                fcntl.ioctl(0, termios.TIOCSCTTY, 0)
+
+            process = None
+            try:
+                process = subprocess.Popen(
+                    [
+                        *command,
+                        "-f",
+                        str(config),
+                        "new-session",
+                        "-s",
+                        "fixture",
+                        shlex.join([sys.executable, str(fixture)]),
+                    ],
+                    stdin=slave,
+                    stdout=slave,
+                    stderr=slave,
+                    env=env,
+                    preexec_fn=controlling_terminal,
+                )
+                output = bytearray()
+                deadline = time.monotonic() + 5
+                while time.monotonic() < deadline:
+                    readable, _, _ = select.select(
+                        [master], [], [], max(0, deadline - time.monotonic())
+                    )
+                    if not readable:
+                        break
+                    try:
+                        chunk = os.read(master, 65536)
+                    except OSError:
+                        break
+                    if not chunk:
+                        break
+                    output.extend(chunk)
+                    if b"LINK_FIXTURE_READY" in output:
+                        break
+                self.assertIn(b"LINK_FIXTURE_READY", output, "tmux fixture did not render")
+                features = subprocess.check_output(
+                    [*command, "list-clients", "-F", "#{client_termfeatures}"],
+                    env=env,
+                    text=True,
+                    timeout=10,
+                ).strip()
+                # Pi uses this capability to decide whether to emit links.
+                self.assertIn("hyperlinks", features.split(","))
+                self.assertIn(b"\x1b]8;", output)
+                for url in urls:
+                    with self.subTest(url=url):
+                        self.assertIn(url.encode(), output, "tmux stripped the link destination")
+            finally:
+                subprocess.run([*command, "kill-server"], env=env, capture_output=True, timeout=10)
+                if process is not None:
+                    process.wait(timeout=10)
+                os.close(slave)
+                os.close(master)
 
     def test_tmux_reload_uses_quoted_custom_xdg_path(self):
         socket = str(self.root / "tmux.sock")
