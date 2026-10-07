@@ -6,7 +6,11 @@ argument-hint: "[supported operation or adapter goal]"
 Build ${@:-the agreed compatible subset}. Read [the contract](../contract.md) and
 [adapter-build](../skills/adapter-build/SKILL.md) from this prompt's resource
 directory, then its tool guide before implementation. Read `web-protocol` if
-operation/state evidence is missing. Record actual loaded skill/guide/version.
+operation/state evidence is missing. If binary/APK/JavaScript behavior needs
+inspection, load [rea-analysis](../skills/rea-analysis/SKILL.md) and query the
+pinned `pi-re rea` static CLI before designing the compatible subset. Preserve
+its Evidence/limitations; reconstructed pseudocode is not original source.
+Record actual loaded skill/guide/version.
 
 Bind approved fixture hashes, supported operations/state/error/streaming semantics,
 observed versus inferred properties, owned project/runtime and finite build/test

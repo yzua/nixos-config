@@ -1,12 +1,21 @@
 # Android static interfaces
 
+## REA query branch
+
+For package/class/method/incoming-reference navigation, use the pinned
+`pi-re rea` interface after reading
+[REA commands and limits](../../rea-analysis/references/commands.md).
+It supplies its own headless JADX engine; no local MCP registration is required.
+Retain direct JADX/apktool/SDK for smali, resources, signatures, splits and DEX.
+REA decompiler output does not supply exact DEX descriptors/instruction offsets.
+
 ## Version authority
 
 Reviewed JADX interface baseline: **1.5.6**
 ([tagged README](https://github.com/skylot/jadx/blob/v1.5.6/README.md)).
 Use detected version and `jadx --help`; confirm selective-export flags before
 use. JSON/call-graph export is a file format, not a live paginated xref API.
-Direct CLI is the default; GUI/MCP are not required or presumed enabled.
+Direct CLI and `pi-re rea` are provisioned; GUI/MCP are not presumed enabled.
 
 Apktool reviewed source baseline: **2.11.1**
 ([tagged README](https://github.com/iBotPeaches/Apktool/blob/v2.11.1/README.md)).

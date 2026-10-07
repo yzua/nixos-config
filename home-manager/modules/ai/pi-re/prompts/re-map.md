@@ -11,7 +11,11 @@ its required guide before proposing execution; record which resources were read.
 Return authorized scope/action classes, artifact/target/account identities,
 provider/evidence release policy, finite budgets/stop conditions, tool versions
 and enabled/qualified versus blocked capabilities. Choose the smallest next
-query and expected evidence. `pi-re doctor [--json]` is read-only; it does not
+query and expected evidence. For native functions/xrefs, Android class/method
+navigation or JavaScript/Electron graphs, route through
+[rea-analysis](../skills/rea-analysis/SKILL.md): use the pinned `pi-re rea` CLI via
+Bash, with explicit `--provider ghidra` for native queries. Existing lab tools
+remain the runtime route. `pi-re doctor [--json]` is read-only; it does not
 scan/provision devices or refresh credentials. Runtime Android requires explicit
 setup-selected owned-emulator serial and verified root. Android status has no
 caller serial flag and reports root uninspected; start/root verify UID0 separately.

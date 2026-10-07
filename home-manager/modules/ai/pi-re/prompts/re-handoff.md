@@ -18,5 +18,8 @@ versus observed tests, partial/missing/truncated data and reproducible commands.
 Record owned resources stopped/restored/retained, unresolved cleanup and residual
 root/helper/IME/trust/device/browser state. Preserve private originals; release
 only approved sanitized outputs without credentials/raw screenshots/logs. Give the
-next bounded step and its required skill/gate. A resumed run must revalidate scope
-and ownership; handoff grants no new permission. Optional delegation remains off.
+next bounded step and its required skill/gate. For REA work, retain the artifact/
+provider/query identities, derived JSON paths, limits and cleanup diagnostics;
+record CLI reimport cost rather than implying a persistent engine session.
+A resumed run must revalidate scope and ownership; handoff grants no new
+permission. Root-only delegation follows the contract.

@@ -1,13 +1,14 @@
 ---
 name: native-analysis
-description: Inspect ELF, PE, Mach-O or native libraries for metadata, selected functions, strings and xrefs with build/address-aware Rizin or Ghidra evidence.
+description: Inspect ELF, PE, Mach-O or Android native libraries through pinned REA/Ghidra function, assembly, string and xref queries with build/address-aware evidence.
 ---
 
 # Native analysis
 
 Deliver selected native observations with binary/build/address identity and
-analysis limits. This is not sample execution, fuzzing or an assumed Ghidra query
-service. Read [intake](../re-intake/SKILL.md) for new/changed scope.
+analysis limits. Prefer the provisioned `pi-re rea` CLI; load
+[rea-analysis](../rea-analysis/SKILL.md) and its command guide before querying.
+This is static parsing, not sample execution or fuzzing. Read [intake](../re-intake/SKILL.md) for new/changed scope.
 
 Read [policy](../re-intake/references/policy.md),
 [evidence](../re-intake/references/evidence.md), and
@@ -17,7 +18,8 @@ Read [policy](../re-intake/references/policy.md),
 
 - Approved binary/library artifact and authorized static-analysis class.
 - Immutable input hash/build identity and approved model evidence subset.
-- Available compatible Rizin/Ghidra and matching bindings/JDK as needed.
+- Installed REA/Ghidra/JDK facts from `pi-re doctor --json`; optional direct engines
+  require their own compatible installed APIs.
 - Owned derived directory/project with a single writer.
 - Explicit architecture/ABI/base question and finite analysis/storage budget.
 
@@ -39,10 +41,10 @@ sandbox/VM. Static parsing must not invoke extracted code, loaders or build hook
    strings. Save bulk engine output privately and emit approved selected evidence.
    Check parser/schema/exit diagnostics, unsupported formats and truncated data.
    Done when the initial question has a qualified location or explicit limitation.
-4. **Deepen only if needed.** Import/analyze into an owned Ghidra project on a
-   finite budget; reuse only matching checked analysis state. Review task-specific
-   function/xref/decompiler export code against installed APIs before execution.
-   No bundled native query/export script is assumed.
+4. **Deepen only if needed.** Use `pi-re rea function` or `instructions` with
+   explicit `--provider ghidra` on a finite budget. REA owns its temporary project
+   and bridge. For an unsupported query, review bounded task-specific export code
+   against the installed Ghidra APIs and use a separate single-writer project.
    Done when selected function evidence and analysis completeness are recorded.
 5. **Corroborate.** Relate imports/strings/xrefs/decompiled semantics to bytes and
    addresses. Mark inferred types/control flow and unresolved indirect calls.
@@ -58,21 +60,16 @@ sandbox/VM. Static parsing must not invoke extracted code, loaders or build hook
 After the native guide, on one approved artifact:
 
 ```bash
-rz-bin -j -I "$BINARY" > "$PRIVATE_META"
-rz-bin -j -s -n "$SYMBOL" "$BINARY" > "$PRIVATE_SYMBOL"
+pi-re rea function "$BINARY" "$SYMBOL" --provider ghidra --json > "$PRIVATE_FUNCTION"
 ```
 
-Expected: checked metadata and selected symbol JSON for reviewed Rizin 0.8.2.
-No entire symbol table is required when one known symbol answers the question.
-Review selected fields/bytes and release status before model exposure.
-If installed flags/schema differ, use matching help/source and report the actual
-supported bounded interface; never replace the release silently.
+Expected: an artifact-bound function dossier with pseudocode, assembly, static
+calls/references and limitations. Save bulk output privately, check exit/status,
+and read only the approved subset. Use the REA guide's import/cleanup budget.
 
-For Ghidra, read the local headless/manual/API branch in the guide before import
-or task code. Headless automation is not by itself a paginated evidence service.
-A missing exporter is a task-code need, not a blanket block: write a bounded
-script using installed APIs, check it on an owned fixture and report partial
-coverage under the shared policy. Missing/incompatible engines still block.
+Direct Rizin is optional, not provisioned by this pack. For unsupported Ghidra
+queries, read the matching headless/manual/API branch before writing a bounded
+exporter; test it on an owned fixture. Missing/incompatible engines still block.
 
 ## Interpretation
 

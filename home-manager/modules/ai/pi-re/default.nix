@@ -5,6 +5,7 @@
   config,
   lib,
   pkgs,
+  reaTools,
   setup,
   ...
 }:
@@ -31,6 +32,12 @@ let
         emulator = "${androidTools.sdk}/bin/emulator";
         avdmanager = "${androidTools.sdk}/bin/avdmanager";
       };
+      rea = {
+        cli = "${reaTools.cli}/bin/rea";
+        ghidra = "${reaTools.ghidra}/lib/ghidra";
+        jdk = "${reaTools.jdk}";
+        jadxJar = "${reaTools.jadxEngine}";
+      };
       agentDevice = "${androidTools.agentDevice}/bin/agent-device";
       traffic = {
         mitmdump = "${pkgs.mitmproxy}/bin/mitmdump";
@@ -47,6 +54,36 @@ let
         signalHelper = "${androidTools.guestSignal}/share/pi-re/guest-signal";
       };
       capabilities = [
+        {
+          id = "rea";
+          skill = "rea-analysis";
+          tools = {
+            rea = "${reaTools.cli}/bin/rea";
+            ghidra = "${reaTools.ghidra}/lib/ghidra/support/analyzeHeadless";
+            java = "${reaTools.jdk}/bin/java";
+            javac = "${reaTools.jdk}/bin/javac";
+          };
+          artifacts = {
+            jadxJar = "${reaTools.jadxEngine}";
+          };
+          versions = {
+            rea = reaTools.cli.version;
+            ghidra = reaTools.ghidra.version;
+            jdk = reaTools.jdk.version;
+            jadxEngine = "0.7.1";
+          };
+        }
+        {
+          id = "native";
+          skill = "native-analysis";
+          tools = {
+            rea = "${reaTools.cli}/bin/rea";
+            ghidra = "${reaTools.ghidra}/lib/ghidra/support/analyzeHeadless";
+          };
+          versions = {
+            ghidra = reaTools.ghidra.version;
+          };
+        }
         {
           id = "android-static";
           skill = "android-static";
@@ -111,10 +148,6 @@ let
           })
           [
             {
-              id = "native";
-              skill = "native-analysis";
-            }
-            {
               id = "browser";
               skill = "re-browser";
             }
@@ -129,9 +162,22 @@ let
           ];
     }
   );
+  # Pin the agent's shell/evidence utilities, not just its analysis engines.
+  runtimeTools = androidTools.packages ++ [
+    pkgs.bash
+    pkgs.coreutils
+    pkgs.procps
+    pkgs.ripgrep
+    pkgs.jq
+    pkgs.file
+    pkgs.binutils
+    pkgs.gnugrep
+    pkgs.gnused
+  ];
   launcher = pkgs.writeShellScriptBin "pi-re" ''
     export PI_RE_CONFIG=${runtime}
-    export PATH=${lib.makeBinPath androidTools.packages}:"$PATH"
+    # Child Bash must resolve this exact launcher, including before activation.
+    export PATH="$(${pkgs.coreutils}/bin/dirname "$(${pkgs.coreutils}/bin/readlink -f "$0")")":${lib.makeBinPath runtimeTools}:"$PATH"
     exec ${python} ${resources}/lib/pi-re/launcher.py "$@"
   '';
 in

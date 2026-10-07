@@ -1,6 +1,15 @@
 # Native query interfaces
 
-## Rizin: metadata before analysis
+## REA: provisioned query interface
+
+The default backend is the pinned `pi-re rea` CLI with its private temporary
+Ghidra projects. Read [REA commands](../../rea-analysis/references/commands.md)
+for function/string/xref queries, exact engine requirements and startup budgets.
+Use explicit `--provider ghidra`. The backend supplies the Java bridge; write
+custom exporters only for queries it cannot answer. Native and Android query
+engines are installed through Nix; MCP transport remains disabled.
+
+## Rizin: optional metadata before analysis
 
 Reviewed **0.8.2** [rz-bin source/help](https://github.com/rizinorg/rizin/blob/v0.8.2/librz/main/rz-bin.c).
 Use detected version, `rz-bin -h`, `rizin -h` and command-specific `?` help before
@@ -32,16 +41,16 @@ not harmless metadata. PDB/debuginfod download options send traffic and are not 
 inspection. Block unapproved execution/download/plugin paths rather than trusting
 a filename extension. Fat Mach-O/sub-binaries require explicit architecture.
 
-## Ghidra: batch engine, not an assumed query service
+## Ghidra: direct batch fallback
 
 Use the installed distribution's `support/analyzeHeadlessREADME.html` (or the
 README shipped by that release), headless usage output and matching Java API docs.
-Reviewed source baseline **11.4.2** primary references:
-[headless manual](https://github.com/NationalSecurityAgency/ghidra/blob/Ghidra_11.4.2_build/Ghidra/RuntimeScripts/Common/support/analyzeHeadlessREADME.md),
-[GhidraScript](https://github.com/NationalSecurityAgency/ghidra/blob/Ghidra_11.4.2_build/Ghidra/Features/Base/src/main/java/ghidra/app/script/GhidraScript.java),
-[FunctionManager](https://github.com/NationalSecurityAgency/ghidra/blob/Ghidra_11.4.2_build/Ghidra/Framework/SoftwareModeling/src/main/java/ghidra/program/model/listing/FunctionManager.java),
-[ReferenceManager](https://github.com/NationalSecurityAgency/ghidra/blob/Ghidra_11.4.2_build/Ghidra/Framework/SoftwareModeling/src/main/java/ghidra/program/model/symbol/ReferenceManager.java),
-[decompiler](https://github.com/NationalSecurityAgency/ghidra/blob/Ghidra_11.4.2_build/Ghidra/Features/Decompiler/src/main/java/ghidra/app/decompiler/DecompInterface.java).
+The REA pack installs **12.1.4**. Matching direct API references:
+[headless manual](https://github.com/NationalSecurityAgency/ghidra/blob/Ghidra_12.1.4_build/Ghidra/RuntimeScripts/Common/support/analyzeHeadlessREADME.md),
+[GhidraScript](https://github.com/NationalSecurityAgency/ghidra/blob/Ghidra_12.1.4_build/Ghidra/Features/Base/src/main/java/ghidra/app/script/GhidraScript.java),
+[FunctionManager](https://github.com/NationalSecurityAgency/ghidra/blob/Ghidra_12.1.4_build/Ghidra/Framework/SoftwareModeling/src/main/java/ghidra/program/model/listing/FunctionManager.java),
+[ReferenceManager](https://github.com/NationalSecurityAgency/ghidra/blob/Ghidra_12.1.4_build/Ghidra/Framework/SoftwareModeling/src/main/java/ghidra/program/model/symbol/ReferenceManager.java),
+[decompiler](https://github.com/NationalSecurityAgency/ghidra/blob/Ghidra_12.1.4_build/Ghidra/Features/Decompiler/src/main/java/ghidra/app/decompiler/DecompInterface.java).
 This anchors API shapes, not a toolchain pin. Record installed Ghidra/JDK version
 and local matching API/help revision before code. A baseline method absent in
 the installed release is blocked.
@@ -85,10 +94,8 @@ absence. Headless process success alone does not prove all analyzers completed.
 Keep logs/status and tested coverage. Unknown executable samples require an
 approved whole-process lab boundary before dynamic analysis.
 
-Optional pyghidra-mcp/JADX/Ghidra bridges remain unfinished/disabled. If later
-enabled, check host/plugin/transport compatibility, test bounded paths and
-distinguish read-only versus mutation methods: a headless backend differs from
-server-launched GUI, an HTTP-only CLI differs from stdio MCP,
-and a new server cannot attach to an arbitrary personal GUI. No silent bridge
-installation follows an awkward query. Close owned pipes/decompiler/project work
+REA's bundled Ghidra bridge is enabled through its static CLI. Other ambient
+bridges and MCP transport remain disabled. New transports/plugins require a
+reviewed compatibility and ownership test; no silent installation follows an
+awkward query. Close owned pipes/decompiler/project work
 and retain partial exports; never start a second writer to solve a timeout.

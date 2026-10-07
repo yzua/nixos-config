@@ -21,6 +21,7 @@ SKILLS = (
     "adapter-build",
     "re-browser",
     "re-device",
+    "rea-analysis",
 )
 VALUE_FLAGS = {"--model", "--provider", "--thinking", "--mode", "--session"}
 BOOL_FLAGS = {"--print", "-p", "--continue", "-c", "--resume", "-r", "--verbose"}
@@ -136,7 +137,12 @@ def doctor(config, locations, as_json):
     capabilities = []
     for item in config["capabilities"]:
         tools = item.get("tools", {})
-        installed = bool(tools) and all(os.access(path, os.X_OK) for path in tools.values())
+        artifacts = item.get("artifacts", {})
+        installed = (
+            bool(tools)
+            and all(os.access(path, os.X_OK) for path in tools.values())
+            and all(Path(path).is_file() for path in artifacts.values())
+        )
         capabilities.append(
             {
                 "id": item["id"],
@@ -175,6 +181,7 @@ def main():
         print(
             "pi-re [Pi prompt/options]\n"
             "pi-re init | doctor [--json]\n"
+            "pi-re rea <static command> [args] (pinned Ghidra/JADX/JavaScript analysis)\n"
             "pi-re android create|start|status|root|stop|reset [--json] [--visible]\n"
             "pi-re device <agent-device command>\n"
             "pi-re frida setup|status|stop|run [options]\n"
@@ -194,6 +201,11 @@ def main():
             raise ValueError("init takes no arguments")
         initialize(locations["agent"], locations["state"], Path(config["sourceAgentDir"]))
         return
+    if args and args[0] == "rea":
+        from rea import command as rea_command
+
+        command, environment = rea_command(config, locations, args[1:])
+        os.execve(command[0], command, environment)
     if args and args[0] in ("android", "device", "frida", "lab"):
         script = {"android": "android.py", "lab": "lab.py"}.get(args[0], "runtime.py")
         command = args[1:] if args[0] in ("android", "lab") else args

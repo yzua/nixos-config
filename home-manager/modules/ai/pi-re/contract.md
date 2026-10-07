@@ -52,7 +52,8 @@ ownership, recovery and capability interpretation, and
   tested coverage/limits, not permission gates. Unavailable or incompatible
   operations block that branch; untested compatible operations require a bounded
   experiment and explicit partial coverage, not blanket refusal or certification.
-  MCP and unimplemented packs remain unavailable/disabled; consult actual facts.
+  REA native/Android/JavaScript static CLI is provisioned; MCP and other
+  unimplemented packs remain disabled. Consult actual installed facts.
 - `pi-re android create|start|status|root|stop|reset [--json]`: owned emulator
   selected by setup configuration, **no caller serial flag**. Only `start`
   supports `--visible` intent. `status` is process-only/read-only, reports the
@@ -72,6 +73,15 @@ ownership, recovery and capability interpretation, and
   explicitly load its bundled Java bridge through Python; no npm/pip bootstrap.
   Read [Frida guide](skills/android-runtime/references/frida.md). Frida status
   contacts/verifies the selected guest; it is not the no-probe status interface.
+- `pi-re rea <static command> [args]`: pinned REA with Ghidra 12.1.4, full JDK21
+  and Android query engine. Use Bash; load `rea-analysis` and its command guide
+  before native, Android class/reference or JavaScript/Electron graph queries.
+  Native queries explicitly select `--provider ghidra`. CLI calls own temporary
+  engine sessions; use finite import/cleanup budgets and save JSON privately.
+  Upstream setup/update/install, MCP and runtime capture are not enabled routes;
+  Nix owns dependencies and existing lab workflows own runtime operations.
+  `pi-re rea doctor --provider ghidra --json` probes engine/Java readiness, unlike
+  no-probe `pi-re doctor`; it does not repair anything.
 - Direct JADX/apktool, ADB, Frida/Python and task-specific analysis scripts are
   ordinary in-scope routes. Bind identities, check installed APIs and preserve
   owned lifecycle/process guards rather than treating wrapper limits as a ban.

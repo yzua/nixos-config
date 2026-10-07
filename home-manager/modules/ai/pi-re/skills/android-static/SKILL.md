@@ -1,6 +1,6 @@
 ---
 name: android-static
-description: Inspect APKs, splits or DEX offline for Android manifest/resources, signatures and qualified code call paths using direct JADX/apktool interfaces.
+description: Inspect Android APK classes/methods/references with REA, and manifest/resources, signatures, splits or DEX with direct JADX/apktool/SDK corroboration.
 ---
 
 # Android static analysis
@@ -33,10 +33,13 @@ artifact/acquisition scope or continue on the approved inputs with limits.
    metadata without executing extracted code.
    Done when input identity and incomplete-set limitations are recorded.
 2. **Read the engine guide.** Read [static tools](references/tools.md), detected
-   versions and matching installed help. Select source/resource/smali export by
-   the question; avoid whole-app dumps when a class/file answers it.
+   versions and matching installed help. For repeated class/method/reference
+   queries load [rea-analysis](../rea-analysis/SKILL.md) and its command guide.
+   Select direct source/resource/smali export for corroboration or unsupported
+   REA subsets; avoid whole-app dumps when a class/file answers it.
    Done when chosen direct API and finite import/output budgets are recorded.
-3. **Decode selectively.** Use JADX for a selected class, apktool for needed
+3. **Decode selectively.** Use REA for one class/method or JADX for a selected
+   class export, apktool for needed
    resource/smali corroboration. Export into fresh owned paths; keep diagnostics
    separate. Do not infer that a failed export means code is absent.
    Done when exports exist, exits/diagnostics are checked, and status is explicit.

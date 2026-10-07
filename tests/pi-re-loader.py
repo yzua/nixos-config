@@ -33,10 +33,41 @@ def main():
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
             self.end_headers()
-            for delta, finish in (
-                ({"role": "assistant", "content": "LOADER_FIXTURE_OK"}, None),
-                ({}, "stop"),
-            ):
+            if args.pi_re and len(observed) == 1:
+                # Exercise the actual Pi Bash tool with no ambient shell or launcher.
+                # A mock model requests a harmless pinned-CLI version check.
+                command = (
+                    "for tool in sh bash file readelf grep sed rg jq sha256sum; do "
+                    'command -v "$tool" >/dev/null || exit 1; done; pi-re rea --version'
+                )
+                deltas = (
+                    (
+                        {
+                            "role": "assistant",
+                            "tool_calls": [
+                                {
+                                    "index": 0,
+                                    "id": "fixture_rea_version",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "bash",
+                                        "arguments": json.dumps(
+                                            {"command": command, "timeout": 30}
+                                        ),
+                                    },
+                                }
+                            ],
+                        },
+                        None,
+                    ),
+                    ({}, "tool_calls"),
+                )
+            else:
+                deltas = (
+                    ({"role": "assistant", "content": "LOADER_FIXTURE_OK"}, None),
+                    ({}, "stop"),
+                )
+            for delta, finish in deltas:
                 chunk = {
                     "id": "fixture",
                     "object": "chat.completion.chunk",
@@ -121,6 +152,7 @@ def main():
                     del env[key]
             env.update(HOME=str(home), XDG_DATA_HOME=str(data), XDG_STATE_HOME=str(state))
             if args.pi_re:
+                env["PATH"] = "/nonexistent-ambient-path"
                 # The marker short-circuits initialization before any real coding login is read.
                 marker_path = re_state / "initialized-v1.json"
                 marker_path.write_text(
@@ -149,6 +181,8 @@ def main():
                     "agent-device",
                     "traffic",
                     "frida",
+                    "rea",
+                    "native",
                 } <= available
             else:
                 runtime = home / "config.json"
@@ -183,7 +217,7 @@ def main():
                     "--print",
                     "--mode",
                     "json",
-                    "Check the loader fixture; don't call tools.",
+                    "Check the loader fixture; only a pinned REA version check is permitted.",
                 ],
                 cwd=project,
                 env=env,
@@ -210,6 +244,7 @@ def main():
                 "adapter-build",
                 "re-browser",
                 "re-device",
+                "rea-analysis",
             ):
                 assert name in body, f"Reviewed skill missing: {name}"
             tool_names = {
@@ -226,6 +261,15 @@ def main():
                 "ask_user_question",
             } <= tool_names, tool_names
             assert not {"subagent", "subagent_message", "ask_question"} & tool_names, tool_names
+            if args.pi_re:
+                tool_responses = [
+                    message
+                    for request in observed
+                    for message in request.get("messages", [])
+                    if message.get("role") == "tool"
+                ]
+                assert tool_responses and "4.1.0" in json.dumps(tool_responses), tool_responses
+                assert "Executable not found" not in json.dumps(tool_responses)
             assert not marker.exists(), "Hostile project extension was loaded"
             # Initialization diagnostics belong on stderr, preserving JSON mode stdout.
             for line in result.stdout.splitlines():
@@ -233,7 +277,7 @@ def main():
             sessions = list((re_state / "sessions").glob("*.jsonl"))
             assert sessions, "No separate native session was written"
             print(
-                f"{'Global pi-re' if args.pi_re else 'Installed Pi'} loader: all nine reviewed skills, "
+                f"{'Global pi-re' if args.pi_re else 'Installed Pi'} loader: all ten reviewed skills, "
                 "contract/tools, hostile cwd excluded, isolated JSON/session state"
             )
         finally:

@@ -33,7 +33,7 @@ node --test tests/pi-subagents-recall.test.mjs
 for suite in \
   config-artifacts voice-action pi-config pi-subagents pi-extensions pi-herdr \
   pi-resume-dispatch pi-herdr-reporting \
-  pi-re-config pi-re-android pi-re-runtime pi-re-traffic pi-re-subagent pi-re-lab; do
+  pi-re-config pi-re-rea pi-re-android pi-re-runtime pi-re-traffic pi-re-subagent pi-re-lab; do
   printf '\n== %s ==\n' "$suite"
   python3 -B "tests/$suite.py"
 done

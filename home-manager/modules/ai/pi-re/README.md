@@ -37,7 +37,7 @@ OAuth refresh tokens can require a separate login after token rotation. Subseque
 initialization preserves the RE copy rather than synchronizing it.
 
 The launcher retains Pi's default system prompt and explicitly loads the compact
-contract, nine reviewed skills and four prompts. Ambient context, project trust,
+contract, ten reviewed skills and four prompts. Ambient context, project trust,
 skills, extensions, themes and prompts are suppressed. Foreign session files and
 resource-control flags are rejected. The root profile explicitly loads only its
 reviewed `re_subagent` extension plus the shared user-question UI and pinned official
@@ -61,7 +61,8 @@ privately for Z.ai Coding Plan GLM-5.3/high, with GLM-5.3-Flash/high for fresh
 180-second child jobs (maximum two, 16 KiB summaries). GPT/copied providers remain
 available. Credentials and model defaults remain independent writable state,
 never Nix secrets. The Coding Plan endpoint is `https://api.z.ai/api/coding/paas/v4`.
-MCP, broader browser/native/scanner/gateway packs remain unfinished.
+The REA static pack is provisioned for native, Android and JavaScript/Electron
+queries. MCP, broader browser/scanner/gateway packs remain unfinished.
 
 `python3 tests/pi-herdr-reporting.py` checks the pinned reporter with a fake socket.
 `python3 tests/pi-resume-dispatch.py` checks profile-safe restore routing, and
@@ -70,6 +71,74 @@ MCP, broader browser/native/scanner/gateway packs remain unfinished.
 profile and named Herdr/tmux session to verify actual questions and cold restoration
 without credentials or model calls. It seeds a native fixture conversation because
 Pi does not persist an empty chat until its first assistant turn.
+
+## Pinned REA static backend
+
+Use the globally installed launcher from any investigation folder:
+
+```bash
+pi-re rea --version
+pi-re rea doctor --provider ghidra --json
+pi-re rea function "$BINARY" "$FUNCTION" --provider ghidra --json
+pi-re rea inspect-android-method "$APK" "$CLASS" "$METHOD" --json
+pi-re rea analyze-javascript-application "$APP_TREE_OR_ASAR" --json
+```
+
+REA 4.1.0, official Ghidra 12.1.4, full JDK21 and the headless Android engine
+0.7.1 are pinned/hash-verified through `packages/rea/`; no upstream setup,
+Hopper installation, npm bootstrap or coding-profile changes are needed.
+`pi-re doctor` reports installed static facts without starting Java;
+`pi-re rea doctor --provider ghidra` additionally probes Java/engine readiness.
+
+The root and children discover the reviewed `rea-analysis` skill. Native and
+Android skills and all four prompts route to it; the agent calls the CLI through
+Bash. Native queries explicitly select Ghidra. REA runs with isolated private
+HOME/XDG directories under the RE state, pinned engine paths and a short temporary
+parent. Each native CLI call imports into a disposable Ghidra project and closes
+it; repeated calls can reimport. Evidence JSON/snapshots are saved only at
+caller-selected paths, not automatically released to the model.
+
+The enabled route covers static native/Android/JavaScript queries and evidence
+operations. Upstream setup/update/uninstall, MCP and REA runtime capture are
+excluded from this wrapper. Nix owns dependency maintenance; our rooted lab,
+Frida, device and traffic tools remain the runtime workflow. This routing is not
+a host sandbox or a restriction on ordinary in-scope Bash.
+
+Read [REA commands/limits](skills/rea-analysis/references/commands.md) before
+queries. Pseudocode is reconstructed, static references are not runtime calls,
+and REA Android does not replace split/resource/signature/smali tooling.
+Upstream's whole-host audit currently flags NixOS as unsupported; that
+informational distribution check can make `environment_healthy` false while the
+scoped Ghidra checks and actual analysis succeed. Evaluate the explicit scope,
+not unrelated optional-engine/agent-registration checks.
+
+For a backend smoke check, build the owned native fixture and run the explicit
+integration suite (no target execution or real model calls):
+
+```bash
+nix build --no-link --print-out-paths .#pi-re .#rea-fixture
+python3 -B tests/pi-re-rea-integration.py --pi-re "$PI_RE_BIN" --native "$FIXTURE_ELF"
+```
+
+Set those variables from the printed store paths (`bin/pi-re` and
+`bin/rea-fixture`). This integration test is opt-in because it starts Java/Ghidra,
+may take several minutes and writes private scratch evidence; it is not part of
+`just test`. The offline route regression is `tests/pi-re-rea.py`.
+
+Owned-fixture backend coverage includes native function/string/xref/instruction/
+decompilation, missing-symbol/malformed-input failures, Android package/class/
+method/reference queries and a JavaScript/Electron IPC/import graph. Checks
+preserve original hashes and verify no new Ghidra runtime directories remain.
+This establishes these fixture paths, not blanket support for arbitrary apps.
+The installed loader additionally executes the Pi Bash tool and pinned REA
+version check with an empty ambient tool PATH.
+
+A live agent trial naturally loaded the reviewed skills, recovered both native
+functions and their caller relationship, and correctly qualified the global's
+initial value rather than claiming an invariant. It also made/corrected shell
+and JSON-shape mistakes and used three native invocations against a requested
+two-query budget. This is successful discovery/analysis evidence, not strict
+budget-accounting qualification; host-mode safeguards remain behavioral.
 
 ## Owned rooted emulator
 
@@ -171,6 +240,7 @@ Reports and raw flows are private under the caller's RE state.
 
 ```bash
 python3 -B tests/pi-re-config.py
+python3 -B tests/pi-re-rea.py
 python3 -B tests/pi-re-android.py
 python3 -B tests/pi-re-runtime.py
 python3 -B tests/pi-re-traffic.py
@@ -183,7 +253,7 @@ just home-preview
 
 The loader check runs the installed global wrapper from an unrelated hostile
 working folder, using isolated HOME/XDG paths, synthetic preinitialized credentials
-and a loopback mock provider. It verifies all nine skills, the contract, model-visible
+and a loopback mock provider. It verifies all ten skills, the contract, model-visible
 tools, packaged capability availability and private sessions without reading the
 coding login, starting a device or calling a paid model. The `--pi` alternative
 checks checkout resources with an explicitly supplied Pi executable.

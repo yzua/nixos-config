@@ -149,6 +149,7 @@
         inherit pkgs;
         inherit (setup) androidLab;
       };
+      reaTools = import ./packages/rea { inherit pkgs; };
       # The Rust rewrite is newer than Nixpkgs's legacy Qt LibrePods package.
       librepodsPackage = pkgs.callPackage ./packages/librepods-rust { };
       # Reuse one formatter for `nix fmt` and the development shell.
@@ -172,7 +173,7 @@
       home = home-manager.lib.homeManagerConfiguration {
         inherit pkgs;
         extraSpecialArgs = {
-          inherit setup androidTools;
+          inherit setup androidTools reaTools;
           aiPackages = llm-agents.packages.${system};
           inherit nixcord;
         };
@@ -203,6 +204,14 @@
         pi-re = nixpkgs.lib.findFirst (
           package: nixpkgs.lib.getName package == "pi-re"
         ) (throw "The selected Home Manager profile does not provide pi-re") home.config.home.packages;
+        rea = reaTools.cli;
+        rea-ghidra = reaTools.ghidra;
+        # Tiny auditable ELF used only for static backend/agent qualification.
+        rea-fixture = pkgs.runCommandCC "pi-re-rea-fixture" { } ''
+          mkdir -p "$out/bin"
+          $CC -O0 -g -fno-inline -fno-pie -no-pie \
+            ${./tests/fixtures/pi-re-rea/native.c} -o "$out/bin/rea-fixture"
+        '';
         android-re-sdk = androidTools.sdk;
         android-re-agent-device = androidTools.agentDevice;
         android-re-guest-signal = androidTools.guestSignal;
