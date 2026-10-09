@@ -68,6 +68,12 @@ filenames. Hidden profiles still shadow lower-precedence profiles and remain
 permitted/loadable, but are omitted from the visible tool listing. Paths and files
 are resolved at call time; only child permissions are pinned.
 
+`RunStatusMonitor` in `status.ts` owns activity interpretation, timestamp/sequence
+fencing, successful-send overrides, and capped stall/recovery notifications. Its
+explicit-time operations leave timers, widget rendering, and Pi message delivery
+in `index.ts`; supervision still observes activity when status notifications are
+disabled. Interactive children update status without waking the parent.
+
 `child-launch.ts` owns child commands, sandbox snapshot/replay, and task handoff
 for both initial and resumed runs. `run-evidence.ts` interprets completion and
 pane-loss evidence independently of diagnostic wording; `tmux.ts` and `herdr.ts`
@@ -99,8 +105,10 @@ Use `nix develop`, then `just fmt-check` and `just lint-ts` when editing the
 extensions. `python3 tests/pi-config.py` and `python3 tests/pi-subagents.py`
 check writable-config migration and child reliability through the installed Pi
 loader, with isolated settings, a mock provider, and fake tmux.
-`node --test tests/pi-subagents-recall.test.mjs` checks steering, reload/restart
-recall, supervisor fencing, cold recovery and legacy migration on both backends. `python3 tests/pi-herdr.py` checks native Herdr selection even with
+`node --test tests/pi-subagents-recall.test.mjs` exercises the production catalog,
+status monitor, launch, and evidence interfaces offline, plus steering,
+reload/restart recall, supervisor fencing, cold recovery and legacy migration on
+both backends. `python3 tests/pi-herdr.py` checks native Herdr selection even with
 outer tmux variables, atomic input, separate named tabs, ownership across server
 replacement, and pane-loss reporting. `python3 tests/pi-herdr-live.py` checks real
 tab naming, focus/geometry preservation and cleanup in its own temporary session.

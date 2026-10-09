@@ -1,11 +1,13 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readSubagentActivityFile, type SubagentActivityState } from "./activity.ts";
+import type { RunningSubagent } from "./managed-run.ts";
 
-export const SNAPSHOT_STALLED_AFTER_MS = 60_000;
-export const DEFAULT_STATUS_LINE_LIMIT = 4;
-export const MAX_STATUS_NAME_LENGTH = 72;
-export const MAX_STATUS_LINE_LENGTH = 120;
+const SNAPSHOT_STALLED_AFTER_MS = 60_000;
+const DEFAULT_STATUS_LINE_LIMIT = 4;
+const MAX_STATUS_NAME_LENGTH = 72;
+const MAX_STATUS_LINE_LENGTH = 120;
 
 const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const DEFAULT_STATUS_CONFIG_PATH = join(PACKAGE_ROOT, "config.json");
@@ -13,7 +15,7 @@ const STATUS_CONFIG_EXAMPLE_PATH = join(PACKAGE_ROOT, "config.json.example");
 
 export type SubagentStatusKind = "starting" | "active" | "waiting" | "stalled" | "running";
 export type SubagentStatusSource = "pi" | "claude";
-export type SubagentStatusTransition = "stalled" | "recovered" | null;
+type SubagentStatusTransition = "stalled" | "recovered" | null;
 export type StatusSnapshotState = "unseen" | "present" | "missing" | "invalid" | "wrong-id";
 export type StatusActivityPhase = "starting" | "active" | "waiting" | "done";
 
@@ -22,7 +24,7 @@ export interface StatusConfig {
   lineLimit: number;
 }
 
-export type StatusObservation =
+type StatusObservation =
   | {
       snapshot: "present";
       updatedAt: number;
@@ -78,9 +80,118 @@ export interface StatusSnapshot {
   statusLabel: string | null;
 }
 
-export interface CappedStatusLines {
+interface CappedStatusLines {
   visibleLines: string[];
   overflow: number;
+}
+
+type MonitoredRun = Pick<
+  RunningSubagent,
+  | "id"
+  | "name"
+  | "cli"
+  | "interactive"
+  | "activityFile"
+  | "activity"
+  | "activityRead"
+  | "statusState"
+>;
+
+/** Owns observation, local delivery overrides and transition notifications.
+ * Explicit times preserve the caller's scheduling: supervision observes even
+ * without a status timer, and refresh observes again before advancing. State
+ * stays on the managed run; this module owns no run lifecycle, timer or delivery.
+ */
+export class RunStatusMonitor {
+  constructor(private readonly config: Pick<StatusConfig, "lineLimit">) {}
+
+  observe(run: MonitoredRun, now: number): void {
+    if (run.cli === "claude") return;
+    const read = run.activityFile
+      ? readSubagentActivityFile(run.activityFile, run.id)
+      : { ok: false as const, reason: "missing" as const, error: undefined };
+    run.activityRead = read.ok
+      ? { ok: true }
+      : { ok: false, reason: read.reason, error: read.error };
+    if (read.ok) {
+      const activity = read.activity;
+      // Retain raw evidence even when status sequence/time fencing rejects it.
+      run.activity = activity;
+      run.statusState = observeStatus(
+        run.statusState,
+        {
+          snapshot: "present",
+          updatedAt: activity.updatedAt,
+          sequence: activity.sequence,
+          phase: activity.phase,
+          active: activity.phase === "active",
+          activeScope: activity.activeScope,
+          activeSince: activity.activeSince,
+          waitingSince: activity.waitingSince,
+          latestEvent: activity.latestEvent,
+          activityLabel: this.activityLabel(activity),
+        },
+        now,
+      );
+    } else {
+      run.statusState = observeStatus(
+        run.statusState,
+        {
+          snapshot: read.reason,
+          snapshotError: read.error,
+        },
+        now,
+      );
+    }
+  }
+
+  /** Call only after a successful mux send; failed sends create no override. */
+  messageDelivered(run: MonitoredRun, now: number): void {
+    run.statusState = forceStatusAfterInterrupt(run.statusState, now);
+  }
+
+  snapshot(run: Pick<MonitoredRun, "statusState">, now: number): StatusSnapshot {
+    return classifyStatus(run.statusState, now);
+  }
+
+  refresh(
+    runs: Iterable<MonitoredRun>,
+    now: number,
+  ): {
+    widgetChanged: boolean;
+    notification: { content: string; lines: string[]; overflow: number } | null;
+  } {
+    const lines: string[] = [];
+    let widgetChanged = false;
+    for (const run of runs) {
+      this.observe(run, now);
+      const { nextState, snapshot, transition } = advanceStatusState(run.statusState, now);
+      if (nextState.currentKind !== run.statusState.currentKind) widgetChanged = true;
+      run.statusState = nextState;
+      // User-driven runs update the widget without waking the parent.
+      if (transition && !run.interactive)
+        lines.push(formatTransitionLine(run.name, snapshot, transition));
+    }
+    const capped = capStatusLines(lines, this.config.lineLimit);
+    return {
+      widgetChanged,
+      notification: lines.length
+        ? {
+            content: formatStatusAggregate(lines, this.config.lineLimit),
+            lines: capped.visibleLines,
+            overflow: capped.overflow,
+          }
+        : null,
+    };
+  }
+
+  private activityLabel(activity: SubagentActivityState): string | undefined {
+    if (activity.phase !== "active") return undefined;
+    if (activity.activeScope === "tool") return activity.toolName ?? "tool";
+    if (activity.activeScope === "provider") return "provider";
+    if (activity.activeScope === "streaming") return "streaming";
+    return activity.activeScope;
+  }
 }
 
 function invalidStatusConfig(source: string, message: string): never {
@@ -122,7 +233,7 @@ function truncateText(text: string, maxLength: number): string {
   return `${text.slice(0, maxLength - 1)}…`;
 }
 
-export function normalizeStatusName(name: string): string {
+function normalizeStatusName(name: string): string {
   const collapsed = name.replace(/\s+/g, " ").trim() || "subagent";
   return truncateText(collapsed, MAX_STATUS_NAME_LENGTH);
 }
@@ -193,7 +304,7 @@ export function loadStatusConfig(
   return parseStatusConfig(parsed, sourcePath);
 }
 
-export function formatElapsedDuration(ms: number): string {
+function formatElapsedDuration(ms: number): string {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
   if (totalSeconds < 60) return `${totalSeconds}s`;
 
@@ -231,7 +342,7 @@ export function createStatusState(params: {
   };
 }
 
-export function observeStatus(
+function observeStatus(
   state: SubagentStatusState,
   observation: StatusObservation,
   now: number,
@@ -296,10 +407,7 @@ export function observeStatus(
   };
 }
 
-export function forceStatusAfterInterrupt(
-  state: SubagentStatusState,
-  now: number,
-): SubagentStatusState {
+function forceStatusAfterInterrupt(state: SubagentStatusState, now: number): SubagentStatusState {
   if (state.source === "claude") return state;
 
   return {
@@ -351,7 +459,7 @@ function classifyProblemState(
   return { kind: lastHealthyKind, statusLabel: problemLabel };
 }
 
-export function classifyStatus(state: SubagentStatusState, now: number): StatusSnapshot {
+function classifyStatus(state: SubagentStatusState, now: number): StatusSnapshot {
   const elapsedMs = Math.max(0, now - state.startTimeMs);
   const elapsedText = formatElapsedDuration(elapsedMs);
 
@@ -424,7 +532,7 @@ export function classifyStatus(state: SubagentStatusState, now: number): StatusS
   };
 }
 
-export function advanceStatusState(
+function advanceStatusState(
   state: SubagentStatusState,
   now: number,
 ): {
@@ -469,7 +577,7 @@ function formatStalledDetail(snapshot: StatusSnapshot): string {
   return `stalled${duration}${detail}`;
 }
 
-export function formatStatusLine(name: string, snapshot: StatusSnapshot): string {
+function formatStatusLine(name: string, snapshot: StatusSnapshot): string {
   const boundedName = normalizeStatusName(name);
 
   if (snapshot.kind === "starting") {
@@ -504,7 +612,7 @@ export function formatStatusLine(name: string, snapshot: StatusSnapshot): string
   );
 }
 
-export function formatTransitionLine(
+function formatTransitionLine(
   name: string,
   snapshot: StatusSnapshot,
   transition: Exclude<SubagentStatusTransition, null>,
@@ -520,7 +628,7 @@ export function formatTransitionLine(
   return formatStatusLine(boundedName, snapshot);
 }
 
-export function capStatusLines(lines: string[], lineLimit: number): CappedStatusLines {
+function capStatusLines(lines: string[], lineLimit: number): CappedStatusLines {
   const visibleLines = lines.slice(0, lineLimit);
   return {
     visibleLines,
@@ -528,7 +636,7 @@ export function capStatusLines(lines: string[], lineLimit: number): CappedStatus
   };
 }
 
-export function formatStatusAggregate(lines: string[], lineLimit: number): string {
+function formatStatusAggregate(lines: string[], lineLimit: number): string {
   const { visibleLines, overflow } = capStatusLines(lines, lineLimit);
   const bulletLines = visibleLines.map((line) => `• ${line}`);
   if (overflow > 0) bulletLines.push(`• +${overflow} more running.`);

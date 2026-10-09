@@ -21,22 +21,11 @@ import {
 } from "./session.ts";
 import {
   type StatusSnapshot,
-  advanceStatusState,
-  capStatusLines,
-  classifyStatus,
   createStatusState,
-  forceStatusAfterInterrupt,
-  formatStatusAggregate,
-  formatTransitionLine,
-  observeStatus,
   loadStatusConfig,
+  RunStatusMonitor,
 } from "./status.ts";
-import {
-  getSubagentActivityFile,
-  readSubagentActivityFile,
-  type ActivityReadResult,
-  type SubagentActivityState,
-} from "./activity.ts";
+import { getSubagentActivityFile } from "./activity.ts";
 
 import {
   ManagedRuns,
@@ -332,6 +321,7 @@ function getArtifactDir(sessionDir: string, sessionId: string): string {
 }
 
 const statusConfig = loadStatusConfig();
+const statusMonitor = new RunStatusMonitor(statusConfig);
 
 function formatWidgetRightLabel(snapshot: StatusSnapshot): string {
   if (snapshot.kind === "starting") return " starting… ";
@@ -391,7 +381,7 @@ const managedRuns = new ManagedRuns({
     }
   },
   tick(running) {
-    observeRunningSubagent(running);
+    statusMonitor.observe(running, Date.now());
     deliverPendingQuestion(running);
   },
   present: resolveResultPresentation,
@@ -498,7 +488,7 @@ function renderSubagentWidgetLines(agents: RunningSubagent[], width: number): st
   for (const agent of agents) {
     const elapsed = formatElapsedMMSS(agent.startTime);
     const agentTag = agent.agent ? ` (${agent.agent})` : "";
-    const snapshot = classifyStatus(agent.statusState, Date.now());
+    const snapshot = statusMonitor.snapshot(agent, Date.now());
     const icon = widgetIcon(snapshot.kind);
     const left = ` ${icon} ${elapsed}  ${agent.name}${agentTag} `;
     const right = statusConfig.enabled
@@ -538,57 +528,6 @@ function updateWidget() {
       };
     },
     { placement: "aboveEditor" },
-  );
-}
-
-function activityLabel(activity: SubagentActivityState): string | undefined {
-  if (activity.phase !== "active") return undefined;
-  if (activity.activeScope === "tool") return activity.toolName ?? "tool";
-  if (activity.activeScope === "provider") return "provider";
-  if (activity.activeScope === "streaming") return "streaming";
-  return activity.activeScope;
-}
-
-function observeRunningSubagent(running: RunningSubagent, observedAt = Date.now()) {
-  if (running.cli === "claude") return;
-
-  const activityFile = running.activityFile;
-  const read: ActivityReadResult = activityFile
-    ? readSubagentActivityFile(activityFile, running.id)
-    : { ok: false, reason: "missing" };
-
-  running.activityRead = read.ok
-    ? { ok: true }
-    : { ok: false, reason: read.reason, error: read.error };
-
-  if (read.ok) {
-    running.activity = read.activity;
-    running.statusState = observeStatus(
-      running.statusState,
-      {
-        snapshot: "present",
-        updatedAt: read.activity.updatedAt,
-        sequence: read.activity.sequence,
-        phase: read.activity.phase,
-        active: read.activity.phase === "active",
-        activeScope: read.activity.activeScope,
-        activeSince: read.activity.activeSince,
-        waitingSince: read.activity.waitingSince,
-        latestEvent: read.activity.latestEvent,
-        activityLabel: activityLabel(read.activity),
-      },
-      observedAt,
-    );
-    return;
-  }
-
-  running.statusState = observeStatus(
-    running.statusState,
-    {
-      snapshot: read.reason,
-      snapshotError: read.error,
-    },
-    observedAt,
   );
 }
 
@@ -688,7 +627,7 @@ function handleSubagentSteer(
 
   const running = resolved.running;
   const now = Date.now();
-  observeRunningSubagent(running, now);
+  statusMonitor.observe(running, now);
 
   const steer = steerSubagent(running, message, send);
   if ("error" in steer) {
@@ -698,7 +637,7 @@ function handleSubagentSteer(
     };
   }
 
-  running.statusState = forceStatusAfterInterrupt(running.statusState, now);
+  statusMonitor.messageDelivered(running, now);
   updateWidget();
 
   return {
@@ -727,37 +666,19 @@ function startStatusRefresh(pi: ExtensionAPI) {
       return;
     }
 
-    const transitionLines: string[] = [];
-    const now = Date.now();
-    let shouldRefreshWidget = false;
+    const { widgetChanged, notification } = statusMonitor.refresh(
+      runningSubagents.values(),
+      Date.now(),
+    );
+    if (widgetChanged) updateWidget();
 
-    for (const running of runningSubagents.values()) {
-      observeRunningSubagent(running, now);
-      const { nextState, snapshot, transition } = advanceStatusState(running.statusState, now);
-      if (nextState.currentKind !== running.statusState.currentKind) {
-        shouldRefreshWidget = true;
-      }
-      running.statusState = nextState;
-
-      // Interactive subagents (long-running, user-driven) intentionally don't
-      // wake the parent session on stalled/recovered transitions — the user is
-      // working in the subagent's pane, and a steer message here would burn an
-      // orchestrator turn on a no-op "still waiting" ping. Widget still updates.
-      if (transition && !running.interactive) {
-        transitionLines.push(formatTransitionLine(running.name, snapshot, transition));
-      }
-    }
-
-    if (shouldRefreshWidget) updateWidget();
-
-    if (transitionLines.length > 0) {
-      const capped = capStatusLines(transitionLines, statusConfig.lineLimit);
+    if (notification) {
       pi.sendMessage(
         {
           customType: "subagent_status",
-          content: formatStatusAggregate(transitionLines, statusConfig.lineLimit),
+          content: notification.content,
           display: true,
-          details: { lines: capped.visibleLines, overflow: capped.overflow },
+          details: { lines: notification.lines, overflow: notification.overflow },
         },
         { triggerTurn: true, deliverAs: "steer" },
       );
@@ -773,7 +694,6 @@ export const __test__ = {
   renderSubagentWidgetLines,
   resolveEffectiveInteractive,
   formatWidgetRightLabel,
-  observeRunningSubagent,
   getToolExtensionPath,
   resolveRunningByName,
   uniqueRunningName,
