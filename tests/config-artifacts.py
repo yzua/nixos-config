@@ -421,6 +421,80 @@ in (import (root + "/home-manager/modules/desktop-apps/librepods.nix") { inherit
                     self.assertEqual(enabled, expected + ["indicator@example.test"])
 
 
+class PiInitialization(unittest.TestCase):
+    def test_generated_policy_and_activation_preserve_once_only_settings(self):
+        with tempfile.TemporaryDirectory(prefix="pi-policy-test-") as directory:
+            root = Path(directory)
+            home = root / "home with spaces"
+            state = root / "state with spaces"
+            activation = evaluate(
+                """
+  packages = flake.inputs.nixpkgs.legacyPackages.${builtins.currentSystem};
+  lib = packages.lib // { hm.dag.entryAfter = after: data: { inherit after data; }; };
+  pkgs = packages // { writeText = name: text: builtins.toFile name text; };
+  config = {
+    home.homeDirectory = builtins.getEnv "CONFIG_TEST_HOME";
+    xdg.stateHome = builtins.getEnv "CONFIG_TEST_STATE";
+  };
+in (import (root + "/home-manager/modules/ai/pi") { inherit pkgs lib config; aiPackages = {}; })
+  .home.activation.initializePi
+""",
+                {"CONFIG_TEST_HOME": str(home), "CONFIG_TEST_STATE": str(state)},
+            )
+            self.assertEqual(activation["after"], ["linkGeneration"])
+            arguments = shlex.split(activation["data"])
+            policy_path = Path(arguments[arguments.index("--defaults") + 1])
+            policy = json.loads(policy_path.read_text())
+            self.assertEqual(set(policy), {"settings", "model"})
+            self.assertEqual(policy["settings"]["defaultModel"], policy["model"]["metadata"]["id"])
+            self.assertEqual(policy["model"]["api"], "openai-responses")
+            self.assertEqual(policy["model"]["metadata"]["id"], "gpt-6.1-sol")
+            self.assertEqual(policy["model"]["metadata"]["name"], "GPT-6.1 Sol")
+            self.assertTrue(policy["model"]["metadata"]["reasoning"])
+            self.assertEqual(
+                policy["model"]["metadata"]["thinkingLevelMap"],
+                {
+                    "off": None,
+                    "minimal": None,
+                    **{level: level for level in ("low", "medium", "high", "xhigh", "max")},
+                },
+            )
+            env = {key: value for key, value in os.environ.items() if key != "DRY_RUN"}
+            result = subprocess.run(
+                ["bash", "-e", "-c", activation["data"]],
+                env=dict(env, DRY_RUN="1"),
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(home.exists())
+            self.assertFalse(state.exists())
+            result = subprocess.run(
+                ["bash", "-e", "-c", activation["data"]],
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            settings_path = home / ".pi/agent/settings.json"
+            self.assertEqual(json.loads(settings_path.read_text()), policy["settings"])
+            self.assertTrue((state / "pi-config/initialized-v1.json").is_file())
+            settings_path.write_text('{"defaultModel": "caller-selected"}\n')
+            result = subprocess.run(
+                ["bash", "-e", "-c", activation["data"]],
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                json.loads(settings_path.read_text()), {"defaultModel": "caller-selected"}
+            )
+
+
 class SkillsActivation(unittest.TestCase):
     def test_activation_keeps_order_and_uses_only_local_installer(self):
         with tempfile.TemporaryDirectory(prefix="skills-activation-test-") as directory:

@@ -30,7 +30,7 @@ def write_json(path, value):
             os.unlink(temporary)
 
 
-def initialize(agent_dir, state_dir, defaults):
+def initialize(agent_dir, state_dir, policy):
     state_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chmod(state_dir, 0o700)
     with (state_dir / "initialize.lock").open("a") as lock:
@@ -39,6 +39,13 @@ def initialize(agent_dir, state_dir, defaults):
         if marker.exists():
             print("Pi defaults already initialized; preserving interactive settings.")
             return
+
+        defaults = policy["settings"]
+        descriptor = policy["model"]
+        metadata = descriptor["metadata"]
+        target = metadata["id"]
+        if defaults.get("defaultModel") != target:
+            raise ValueError("Initialization settings.defaultModel must match model.metadata.id")
 
         agent_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         settings_path = agent_dir / "settings.json"
@@ -54,11 +61,10 @@ def initialize(agent_dir, state_dir, defaults):
 
         provider = models.get("providers", {}).get(settings.get("defaultProvider"))
         model_changed = False
-        target = defaults["defaultModel"]
         if provider and not any(model.get("id") == target for model in provider.get("models", [])):
-            if provider.get("api") != "openai-responses":
+            if provider.get("api") != descriptor["api"]:
                 raise ValueError(
-                    "The selected custom provider must use openai-responses for GPT-6.1 Sol"
+                    f"The selected custom provider must use {descriptor['api']} for {metadata['name']}"
                 )
             candidates = provider.get("models", [])
             source = next(
@@ -70,18 +76,7 @@ def initialize(agent_dir, state_dir, defaults):
                     "Configure a model for the selected provider before initializing Pi"
                 )
             model = copy.deepcopy(source)
-            model.update(
-                {
-                    "id": target,
-                    "name": "GPT-6.1 Sol",
-                    "reasoning": True,
-                    "thinkingLevelMap": {
-                        "off": None,
-                        "minimal": None,
-                        **{level: level for level in ("low", "medium", "high", "xhigh", "max")},
-                    },
-                }
-            )
+            model.update(copy.deepcopy(metadata))
             # Retain the custom endpoint's existing token limits and compatibility flags.
             provider["models"].append(model)
             model_changed = True

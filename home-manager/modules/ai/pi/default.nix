@@ -30,11 +30,32 @@ let
       runHook postInstall
     '';
   };
+  # Initialization policy only: later activations preserve the writable profile.
+  model = {
+    api = "openai-responses";
+    metadata = {
+      id = "gpt-6.1-sol";
+      name = "GPT-6.1 Sol";
+      reasoning = true;
+      thinkingLevelMap = {
+        off = null;
+        minimal = null;
+        low = "low";
+        medium = "medium";
+        high = "high";
+        xhigh = "xhigh";
+        max = "max";
+      };
+    };
+  };
   defaults = pkgs.writeText "pi-defaults.json" (
     builtins.toJSON {
-      defaultModel = "gpt-6.1-sol";
-      defaultThinkingLevel = "high";
-      extensions = [ "-builtin:mcp" ];
+      inherit model;
+      settings = {
+        defaultModel = model.metadata.id;
+        defaultThinkingLevel = "high";
+        extensions = [ "-builtin:mcp" ];
+      };
     }
   );
   agentDir = "${config.home.homeDirectory}/.pi/agent";
