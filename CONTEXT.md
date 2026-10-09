@@ -35,3 +35,14 @@ The persistent conversation associated with a subagent's identity and allowed to
 
 **Subagent run**:
 One execution of a subagent, started by an initial task or by resuming a completed session. Steering an active subagent stays within its current run.
+
+**Subagent loadout**:
+The resolved identity, model, permitted tools, and working context retained for a subagent session. Later runs preserve that loadout rather than adopting edits to the original agent definition.
+
+### Shared skills
+
+**Pinned skill source**:
+The exact upstream revision selected as the baseline for a group of skills.
+
+**Installed skill**:
+A writable, caller-owned copy of a skill used by the configured agents. It is distinct from the pinned skill source and may contain personal edits.

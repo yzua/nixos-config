@@ -421,6 +421,71 @@ in (import (root + "/home-manager/modules/desktop-apps/librepods.nix") { inherit
                     self.assertEqual(enabled, expected + ["indicator@example.test"])
 
 
+class SkillsActivation(unittest.TestCase):
+    def test_activation_keeps_order_and_uses_only_local_installer(self):
+        with tempfile.TemporaryDirectory(prefix="skills-activation-test-") as directory:
+            root = Path(directory)
+            activation = evaluate(
+                """
+  packages = flake.inputs.nixpkgs.legacyPackages.${builtins.currentSystem};
+  lib = packages.lib // { hm.dag.entryAfter = after: data: { inherit after data; }; };
+  pkgs = packages // { runCommand = _: _: _: builtins.getEnv "CONFIG_TEST_BUNDLE"; };
+  aiPackages.skills = { type = "derivation"; name = "skills";
+    outPath = builtins.getEnv "CONFIG_TEST_CLI"; meta.mainProgram = "skills"; };
+in (import (root + "/home-manager/modules/ai/skills.nix") { inherit lib pkgs aiPackages; })
+  .home.activation.installAgentSkills
+""",
+                {
+                    "CONFIG_TEST_BUNDLE": str(root / "nonexistent bundle"),
+                    "CONFIG_TEST_CLI": str(root / "nonexistent-cli"),
+                },
+            )
+            self.assertEqual(activation["after"], ["linkGeneration"])
+            result = subprocess.run(
+                ["bash", "-e", "-c", activation["data"]],
+                env=dict(os.environ, HOME=str(root), DRY_RUN="1"),
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("Would sync prepared", result.stdout)
+            self.assertEqual(list(root.iterdir()), [])
+            self.assertNotIn("git", activation["data"])
+            self.assertNotIn("https://", activation["data"])
+            bundle = root / "nonexistent bundle"
+            source = bundle / "source-0"
+            source.mkdir(parents=True)
+            (source / "SKILL.md").write_text("fixture")
+            (bundle / "manifest.json").write_text(
+                json.dumps([{"directory": "source-0", "skill": "fixture", "url": "fixture"}])
+            )
+            cli = root / "nonexistent-cli/bin/skills"
+            cli.parent.mkdir(parents=True)
+            cli.write_text(
+                f"#!{sys.executable}\nimport json, os, sys\nfrom pathlib import Path\n"
+                "Path(os.environ['ACTIVATION_LOG']).write_text(json.dumps(sys.argv[1:]))\n"
+            )
+            cli.chmod(0o700)
+            log = root / "installer-arguments"
+            environment = {key: value for key, value in os.environ.items() if key != "DRY_RUN"}
+            environment.update(HOME=str(root), ACTIVATION_LOG=str(log))
+            result = subprocess.run(
+                ["bash", "-e", "-c", activation["data"]],
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            arguments = json.loads(log.read_text())
+            self.assertEqual(arguments[0], "add")
+            self.assertFalse(Path(arguments[1]).exists(), "Writable staging must be cleaned")
+            self.assertEqual(
+                arguments[2:], ["--global", "--agent", "*", "--skill", "fixture", "--yes"]
+            )
+
+
 class DesktopArtifacts(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

@@ -50,8 +50,10 @@ checks, use `just lint-ts`, `just lint-python`, `just lint-shell`, or
 `just lint-markdown`.
 Run `just test` for the explicit offline regression suites, including generation
 workflows, voice actions, Pi extensions/subagents, and the RE profile/lab mocks.
-These tests use isolated fixtures without activation or paid model calls. Generated-config tests require managed Niri and tmux. The
-loader tests require managed Pi, Bun, and installed web-fetch dependencies;
+These tests use isolated fixtures without activation or paid model calls.
+Generated-config tests require managed Niri and tmux; local-source skill tests
+require the managed skills CLI. The loader tests require managed Pi, Bun, and
+installed web-fetch dependencies;
 `PI_BIN` and `PI_WEB_FETCH_DIR` can select alternate installations. Live desktop
 focus, browser, and Android lab checks remain separate opt-in commands.
 `just test-preview-roots-gc` separately verifies preview retention by running GC
@@ -68,6 +70,8 @@ only in a disposable local Nix store, never on the workstation store.
 - `home-manager/`: user apps and preferences. Under `modules/`, `desktop/`
   groups GNOME, Niri, and Noctalia settings; `desktop-apps/` owns applications;
   `terminal/` groups CLI tools, terminal/shell settings, tmux, and Git.
+  [Shared skills ownership](home-manager/modules/ai/skills.md) explains pinned
+  preparation, mutable installed copies, and installation limitations.
 - `justfile`: command menu and checks; `scripts/generation.sh`: previews, status,
   and guarded switches.
 
