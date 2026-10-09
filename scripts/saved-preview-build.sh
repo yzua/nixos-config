@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Resolve per-output saved preview builds and the active Home Manager profile.
+# Own saved-preview build lifecycles, freshness, and the active Home profile.
 
 saved_preview_link() {
   local kind="$1" output="$2"
@@ -10,6 +10,28 @@ saved_preview_link() {
     return 1
     ;;
   esac
+}
+
+# Begin one terminal preview action in the launched command shell (not a
+# command substitution or publication subshell). Own its EXIT trap and expose
+# only saved_preview_build_root for the caller's build and review. Publication
+# happens separately, so neither building nor reviewing holds the lock.
+begin_saved_preview_build() {
+  local saved="$1" candidate cleanup_command
+  candidate=$(create_preview_root "$saved")
+  _saved_preview_build_link="$saved"
+  saved_preview_build_root="$candidate/result"
+  # Capture escaped values: errexit can unwind function locals before EXIT.
+  # Initially no publication descriptor is open yet.
+  printf -v cleanup_command 'cleanup_preview_root %q %q' "$saved" "$candidate"
+  # shellcheck disable=SC2064 # Arguments must survive function-local unwinding.
+  trap "$cleanup_command" EXIT
+  # Children inherit this descriptor. Cleanup can then wait for a surviving
+  # publisher child before deciding whether it committed the candidate.
+  exec {_saved_preview_build_lock}>"$saved.roots/publication.lock"
+  printf -v cleanup_command 'cleanup_preview_root %q %q %q' "$saved" "$candidate" "$_saved_preview_build_lock"
+  # shellcheck disable=SC2064 # Capture the descriptor as well as the paths.
+  trap "$cleanup_command" EXIT
 }
 
 # Keep each registered out-link at its original pathname for its whole lifetime.
@@ -68,8 +90,11 @@ cleanup_preview_root() {
   exec {cleanup_lock}>&-
 }
 
-publish_preview_root() {
-  local saved="$1" candidate="$2" lock="$3" previous=''
+# Commit the candidate only after the caller's build and review have succeeded.
+# EXIT cleanup keeps committed roots and discards uncommitted ones.
+publish_saved_preview_build() {
+  local saved="$_saved_preview_build_link" candidate="${saved_preview_build_root%/result}"
+  local lock="$_saved_preview_build_lock" previous=''
   # Run in the preview shell: no surviving publication subshell may replace
   # the saved alias after signal cleanup has removed its candidate.
   flock "$lock"

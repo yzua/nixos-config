@@ -23,39 +23,38 @@ printf 'Logical fixture: %s\n' "$path"
 
 saved_a="$proof/state/result-system-output-a"
 saved_b="$proof/state/result-system-output-b"
-a=$(create_preview_root "$saved_a")
-b=$(create_preview_root "$saved_b")
-for output in a b; do
-  saved_var="saved_$output"
-  saved="${!saved_var}"
-  candidate="${!output}"
-  exec {publication_lock}>"$saved.roots/publication.lock"
+# Each foreground fixture preview owns its shell's EXIT trap, just like a
+# workflow command, without replacing the parent test's disposable-store trap.
+preview_fixture() (
+  begin_saved_preview_build "$1"
   # Building an existing store path registers the root without a derivation,
   # download, or dependence on any workstation generation.
-  isolated_nix build --offline --no-write-lock-file --out-link "$candidate/result" "$path"
-  publish_preview_root "$saved" "$candidate" "$publication_lock"
-  cleanup_preview_root "$saved" "$candidate" "$publication_lock"
-  [[ $(readlink "$saved") == "$candidate/result" ]]
-  [[ -n $(find "$proof/store/nix/var/nix/gcroots/auto" -type l -lname "$candidate/result" -print -quit) ]]
+  isolated_nix build --offline --no-write-lock-file --out-link "$saved_preview_build_root" "$path"
+  publish_saved_preview_build
+)
+for saved in "$saved_a" "$saved_b"; do
+  preview_fixture "$saved"
+  root=$(readlink "$saved")
+  [[ -L "$root" && $(readlink "$root") == "$path" ]]
+  [[ -n $(find "$proof/store/nix/var/nix/gcroots/auto" -type l -lname "$root" -print -quit) ]]
 done
+a=$(readlink "$saved_a")
+b=$(readlink "$saved_b")
 find "$proof/store/nix/var/nix/gcroots/auto" -type l -printf 'Registered root: %p -> %l\n'
 isolated_nix store gc
-[[ -e "$proof/store$path" && -L "$a/result" && -L "$b/result" ]]
+[[ -e "$proof/store$path" && -L "$a" && -L "$b" ]]
 echo 'PASS: published roots retain the unactivated shared target through GC.'
 
-next_a=$(create_preview_root "$saved_a")
-exec {publication_lock}>"$saved_a.roots/publication.lock"
-isolated_nix build --offline --no-write-lock-file --out-link "$next_a/result" "$path"
-publish_preview_root "$saved_a" "$next_a" "$publication_lock"
-cleanup_preview_root "$saved_a" "$next_a" "$publication_lock"
-[[ ! -L "$a/result" && -L "$next_a/result" && -L "$b/result" ]]
+preview_fixture "$saved_a"
+next_a=$(readlink "$saved_a")
+[[ ! -L "$a" && -L "$next_a" && -L "$b" ]]
 echo "PASS: successful publication retires only the same output's previous root."
 
-discard_preview_root "$saved_a" "$next_a/result"
+rm -- "$next_a"
 isolated_nix store gc
 [[ -e "$proof/store$path" ]]
 echo 'PASS: the other output independently retains the shared target.'
-discard_preview_root "$saved_b" "$b/result"
+rm -- "$b"
 isolated_nix store gc
 [[ ! -e "$proof/store$path" ]]
 echo 'PASS: removing the final root makes the isolated fixture collectible.'

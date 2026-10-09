@@ -72,8 +72,9 @@ only in a disposable local Nix store, never on the workstation store.
   `terminal/` groups CLI tools, terminal/shell settings, tmux, and Git.
   [Shared skills ownership](home-manager/modules/ai/skills.md) explains pinned
   preparation, mutable installed copies, and installation limitations.
-- `justfile`: command menu and checks; `scripts/generation.sh`: previews, status,
-  and guarded switches.
+- `justfile`: command menu and checks; `scripts/generation.sh`: build/review policy,
+  status, and guarded switches; `scripts/saved-preview-build.sh`: saved-preview
+  lifecycle and freshness.
 
 ## License
 

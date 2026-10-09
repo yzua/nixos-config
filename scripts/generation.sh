@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Own selected-generation facts, preview publication, status, and guarded activation.
+# Own selected-generation facts, build/review policy, status, and guarded activation.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 source scripts/config.sh
@@ -76,22 +76,11 @@ review_home_generation() {
 preview_generation() {
   # Preview is the terminal command action. Stay in the launched shell so TERM
   # cannot leave an unsupervised preview publishing after that command exits.
-  local actual candidate rooted publication_lock cleanup_command
+  local actual rooted
   select_generation "$1"
-  candidate=$(create_preview_root "$generation_saved")
-  # Capture escaped values: Bash can unwind function locals before running an
-  # EXIT trap on errexit. Initially no publication descriptor is open yet.
-  printf -v cleanup_command 'cleanup_preview_root %q %q' "$generation_saved" "$candidate"
-  # shellcheck disable=SC2064 # Arguments must survive function-local unwinding.
-  trap "$cleanup_command" EXIT
-  # Children inherit this descriptor, so signal cleanup can wait for any
-  # surviving publisher child. Opening it does not lock builds or reviews.
-  exec {publication_lock}>"$generation_saved.roots/publication.lock"
-  printf -v cleanup_command 'cleanup_preview_root %q %q %q' "$generation_saved" "$candidate" "$publication_lock"
-  # shellcheck disable=SC2064 # Capture the descriptor as well as the paths.
-  trap "$cleanup_command" EXIT
-  actual=$(nix build --no-write-lock-file --out-link "$candidate/result" --print-out-paths "$generation_build")
-  rooted=$(saved_preview_target "$candidate/result")
+  begin_saved_preview_build "$generation_saved"
+  actual=$(nix build --no-write-lock-file --out-link "$saved_preview_build_root" --print-out-paths "$generation_build")
+  rooted=$(saved_preview_target "$saved_preview_build_root")
   if [[ "$rooted" != "$actual" ]]; then
     echo 'Built generation does not match its candidate GC root; refusing to save preview.' >&2
     return 1
@@ -105,7 +94,7 @@ preview_generation() {
     review_home_generation "$actual" "$generation_active"
   fi
   # Publish only the exact built path, after every applicable review succeeds.
-  publish_preview_root "$generation_saved" "$candidate" "$publication_lock"
+  publish_saved_preview_build
 }
 
 require_system_host() {

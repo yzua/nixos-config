@@ -70,10 +70,11 @@ case "$*" in
   *) printf 'Unexpected nix call: %s\n' "$*" >&2; exit 1 ;;
 esac
 SH
-export TEST_REAL_MV TEST_REAL_RM TEST_REAL_FLOCK
+export TEST_REAL_MV TEST_REAL_RM TEST_REAL_FLOCK TEST_REAL_LN
 TEST_REAL_MV=$(command -v mv)
 TEST_REAL_RM=$(command -v rm)
 TEST_REAL_FLOCK=$(command -v flock)
+TEST_REAL_LN=$(command -v ln)
 cat >"$test_root/bin/flock" <<'SH'
 #!/usr/bin/env bash
 if [[ -n "${TEST_FLOCK_NOTIFY:-}" ]]; then
@@ -96,6 +97,13 @@ if [[ -n "${TEST_MV_GATE:-}" ]]; then
   read -r < "$TEST_MV_GATE"
 fi
 exec "$TEST_REAL_MV" "$@"
+SH
+cat >"$test_root/bin/ln" <<'SH'
+#!/usr/bin/env bash
+if [[ "${TEST_FAIL_ALIAS:-}" == 1 && "${@: -1}" == */candidate.*/saved ]]; then
+  exit 1
+fi
+exec "$TEST_REAL_LN" "$@"
 SH
 cat >"$test_root/bin/nix-env" <<'SH'
 #!/usr/bin/env bash
@@ -149,7 +157,7 @@ start_case() {
   export TEST_NIX_LOG="$case_root/nix-calls"
   export TEST_DIFF_EXPECTED="$case_root/generation"
   export TEST_SOURCES='' TEST_ACTIVE_SOURCES=''
-  unset NIXOS_CONFIG HOME_CONFIG TEST_RUNNING_HOST TEST_FAIL_DIFF TEST_FAIL_DESIRED TEST_FAIL_DCONF TEST_FAIL_BUILD TEST_FAIL_PUBLICATION TEST_BAD_ROOT TEST_FLOCK_NOTIFY TEST_MV_GATE
+  unset NIXOS_CONFIG HOME_CONFIG TEST_RUNNING_HOST TEST_FAIL_DIFF TEST_FAIL_DESIRED TEST_FAIL_DCONF TEST_FAIL_BUILD TEST_FAIL_ALIAS TEST_FAIL_PUBLICATION TEST_BAD_ROOT TEST_FLOCK_NOTIFY TEST_MV_GATE
 }
 
 # Selection stays explicit when a flake has several outputs.
@@ -311,10 +319,13 @@ start_case() {
   [[ -L "$other" && -e "$other" ]] || fail 'foreign output root was deleted'
 )
 
+# Build, diff, and Home review must complete outside a held publication lock.
 # Terminating the launched command (not an inner shell) while waiting to publish
 # must preserve the saved preview and leave no orphan that can publish later.
 (
   start_case terminated-publication
+  ln -s "$case_root/generation" "$XDG_STATE_HOME/nix/profiles/home-manager"
+  export TEST_SOURCES="[('xkb', 'us')]"
   just home-preview >"$case_root/output" 2>&1 || fail 'initial preview before termination'
   saved="$XDG_STATE_HOME/nixos/result-home-test-user@host-a"
   previous=$(readlink "$saved")
@@ -429,10 +440,12 @@ start_case() {
 # Every failure boundary keeps the prior saved build rooted and removes only
 # the failed candidate (including a partially successful build's out-link).
 for kind in system home; do
-  for failure in BUILD DIFF DCONF PUBLICATION; do
+  for failure in BUILD DIFF DCONF ALIAS PUBLICATION; do
     [[ "$kind" == home || "$failure" != DCONF ]] || continue
     (
-      start_case "root-failure-$kind-$failure"
+      # Escaped trap arguments must survive function-local unwinding as well
+      # as whitespace and shell metacharacters in the caller's state path.
+      start_case "root-failure-$kind-$failure with 'quotes' \$and;punctuation"
       command=preview
       output=host-a
       if [[ "$kind" == home ]]; then
@@ -452,7 +465,7 @@ for kind in system home; do
       fi
       [[ $(readlink "$saved") == "$previous" && -e "$previous" && -L "$previous" ]] || fail "$kind $failure failure lost prior root"
       candidate=$(<"$TEST_CANDIDATE")
-      [[ "$candidate" != "$previous" && ! -L "$candidate" ]] || fail "$kind $failure failure leaked candidate root"
+      [[ "$candidate" != "$previous" && ! -L "$candidate" && ! -d "${candidate%/result}" ]] || fail "$kind $failure failure leaked candidate root"
       [[ ! -s "$TEST_LOG" ]] || fail 'failed preview activated'
     )
   done
