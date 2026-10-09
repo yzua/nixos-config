@@ -4,10 +4,11 @@ import { Type, type Static } from "@sinclair/typebox";
 import { Box, Text, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import { dirname, join, resolve, relative, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readdirSync, readFileSync, existsSync, mkdirSync, unlinkSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync, unlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import { isMuxAvailable, muxSetupHint, sendCommand } from "./tmux.ts";
 import { ChildLaunch, SPAWNING_TOOLS, type AgentDefaults } from "./child-launch.ts";
+import { AgentCatalog } from "./agent-catalog.ts";
 
 import {
   getSessionId,
@@ -98,18 +99,6 @@ const SubagentParams = Type.Object({
   ),
 });
 
-type AgentSource = "package" | "global" | "project";
-
-interface AgentDefinition extends AgentDefaults {
-  name: string;
-  description?: string;
-  disableModelInvocation: boolean;
-}
-
-interface ListedAgentDefinition extends AgentDefinition {
-  source: AgentSource;
-}
-
 /** Built-in tools pi provides natively — no extension needs to be loaded. */
 const BUILTIN_TOOLS = new Set(["read", "write", "edit", "bash", "grep", "find", "ls"]);
 
@@ -181,109 +170,15 @@ function getToolExtensionPath(tool: string): string | undefined {
   return EXTRA_TOOL_EXTENSIONS.get(tool);
 }
 
-/**
- * When this process was spawned as a restricted subagent, the parent pins the
- * set of agents it may itself spawn via PI_SUBAGENT_ALLOWED. `null` means no
- * restriction (top-level session, or an unrestricted child).
- */
-const SUBAGENT_ALLOWLIST: Set<string> | null = (() => {
-  const raw = process.env.PI_SUBAGENT_ALLOWED;
-  if (!raw) return null;
-  const list = raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return list.length > 0 ? new Set(list) : null;
-})();
-
-function getBundledAgentsDir(): string {
-  return join(SUBAGENTS_DIR, "../../agents");
-}
-
-function getFrontmatterValue(frontmatter: string, key: string): string | undefined {
-  const match = frontmatter.match(new RegExp(`^${key}:\\s*(.+)$`, "m"));
-  return match ? match[1].trim() : undefined;
-}
-
-function parseOptionalBoolean(value: string | undefined): boolean | undefined {
-  return value != null ? value === "true" : undefined;
-}
-
-/** Parse a comma-separated frontmatter value into a trimmed list (or undefined). */
-function parseCommaList(value: string | undefined): string[] | undefined {
-  if (value == null) return undefined;
-  const list = value
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return list.length > 0 ? list : undefined;
-}
-
-function parseSessionMode(value: string | undefined): SubagentSessionMode | undefined {
-  if (value === "standalone" || value === "lineage-only" || value === "fork") {
-    return value;
-  }
-  return undefined;
-}
-
-function parseAgentDefinition(content: string, fallbackName: string): AgentDefinition | null {
-  const match = content.match(/^---\n([\s\S]*?)\n---/);
-  if (!match) return null;
-
-  const frontmatter = match[1];
-  const body = content.replace(/^---\n[\s\S]*?\n---\n*/, "").trim();
-  const systemPromptMode = getFrontmatterValue(frontmatter, "system-prompt");
-
-  return {
-    name: getFrontmatterValue(frontmatter, "name") ?? fallbackName,
-    description: getFrontmatterValue(frontmatter, "description"),
-    model: getFrontmatterValue(frontmatter, "model"),
-    tools: getFrontmatterValue(frontmatter, "tools"),
-    systemPromptMode:
-      systemPromptMode === "replace"
-        ? "replace"
-        : systemPromptMode === "append"
-          ? "append"
-          : undefined,
-    skills: getFrontmatterValue(frontmatter, "skill") ?? getFrontmatterValue(frontmatter, "skills"),
-    thinking: getFrontmatterValue(frontmatter, "thinking"),
-    subagentAgents: parseCommaList(getFrontmatterValue(frontmatter, "subagent_agents")),
-    autoExit: parseOptionalBoolean(getFrontmatterValue(frontmatter, "auto-exit")),
-    interactive: parseOptionalBoolean(getFrontmatterValue(frontmatter, "interactive")),
-    sessionMode: parseSessionMode(getFrontmatterValue(frontmatter, "session-mode")),
-    cwd: getFrontmatterValue(frontmatter, "cwd"),
-    cli: getFrontmatterValue(frontmatter, "cli"),
-    body: body || undefined,
-    disableModelInvocation:
-      getFrontmatterValue(frontmatter, "disable-model-invocation")?.toLowerCase() === "true",
-  };
-}
-
-function discoverAgentDefinitions(): ListedAgentDefinition[] {
-  const agents = new Map<string, ListedAgentDefinition>();
-  const dirs: Array<{ path: string; source: AgentSource }> = [
-    { path: getBundledAgentsDir(), source: "package" },
-    { path: join(getAgentConfigDir(), "agents"), source: "global" },
-    { path: join(process.cwd(), ".pi", "agents"), source: "project" },
-  ];
-
-  for (const { path: dir, source } of dirs) {
-    if (!existsSync(dir)) continue;
-    for (const file of readdirSync(dir).filter((entry) => entry.endsWith(".md"))) {
-      const parsed = parseAgentDefinition(
-        readFileSync(join(dir, file), "utf8"),
-        file.replace(/\.md$/, ""),
-      );
-      if (!parsed) continue;
-      agents.set(parsed.name, { ...parsed, source });
-    }
-  }
-
-  // When this process is itself a restricted subagent, only expose the agents
-  // it is permitted to spawn (PI_SUBAGENT_ALLOWED). Top-level sessions see all.
-  const all = [...agents.values()];
-  return SUBAGENT_ALLOWLIST ? all.filter((a) => SUBAGENT_ALLOWLIST.has(a.name)) : all;
-}
+// Pin permissions now, but preserve call-time cwd/global-profile resolution.
+const agentCatalog = new AgentCatalog(
+  () => ({
+    package: join(SUBAGENTS_DIR, "../../agents"),
+    global: join(getAgentConfigDir(), "agents"),
+    project: join(process.cwd(), ".pi", "agents"),
+  }),
+  process.env.PI_SUBAGENT_ALLOWED,
+);
 
 function resolveSubagentPaths(
   params: Static<typeof SubagentParams>,
@@ -324,23 +219,6 @@ function resolveEffectiveInteractive(
 ): boolean {
   if (agentDefs?.interactive != null) return agentDefs.interactive;
   return !(agentDefs?.autoExit ?? false);
-}
-
-function loadAgentDefaults(agentName: string): AgentDefaults | null {
-  const configDir = getAgentConfigDir();
-  const paths = [
-    join(process.cwd(), ".pi", "agents", `${agentName}.md`),
-    join(configDir, "agents", `${agentName}.md`),
-    join(getBundledAgentsDir(), `${agentName}.md`),
-  ];
-
-  for (const p of paths) {
-    if (!existsSync(p)) continue;
-    const parsed = parseAgentDefinition(readFileSync(p, "utf8"), agentName);
-    if (parsed) return parsed;
-  }
-
-  return null;
 }
 
 function formatElapsed(seconds: number): string {
@@ -893,8 +771,6 @@ export const __test__ = {
   borderLine,
   getShellReadyDelayMs,
   renderSubagentWidgetLines,
-  loadAgentDefaults,
-  discoverAgentDefinitions,
   resolveEffectiveInteractive,
   formatWidgetRightLabel,
   observeRunningSubagent,
@@ -941,7 +817,7 @@ async function launchSubagent(
   const startTime = Date.now();
   const id = Math.random().toString(16).slice(2, 10);
 
-  const agentDefs = params.agent ? loadAgentDefaults(params.agent) : null;
+  const agentDefs = params.agent ? agentCatalog.loadProfile(params.agent) : null;
   const effectiveInteractive = resolveEffectiveInteractive(params, agentDefs);
 
   const sessionFile = ctx.sessionManager.getSessionFile();
@@ -1205,15 +1081,12 @@ export default function subagentsExtension(pi: ExtensionAPI) {
 
       // Strict whitelist at every depth. The caller's permitted set is:
       //   • a restricted subagent (PI_SUBAGENT_ALLOWED) → only its pinned agents;
-      //   • a top-level session → every discoverable agent, i.e. exactly what
-      //     `subagents_list` shows.
+      //   • a top-level session → every discoverable agent, including hidden profiles.
       // Every spawn must name an agent in that set. The lone exception is a
       // top-level `fork: true` clone, which has no role and inherits the
       // caller's own already-trusted toolset. Without this guard a missing or
       // unknown `agent` silently launches an unrestricted, full-toolset child.
-      const permittedAgents = SUBAGENT_ALLOWLIST
-        ? [...SUBAGENT_ALLOWLIST]
-        : discoverAgentDefinitions().map((a) => a.name);
+      const { names: permittedAgents, restricted } = agentCatalog.permittedNames();
       const permittedSet = new Set(permittedAgents);
       const permittedList = permittedAgents.join(", ") || "(none)";
 
@@ -1236,12 +1109,12 @@ export default function subagentsExtension(pi: ExtensionAPI) {
               type: "text",
               text:
                 `You may not spawn the "${params.agent}" agent — it is not ` +
-                `${SUBAGENT_ALLOWLIST ? "in your allowlist" : "a known agent"}. ` +
+                `${restricted ? "in your allowlist" : "a known agent"}. ` +
                 `Available agents: ${permittedList}.`,
             },
           ],
           details: {
-            error: SUBAGENT_ALLOWLIST ? "agent not in allowlist" : "unknown agent",
+            error: restricted ? "agent not in allowlist" : "unknown agent",
           },
         };
       }
@@ -1387,7 +1260,7 @@ export default function subagentsExtension(pi: ExtensionAPI) {
     parameters: Type.Object({}),
 
     async execute() {
-      const list = discoverAgentDefinitions().filter((agent) => !agent.disableModelInvocation);
+      const list = agentCatalog.listVisible();
 
       if (list.length === 0) {
         return {
@@ -1633,7 +1506,7 @@ export default function subagentsExtension(pi: ExtensionAPI) {
       const agentName = spaceIdx === -1 ? trimmed : trimmed.slice(0, spaceIdx);
       const task = spaceIdx === -1 ? "" : trimmed.slice(spaceIdx + 1).trim();
 
-      const defs = loadAgentDefaults(agentName);
+      const defs = agentCatalog.loadProfile(agentName);
       if (!defs) {
         ctx.ui.notify(
           `Agent "${agentName}" not found in ~/.pi/agent/agents/ or .pi/agents/`,

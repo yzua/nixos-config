@@ -4,26 +4,26 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { __test__ } from "../pi-extension/subagents/index.ts";
+import { AgentCatalog } from "../pi-extension/subagents/agent-catalog.ts";
 import { ChildLaunch } from "../pi-extension/subagents/child-launch.ts";
 import { createStatusState } from "../pi-extension/subagents/status.ts";
 
 for (const mode of ["replace", "append", undefined, "invalid"] as const) {
   test(`production profile parsing and identity routing: ${mode}`, () => {
     const root = mkdtempSync(join(tmpdir(), "pi-system-prompt-"));
-    const previousDir = process.env.PI_CODING_AGENT_DIR;
-    const previousCwd = process.cwd();
     try {
-      // Only private project/global directories are discoverable during this test.
-      process.chdir(root);
-      process.env.PI_CODING_AGENT_DIR = join(root, "agent");
       const agents = join(root, ".pi", "agents");
+      const catalog = new AgentCatalog(() => ({
+        project: agents,
+        global: join(root, "global"),
+        package: join(root, "package"),
+      }));
       mkdirSync(agents, { recursive: true });
       writeFileSync(
         join(agents, "identity-fixture.md"),
         `---\nmodel: offline-model\n${mode ? `system-prompt: ${mode}\n` : ""}---\nIDENTITY`,
       );
-      const profile = __test__.loadAgentDefaults("identity-fixture");
+      const profile = catalog.loadProfile("identity-fixture");
       assert.ok(profile);
       const expected = mode === "append" || mode === "replace" ? mode : undefined;
       assert.equal(profile.systemPromptMode, expected);
@@ -64,9 +64,6 @@ for (const mode of ["replace", "append", undefined, "invalid"] as const) {
           !plan.parts.includes("--system-prompt") && !plan.parts.includes("--append-system-prompt"),
         );
     } finally {
-      process.chdir(previousCwd);
-      if (previousDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
-      else process.env.PI_CODING_AGENT_DIR = previousDir;
       rmSync(root, { recursive: true, force: true });
     }
   });

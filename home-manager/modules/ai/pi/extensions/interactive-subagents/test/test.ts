@@ -59,6 +59,13 @@ import subagentDoneExtension from "../pi-extension/subagents/subagent-done.ts";
 import "./child-launch.test.ts";
 import { ChildLaunch } from "../pi-extension/subagents/child-launch.ts";
 import "./run-evidence.test.ts";
+import "./agent-catalog.test.ts";
+import { AgentCatalog } from "../pi-extension/subagents/agent-catalog.ts";
+const bundledCatalog = new AgentCatalog(() => ({
+  package: fileURLToPath(new URL("../agents", import.meta.url)),
+  global: fileURLToPath(new URL("./missing-global", import.meta.url)),
+  project: fileURLToPath(new URL("./missing-project", import.meta.url)),
+}));
 
 // --- Helpers ---
 
@@ -147,32 +154,24 @@ function writeAgentFile(
   writeFileSync(join(agentsDir, `${name}.md`), `---\n${frontmatter}\n---\n\n${body}\n`);
 }
 
-async function withIsolatedAgentEnv(
+async function withCatalog(
   fn: (paths: {
-    projectDir: string;
+    catalog: AgentCatalog;
     projectAgentsDir: string;
-    globalDir: string;
     globalAgentsDir: string;
   }) => Promise<void> | void,
 ) {
   const root = createTestDir();
-  const previousCwd = process.cwd();
-  const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
-  const projectDir = join(root, "project");
-  const projectAgentsDir = join(projectDir, ".pi", "agents");
-  const globalDir = join(root, "global");
-  const globalAgentsDir = join(globalDir, "agents");
-
-  mkdirSync(projectAgentsDir, { recursive: true });
-  mkdirSync(globalAgentsDir, { recursive: true });
-  process.chdir(projectDir);
-  process.env.PI_CODING_AGENT_DIR = globalDir;
-
+  const projectAgentsDir = join(root, "project");
+  const globalAgentsDir = join(root, "global");
+  const catalog = new AgentCatalog(() => ({
+    project: projectAgentsDir,
+    global: globalAgentsDir,
+    package: join(root, "package"),
+  }));
   try {
-    await fn({ projectDir, projectAgentsDir, globalDir, globalAgentsDir });
+    await fn({ catalog, projectAgentsDir, globalAgentsDir });
   } finally {
-    process.chdir(previousCwd);
-    restoreEnvVar("PI_CODING_AGENT_DIR", previousAgentDir);
     rmSync(root, { recursive: true, force: true });
   }
 }
@@ -1173,7 +1172,7 @@ describe("subagent discovery", () => {
   const testApi = (subagentsModule as any).__test__;
 
   it("loads session-mode from frontmatter", async () => {
-    await withIsolatedAgentEnv(async ({ projectAgentsDir }) => {
+    await withCatalog(async ({ catalog, projectAgentsDir }) => {
       writeAgentFile(
         projectAgentsDir,
         "lineage-mode-test-agent",
@@ -1184,14 +1183,14 @@ describe("subagent discovery", () => {
         ].join("\n"),
       );
 
-      const loaded = testApi.loadAgentDefaults("lineage-mode-test-agent");
+      const loaded = catalog.loadProfile("lineage-mode-test-agent");
       assert.ok(loaded, "expected agent to load");
       assert.equal(loaded.sessionMode, "lineage-only");
     });
   });
 
   it("loads explicit interactive flag from frontmatter", async () => {
-    await withIsolatedAgentEnv(async ({ projectAgentsDir }) => {
+    await withCatalog(async ({ catalog, projectAgentsDir }) => {
       writeAgentFile(
         projectAgentsDir,
         "interactive-true-test-agent",
@@ -1211,16 +1210,16 @@ describe("subagent discovery", () => {
         ].join("\n"),
       );
 
-      const loadedTrue = testApi.loadAgentDefaults("interactive-true-test-agent");
+      const loadedTrue = catalog.loadProfile("interactive-true-test-agent");
       assert.equal(loadedTrue?.interactive, true);
 
-      const loadedFalse = testApi.loadAgentDefaults("interactive-false-test-agent");
+      const loadedFalse = catalog.loadProfile("interactive-false-test-agent");
       assert.equal(loadedFalse?.interactive, false);
     });
   });
 
   it("leaves interactive undefined when not set in frontmatter", async () => {
-    await withIsolatedAgentEnv(async ({ projectAgentsDir }) => {
+    await withCatalog(async ({ catalog, projectAgentsDir }) => {
       writeAgentFile(
         projectAgentsDir,
         "interactive-unset-test-agent",
@@ -1229,7 +1228,7 @@ describe("subagent discovery", () => {
         ),
       );
 
-      const loaded = testApi.loadAgentDefaults("interactive-unset-test-agent");
+      const loaded = catalog.loadProfile("interactive-unset-test-agent");
       assert.equal(loaded?.interactive, undefined);
     });
   });
@@ -1268,7 +1267,7 @@ describe("subagent discovery", () => {
 
   it("bundled scout/researcher/worker all resolve as non-interactive (auto-exit)", () => {
     for (const name of ["scout", "researcher", "worker"]) {
-      const defs = testApi.loadAgentDefaults(name);
+      const defs = bundledCatalog.loadProfile(name);
       assert.ok(defs, `expected bundled agent ${name} to be discoverable`);
       assert.equal(
         testApi.resolveEffectiveInteractive({ name, task: "" }, defs),
@@ -1279,7 +1278,7 @@ describe("subagent discovery", () => {
   });
 
   it("worker is granted the spawning toolset restricted to scout and researcher", () => {
-    const worker = testApi.loadAgentDefaults("worker");
+    const worker = bundledCatalog.loadProfile("worker");
     assert.ok(worker, "expected bundled worker to be discoverable");
     assert.deepEqual(worker.subagentAgents, ["scout", "researcher"]);
 
@@ -1322,29 +1321,36 @@ describe("subagent discovery", () => {
 
   it("scout and researcher are not granted spawning tools", () => {
     for (const name of ["scout", "researcher"]) {
-      const defs = testApi.loadAgentDefaults(name);
+      const defs = bundledCatalog.loadProfile(name);
       assert.ok(defs, `expected bundled agent ${name} to be discoverable`);
       assert.equal(defs.subagentAgents, undefined, `${name} should not declare subagent_agents`);
     }
   });
 
   it("getToolExtensionPath maps installed custom tools and skips built-ins", async () => {
-    await withIsolatedAgentEnv(({ globalDir }) => {
-      const extensionDir = join(globalDir, "extensions", "web-fetch");
-      mkdirSync(extensionDir, { recursive: true });
-      writeFileSync(join(extensionDir, "index.ts"), "export default function () {}\n");
-      assert.equal(testApi.getToolExtensionPath("read"), undefined);
-      assert.equal(testApi.getToolExtensionPath("bash"), undefined);
-      assert.equal(testApi.getToolExtensionPath("web_search"), undefined);
-      assert.equal(testApi.getToolExtensionPath("web_fetch"), join(extensionDir, "index.ts"));
-      assert.ok(testApi.getToolExtensionPath("safe_bash")?.endsWith("tools/safe-bash.ts"));
-      // Spawning tools are registered by this extension itself.
-      assert.ok(testApi.getToolExtensionPath("subagent")?.endsWith("index.ts"));
+    await withCatalog(({ globalAgentsDir }) => {
+      const previous = process.env.PI_CODING_AGENT_DIR;
+      const globalDir = join(globalAgentsDir, "..");
+      process.env.PI_CODING_AGENT_DIR = globalDir;
+      try {
+        const extensionDir = join(globalDir, "extensions", "web-fetch");
+        mkdirSync(extensionDir, { recursive: true });
+        writeFileSync(join(extensionDir, "index.ts"), "export default function () {}\n");
+        assert.equal(testApi.getToolExtensionPath("read"), undefined);
+        assert.equal(testApi.getToolExtensionPath("bash"), undefined);
+        assert.equal(testApi.getToolExtensionPath("web_search"), undefined);
+        assert.equal(testApi.getToolExtensionPath("web_fetch"), join(extensionDir, "index.ts"));
+        assert.ok(testApi.getToolExtensionPath("safe_bash")?.endsWith("tools/safe-bash.ts"));
+        // Spawning tools are registered by this extension itself.
+        assert.ok(testApi.getToolExtensionPath("subagent")?.endsWith("index.ts"));
+      } finally {
+        restoreEnvVar("PI_CODING_AGENT_DIR", previous);
+      }
     });
   });
 
   it("ignores invalid session-mode values", async () => {
-    await withIsolatedAgentEnv(async ({ projectAgentsDir }) => {
+    await withCatalog(async ({ catalog, projectAgentsDir }) => {
       writeAgentFile(
         projectAgentsDir,
         "invalid-mode-test-agent",
@@ -1355,40 +1361,46 @@ describe("subagent discovery", () => {
         ].join("\n"),
       );
 
-      const loaded = testApi.loadAgentDefaults("invalid-mode-test-agent");
+      const loaded = catalog.loadProfile("invalid-mode-test-agent");
       assert.ok(loaded, "expected agent to load");
       assert.equal(loaded.sessionMode, undefined);
     });
   });
 
   it("lists visible agents from discovery", async () => {
-    await withIsolatedAgentEnv(async ({ projectAgentsDir }) => {
-      writeAgentFile(
-        projectAgentsDir,
-        "visible-discovery-test-agent",
-        [
-          "name: visible-discovery-test-agent",
-          "description: Visible test agent",
-          "model: anthropic/test-visible",
-        ].join("\n"),
-      );
+    await withCatalog(async ({ globalAgentsDir }) => {
+      const previous = process.env.PI_CODING_AGENT_DIR;
+      process.env.PI_CODING_AGENT_DIR = join(globalAgentsDir, "..");
+      try {
+        writeAgentFile(
+          globalAgentsDir,
+          "visible-discovery-test-agent",
+          [
+            "name: visible-discovery-test-agent",
+            "description: Visible test agent",
+            "model: anthropic/test-visible",
+          ].join("\n"),
+        );
 
-      const { api, registeredTools } = createMockExtensionApi();
-      (subagentsModule as any).default(api);
+        const { api, registeredTools } = createMockExtensionApi();
+        (subagentsModule as any).default(api);
 
-      const tool = registeredTools.find((tool) => tool.name === "subagents_list");
-      assert.ok(tool, "expected subagents_list to be registered");
+        const tool = registeredTools.find((tool) => tool.name === "subagents_list");
+        assert.ok(tool, "expected subagents_list to be registered");
 
-      const result = await tool.execute();
-      const agents = result.details?.agents ?? [];
+        const result = await tool.execute();
+        const agents = result.details?.agents ?? [];
 
-      assert.ok(agents.some((agent: any) => agent.name === "visible-discovery-test-agent"));
-      assert.match(result.content[0].text, /visible-discovery-test-agent/);
+        assert.ok(agents.some((agent: any) => agent.name === "visible-discovery-test-agent"));
+        assert.match(result.content[0].text, /visible-discovery-test-agent/);
+      } finally {
+        restoreEnvVar("PI_CODING_AGENT_DIR", previous);
+      }
     });
   });
 
   it("hides disable-model-invocation agents from listings but keeps direct loading", async () => {
-    await withIsolatedAgentEnv(async ({ projectAgentsDir }) => {
+    await withCatalog(async ({ catalog, projectAgentsDir }) => {
       writeAgentFile(
         projectAgentsDir,
         "hidden-discovery-test-agent",
@@ -1401,22 +1413,12 @@ describe("subagent discovery", () => {
         "You are the hidden agent.",
       );
 
-      const { api, registeredTools } = createMockExtensionApi();
-      (subagentsModule as any).default(api);
-
-      const tool = registeredTools.find((tool) => tool.name === "subagents_list");
-      assert.ok(tool, "expected subagents_list to be registered");
-
-      const result = await tool.execute();
-      const agents = result.details?.agents ?? [];
-
       assert.equal(
-        agents.some((agent: any) => agent.name === "hidden-discovery-test-agent"),
+        catalog.listVisible().some((agent) => agent.name === "hidden-discovery-test-agent"),
         false,
       );
-      assert.doesNotMatch(result.content[0].text, /hidden-discovery-test-agent/);
-
-      const loaded = testApi.loadAgentDefaults("hidden-discovery-test-agent");
+      assert.ok(catalog.permittedNames().names.includes("hidden-discovery-test-agent"));
+      const loaded = catalog.loadProfile("hidden-discovery-test-agent");
       assert.ok(loaded, "expected hidden agent to remain directly loadable");
       assert.equal(loaded.model, "anthropic/test-hidden");
       assert.equal(loaded.body, "You are the hidden agent.");
@@ -1425,7 +1427,7 @@ describe("subagent discovery", () => {
   });
 
   it("lets a hidden project agent shadow a visible global agent", async () => {
-    await withIsolatedAgentEnv(async ({ projectAgentsDir, globalAgentsDir }) => {
+    await withCatalog(async ({ catalog, projectAgentsDir, globalAgentsDir }) => {
       writeAgentFile(
         globalAgentsDir,
         "shadowed-discovery-test-agent",
@@ -1448,22 +1450,12 @@ describe("subagent discovery", () => {
         "You are the project hidden agent.",
       );
 
-      const { api, registeredTools } = createMockExtensionApi();
-      (subagentsModule as any).default(api);
-
-      const tool = registeredTools.find((tool) => tool.name === "subagents_list");
-      assert.ok(tool, "expected subagents_list to be registered");
-
-      const result = await tool.execute();
-      const agents = result.details?.agents ?? [];
-
       assert.equal(
-        agents.some((agent: any) => agent.name === "shadowed-discovery-test-agent"),
+        catalog.listVisible().some((agent) => agent.name === "shadowed-discovery-test-agent"),
         false,
       );
-      assert.doesNotMatch(result.content[0].text, /shadowed-discovery-test-agent/);
-
-      const loaded = testApi.loadAgentDefaults("shadowed-discovery-test-agent");
+      assert.ok(catalog.permittedNames().names.includes("shadowed-discovery-test-agent"));
+      const loaded = catalog.loadProfile("shadowed-discovery-test-agent");
       assert.ok(loaded, "expected project override to remain directly loadable");
       assert.equal(loaded.model, "anthropic/test-project");
       assert.equal(loaded.body, "You are the project hidden agent.");

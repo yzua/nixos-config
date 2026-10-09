@@ -16,7 +16,7 @@ test("production child launch and identity policy suites (closed offline loader)
       !key.startsWith("HERDR_") && !key.startsWith("PI_SUBAGENT") && !["TMUX", "TMUX_PANE", "NODE_OPTIONS", "NODE_TEST_CONTEXT"].includes(key)));
     Object.assign(env, { HOME: root, PI_CODING_AGENT_DIR: join(root, "agent"), PI_RECALL_ROOT: root });
     const suite = (name) => fileURLToPath(new URL(`../home-manager/modules/ai/pi/extensions/interactive-subagents/test/${name}.test.ts`, import.meta.url));
-    const stdout = execFileSync(process.execPath, ["--no-warnings", "--experimental-transform-types", "--loader", fixture("loader.mjs"), "--test", suite("child-launch"), suite("system-prompt-mode"), suite("run-evidence")], { env, cwd: root, encoding: "utf8", timeout: 10000 });
+    const stdout = execFileSync(process.execPath, ["--no-warnings", "--experimental-transform-types", "--loader", fixture("loader.mjs"), "--test", suite("agent-catalog"), suite("child-launch"), suite("system-prompt-mode"), suite("run-evidence")], { env, cwd: root, encoding: "utf8", timeout: 10000 });
     assert.match(stdout, /\bfail 0\b/);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });

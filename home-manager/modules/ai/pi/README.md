@@ -8,7 +8,9 @@ The first activation backs up existing settings/models beneath
 `${XDG_STATE_HOME:-$HOME/.local/state}/pi-config/backups/`, selects GPT-6.1 Sol
 at high, disables native MCP, and adds the model to the existing custom
 Responses provider if needed. Its existing endpoint limits and credentials
-are preserved. Later activations preserve settings saved in Pi.
+are preserved. `default.nix` owns the initialization document (settings and model
+metadata); `initialize.py` owns once-only application and backups. Policy edits do
+not migrate initialized profiles. Later activations preserve settings saved in Pi.
 
 Run `p` inside Herdr or tmux. Inside Herdr, each subagent gets a separate named
 background tab in the caller's live workspace. The parent keeps its full size and
@@ -59,6 +61,12 @@ API and TypeBox imports, including legacy aliases.
 The subagent source passes `--thinking` independently of `--model`, so a
 profile can inherit the configured model while selecting its own reasoning
 level. This applies to both initial launches and resumed follow-ups.
+
+`agent-catalog.ts` owns profile parsing, package/global/project precedence, and
+pinned spawn permissions. Discovery uses declared names; direct loading uses
+filenames. Hidden profiles still shadow lower-precedence profiles and remain
+permitted/loadable, but are omitted from the visible tool listing. Paths and files
+are resolved at call time; only child permissions are pinned.
 
 `child-launch.ts` owns child commands, sandbox snapshot/replay, and task handoff
 for both initial and resumed runs. `run-evidence.ts` interprets completion and
