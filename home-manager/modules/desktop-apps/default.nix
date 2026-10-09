@@ -16,6 +16,7 @@
   home.packages = [
     pkgs.google-chrome
     pkgs.obs-studio
+    pkgs.qbittorrent
     pkgs.sqlitebrowser
     pkgs.telegram-desktop
   ];

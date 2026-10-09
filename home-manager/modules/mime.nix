@@ -1,8 +1,9 @@
-# Set the user's file, web, and Telegram MIME and URL-handler defaults.
+# Set the user's file, web, messaging, and torrent MIME and URL-handler defaults.
 
 let
   firefox = "firefox.desktop";
   telegram = "org.telegram.desktop.desktop";
+  qbittorrent = "org.qbittorrent.qBittorrent.desktop";
   textEditor = "code.desktop";
   papers = "org.gnome.Papers.desktop";
   loupe = "org.gnome.Loupe.desktop";
@@ -77,6 +78,10 @@ let
     "application/x-extension-xht" = firefox;
     "x-scheme-handler/tg" = telegram;
     "x-scheme-handler/tonsite" = telegram;
+
+    # Torrent downloads and magnet links.
+    "application/x-bittorrent" = qbittorrent;
+    "x-scheme-handler/magnet" = qbittorrent;
 
     # Folders, documents, and images. File URIs use the target's MIME type.
     "inode/directory" = nautilus;
