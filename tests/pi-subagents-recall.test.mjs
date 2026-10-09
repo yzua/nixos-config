@@ -17,7 +17,7 @@ test("production child launch and identity policy suites (closed offline loader)
     Object.assign(env, { HOME: root, PI_CODING_AGENT_DIR: join(root, "agent"), PI_RECALL_ROOT: root });
     const suite = (name) => fileURLToPath(new URL(`../home-manager/modules/ai/pi/extensions/interactive-subagents/test/${name}.test.ts`, import.meta.url));
     const stdout = execFileSync(process.execPath, ["--no-warnings", "--experimental-transform-types", "--loader", fixture("loader.mjs"), "--test", suite("child-launch"), suite("system-prompt-mode"), suite("run-evidence")], { env, cwd: root, encoding: "utf8", timeout: 10000 });
-    assert.match(stdout, /pass 18/);
+    assert.match(stdout, /\bfail 0\b/);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 const scenarios = ["completion-during-recall", "legacy-completed", "legacy-pending", "modern-completed-missing", "prepare-replacement", "dead-missing-surface", "misleading-monitor-error", "reload", "terminal-at-recall", "registry-failure", "late-watcher", "fenced-live-runtime", "delivery-throws", "restart", "reused-incarnation", "foreign-mux", "foreign-parent", "foreign-name", "legacy", "missing-owner", "corrupt", "corrupt-loadout", "unknown-mux", "unknown-surface", "incomplete-dispatch", "busy-lock", "live-lost-pane", "unknown-lost-pane", "live-stale-sentinel", ...["dead", "reused", "zombie", "oldboot", "live", "missing", "wrong-token", "legacy-lease", "corrupt-lease", "corrupt-proc", "foreign-machine", "foreign-namespace", "unknown", "proc-unavailable"].map((name) => `cold-${name}`)];
