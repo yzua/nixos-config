@@ -26,10 +26,10 @@ import {
   type SubagentLoadout,
 } from "./session.ts";
 import type { SubagentStatusState } from "./status.ts";
+import { pollForExit, terminalExit } from "./run-evidence.ts";
 import {
   closeSurface,
   createSurface,
-  pollForExit,
   readScreen,
   readScreenAsync,
   sendLongCommand,
@@ -86,7 +86,7 @@ type ResultPolicy =
       sessionId: string;
     };
 
-type LaunchPlan = {
+export type LaunchPlan = {
   launchScriptFile: string;
   scriptPreamble: string;
 } & (
@@ -308,16 +308,12 @@ export class ManagedRuns {
                 else probeSignal.addEventListener("abort", onAbort, { once: true });
               }),
             ]);
-            if (
-              exit.reason !== "sentinel" &&
-              exit.errorMessage !==
-                `Subagent pane ${owner.surface} disappeared before reporting completion.`
-            )
+            if (exit.evidence !== "terminal" && exit.evidence !== "pane-lost")
               throw new Error("cannot establish child exit");
             const writer = inspectSubagentWriterLease(owner.sessionFile, owner.run.id, owner.token);
             // Losing a pane is not proof that a detached Pi process died. A
             // known-live writer also overrides stale/noisy terminal sentinels.
-            if (writer === "live" || (exit.reason !== "sentinel" && writer !== "dead")) {
+            if (writer === "live" || (exit.evidence !== "terminal" && writer !== "dead")) {
               throw new Error("writer is live or its death cannot be established");
             }
           } catch {
@@ -411,7 +407,7 @@ export class ManagedRuns {
           }),
         ]);
         terminal =
-          /__SUBAGENT_DONE_\d+__/.test(screen) ||
+          !!terminalExit(screen) ||
           (owner.run.cli === "claude" &&
             !!owner.run.sentinelFile &&
             existsSync(owner.run.sentinelFile));

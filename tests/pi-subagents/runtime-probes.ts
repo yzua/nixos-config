@@ -5,7 +5,7 @@ import { join } from "node:path";
 import subagents, {
   __test__,
 } from "../../home-manager/modules/ai/pi/extensions/interactive-subagents/pi-extension/subagents/index.ts";
-import { pollForExit } from "../../home-manager/modules/ai/pi/extensions/interactive-subagents/pi-extension/subagents/tmux.ts";
+import { pollForExit } from "../../home-manager/modules/ai/pi/extensions/interactive-subagents/pi-extension/subagents/run-evidence.ts";
 
 export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, realContext) => {
@@ -77,7 +77,64 @@ export default function (pi: ExtensionAPI) {
         const run = (tool: string, args: Record<string, unknown>) =>
           tools.get(tool)!.execute("fixture", args, undefined, undefined, context);
         try {
-          if (process.env.PI_TEST_SCENARIO === "launch-failure") {
+          if (process.env.PI_TEST_SCENARIO === "launch-policy") {
+            writeFileSync(join(root, "tmux-mode"), "managed-empty");
+            writeFileSync(
+              join(root, "parent.jsonl"),
+              [
+                { type: "session", id: "fixture-parent", version: 3, cwd: root },
+                {
+                  type: "message",
+                  id: "prior-user",
+                  message: { role: "user", content: [{ type: "text", text: "prior task" }] },
+                },
+                {
+                  type: "message",
+                  id: "prior-answer",
+                  parentId: "prior-user",
+                  message: {
+                    role: "assistant",
+                    content: [{ type: "text", text: "PARENT_CONTEXT" }],
+                  },
+                },
+                {
+                  type: "message",
+                  id: "current-user",
+                  parentId: "prior-answer",
+                  message: { role: "user", content: [{ type: "text", text: "current dispatch" }] },
+                },
+              ]
+                .map((entry) => JSON.stringify(entry))
+                .join("\n") + "\n",
+            );
+            const launches: Record<string, unknown>[] = [];
+            for (const mode of ["standalone", "lineage-only", "fork"]) {
+              const agent = `policy-${mode}`;
+              writeFileSync(
+                join(process.env.PI_CODING_AGENT_DIR!, "agents", `${agent}.md`),
+                `---\nname: ${agent}\ntools: read\nskills: review,lint\nmodel: offline-profile\nthinking: medium\nsystem-prompt: replace\nsession-mode: ${mode}\nauto-exit: true\n---\nROLE_IDENTITY`,
+              );
+              const spawned = await run("subagent", {
+                agent,
+                name: agent,
+                task: "CHILD_TASK",
+                model: "offline-override",
+              });
+              const details = spawned.details;
+              const command = readFileSync(details.launchScriptFile, "utf8");
+              const taskFile = command.match(/'@([^']+)'/);
+              const identityFile = command.match(/--system-prompt '([^']+)'/);
+              launches.push({
+                mode,
+                command,
+                taskArtifact: taskFile ? readFileSync(taskFile[1], "utf8") : null,
+                identity: identityFile ? readFileSync(identityFile[1], "utf8") : null,
+                session: readFileSync(details.sessionFile, "utf8"),
+                loadout: JSON.parse(readFileSync(`${details.sessionFile}.loadout.json`, "utf8")),
+              });
+            }
+            results.launches = launches;
+          } else if (process.env.PI_TEST_SCENARIO === "launch-failure") {
             writeFileSync(join(root, "tmux-mode"), "send-failure");
             try {
               await run("subagent", { agent: "fixture", name: "retryable", task: "fail" });

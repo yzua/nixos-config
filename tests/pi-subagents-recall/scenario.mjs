@@ -331,6 +331,11 @@ if (mode === "restart-writer") {
   else if (mode === "unknown-surface") save(`surface-${value.surface}.json`, { unknown: true });
   else if (mode === "incomplete-dispatch") value.phase = "prepared";
   else if (mode === "busy-lock") mkdirSync(`${run.sessionFile}.owner.lock`);
+  else if (mode === "misleading-monitor-error") {
+    value.delivered = true;
+    save("proc-mode.json", "dead");
+    save(`surface-${value.surface}.json`, { unavailable: true });
+  }
   else if (["live-lost-pane", "unknown-lost-pane", "live-stale-sentinel"].includes(mode)) {
     value.delivered = true; // Prior watcher noticed completion, but could not kill the writer.
     save(`surface-${value.surface}.json`, mode === "live-stale-sentinel" ? { done: true, closed: false } : { closed: true });

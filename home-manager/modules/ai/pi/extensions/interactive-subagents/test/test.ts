@@ -56,7 +56,9 @@ import {
   runningChildrenCount,
 } from "../pi-extension/subagents/subagent-done.ts";
 import subagentDoneExtension from "../pi-extension/subagents/subagent-done.ts";
-import { __pollForExitTest__ } from "../pi-extension/subagents/tmux.ts";
+import "./child-launch.test.ts";
+import { ChildLaunch } from "../pi-extension/subagents/child-launch.ts";
+import "./run-evidence.test.ts";
 
 // --- Helpers ---
 
@@ -1281,7 +1283,35 @@ describe("subagent discovery", () => {
     assert.ok(worker, "expected bundled worker to be discoverable");
     assert.deepEqual(worker.subagentAgents, ["scout", "researcher"]);
 
-    const allowlist = testApi.buildSubagentToolAllowlist(worker.tools, { grantSpawning: true });
+    const dir = createTestDir();
+    let allowlist: string | null;
+    try {
+      const plan = new ChildLaunch(dir, () => undefined).prepare(
+        {
+          kind: "initial",
+          profile: worker,
+          cwd: null,
+          agentDir: null,
+        },
+        {
+          id: "worker-test",
+          name: "Worker",
+          task: "task",
+          agent: "worker",
+          surface: "%1",
+          sessionFile: join(dir, "child.jsonl"),
+          parentArtifactDir: dir,
+          startTime: 0,
+          interactive: true,
+          statusState: createStatusState({ source: "pi", startTimeMs: 0 }),
+        },
+      );
+      assert.equal(plan.kind, "pi");
+      if (plan.kind !== "pi") throw new Error("Expected Pi launch");
+      allowlist = plan.loadout.toolAllowlist;
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
     assert.ok(allowlist, "expected an allowlist");
     const tools = new Set(allowlist!.split(","));
     for (const t of ["subagent", "subagent_message", "subagents_list"]) {
@@ -1329,176 +1359,6 @@ describe("subagent discovery", () => {
       assert.ok(loaded, "expected agent to load");
       assert.equal(loaded.sessionMode, undefined);
     });
-  });
-
-  it("resolves session mode from frontmatter (standalone default)", () => {
-    assert.equal(testApi.resolveEffectiveSessionMode({ name: "A", task: "T" }, null), "standalone");
-    assert.equal(
-      testApi.resolveEffectiveSessionMode(
-        { name: "A", task: "T" },
-        { sessionMode: "lineage-only" },
-      ),
-      "lineage-only",
-    );
-    assert.equal(
-      testApi.resolveEffectiveSessionMode({ name: "A", task: "T" }, { sessionMode: "fork" }),
-      "fork",
-    );
-  });
-
-  it("resolves launch behavior for standalone, lineage-only, and fork modes", () => {
-    assert.deepEqual(testApi.resolveLaunchBehavior({ name: "A", task: "T" }, null), {
-      sessionMode: "standalone",
-      seededSessionMode: null,
-      inheritsConversationContext: false,
-      taskDelivery: "artifact",
-    });
-    assert.deepEqual(
-      testApi.resolveLaunchBehavior({ name: "A", task: "T" }, { sessionMode: "lineage-only" }),
-      {
-        sessionMode: "lineage-only",
-        seededSessionMode: "lineage-only",
-        inheritsConversationContext: false,
-        taskDelivery: "artifact",
-      },
-    );
-    assert.deepEqual(
-      testApi.resolveLaunchBehavior({ name: "A", task: "T" }, { sessionMode: "fork" }),
-      {
-        sessionMode: "fork",
-        seededSessionMode: "fork",
-        inheritsConversationContext: true,
-        taskDelivery: "direct",
-      },
-    );
-  });
-
-  it("buildSubagentToolAllowlist preserves requested tools and adds child control tools", () => {
-    assert.equal(
-      testApi.buildSubagentToolAllowlist("read,bash,web_search"),
-      "read,bash,web_search,ask_question",
-    );
-  });
-
-  it("buildSubagentToolAllowlist returns null without an explicit tool restriction", () => {
-    assert.equal(testApi.buildSubagentToolAllowlist(undefined), null);
-    assert.equal(testApi.buildSubagentToolAllowlist(""), null);
-  });
-
-  it("applySandboxToParts replays model, identity, and default-deny tool restriction", () => {
-    withTempDir((d) => {
-      const parts: string[] = [];
-      testApi.applySandboxToParts(
-        parts,
-        {
-          agent: "worker",
-          toolAllowlist: "read,write,safe_bash",
-          model: "openrouter/z-ai/glm-5.2",
-          thinking: "medium",
-          systemPromptMode: "append",
-          identity: "You are a worker.",
-          spawnable: ["scout"],
-          autoExit: true,
-          cwd: null,
-          agentDir: null,
-        },
-        { artifactDir: d, name: "worker" },
-      );
-      const joined = parts.join(" ");
-      // Pi accepts reasoning independently of the selected model.
-      assert.equal(parts[parts.indexOf("--model") + 1], "'openrouter/z-ai/glm-5.2'");
-      assert.equal(parts[parts.indexOf("--thinking") + 1], "'medium'");
-      // Identity written to a file and appended.
-      assert.ok(joined.includes("--append-system-prompt"), "expected --append-system-prompt");
-      // Default-deny restriction.
-      assert.ok(parts.includes("--no-extensions"), "expected --no-extensions");
-      const toolsIdx = parts.indexOf("--tools");
-      assert.ok(toolsIdx >= 0, "expected --tools");
-      // The value is shell-escaped (single-quoted) before joining.
-      assert.ok(
-        parts[toolsIdx + 1].includes("read,write,safe_bash"),
-        "expected the tool allowlist as the --tools value",
-      );
-    });
-  });
-
-  it("applySandboxToParts omits restriction flags when the loadout was unrestricted", () => {
-    withTempDir((d) => {
-      const parts: string[] = [];
-      testApi.applySandboxToParts(
-        parts,
-        {
-          agent: null,
-          toolAllowlist: null,
-          model: null,
-          thinking: null,
-          systemPromptMode: null,
-          identity: null,
-          spawnable: null,
-          autoExit: false,
-          cwd: null,
-          agentDir: null,
-        },
-        { artifactDir: d, name: "fork" },
-      );
-      assert.deepEqual(parts, []);
-    });
-  });
-
-  it("applySandboxToParts preserves reasoning when the model is inherited", () => {
-    withTempDir((d) => {
-      const parts: string[] = [];
-      testApi.applySandboxToParts(
-        parts,
-        {
-          agent: "scout",
-          toolAllowlist: null,
-          model: null,
-          thinking: "medium",
-          systemPromptMode: null,
-          identity: null,
-          spawnable: null,
-          autoExit: true,
-          cwd: null,
-          agentDir: null,
-        },
-        { artifactDir: d, name: "scout" },
-      );
-      assert.deepEqual(parts, ["--thinking", "'medium'"]);
-    });
-  });
-
-  it("buildPiPromptArgs inserts separator for artifact-backed launches with skills", () => {
-    assert.deepEqual(
-      testApi.buildPiPromptArgs({
-        effectiveSkills: "review,lint",
-        taskDelivery: "artifact",
-        taskArg: "@artifact.md",
-      }),
-      ["", "/skill:review", "/skill:lint", "@artifact.md"],
-    );
-  });
-
-  it("buildPiPromptArgs omits separator for artifact-backed launches without skills", () => {
-    assert.deepEqual(
-      testApi.buildPiPromptArgs({
-        effectiveSkills: undefined,
-        taskDelivery: "artifact",
-        taskArg: "@artifact.md",
-      }),
-      ["@artifact.md"],
-    );
-  });
-
-  it("buildPiPromptArgs omits separator for direct launches with skills", () => {
-    assert.deepEqual(
-      testApi.buildPiPromptArgs({
-        effectiveSkills: "review",
-        taskDelivery: "direct",
-        taskArg: "do the task",
-      }),
-      ["/skill:review", "do the task"],
-    );
   });
 
   it("lists visible agents from discovery", async () => {
@@ -1962,52 +1822,6 @@ describe("subagent-done.ts", () => {
   });
 });
 
-describe("tmux.ts interpretExitSidecar", () => {
-  const { interpretExitSidecar } = __pollForExitTest__;
-
-  it("no longer decodes ping payloads (ask_question keeps the session open instead)", () => {
-    // ask_question writes a `.ask` signal, not a `.exit` ping sidecar, so an
-    // unknown `type: "ping"` payload now falls through to a clean done.
-    assert.deepEqual(interpretExitSidecar({ type: "ping", name: "Worker", message: "need help" }), {
-      reason: "done",
-      exitCode: 0,
-    });
-  });
-
-  it("decodes done payloads", () => {
-    assert.deepEqual(interpretExitSidecar({ type: "done" }), {
-      reason: "done",
-      exitCode: 0,
-    });
-  });
-
-  it("decodes error payloads and propagates the message with a non-zero exit code", () => {
-    assert.deepEqual(
-      interpretExitSidecar({
-        type: "error",
-        errorMessage: "Anthropic 529 Overloaded after 3 retries",
-        stopReason: "error",
-      }),
-      {
-        reason: "error",
-        exitCode: 1,
-        errorMessage: "Anthropic 529 Overloaded after 3 retries",
-      },
-    );
-  });
-
-  it("falls back to a placeholder when error payload has no errorMessage", () => {
-    const result = interpretExitSidecar({ type: "error" });
-    assert.equal(result.reason, "error");
-    assert.equal(result.exitCode, 1);
-    assert.match(result.errorMessage ?? "", /no errorMessage/);
-  });
-
-  it("treats unknown payload shapes as done", () => {
-    assert.deepEqual(interpretExitSidecar({}), { reason: "done", exitCode: 0 });
-    assert.deepEqual(interpretExitSidecar(null), { reason: "done", exitCode: 0 });
-  });
-});
 describe("commands", () => {
   it("/subagent emits a spawn tool call for a known agent", () => {
     const { api, registeredCommands, sentUserMessages } = createMockExtensionApi();
@@ -2041,15 +1855,6 @@ describe("commands", () => {
 });
 
 describe("tool registration", () => {
-  it("always resumes subagents as autonomous (auto-exit, non-interactive tracking)", () => {
-    const testApi = (subagentsModule as any).__test__;
-
-    assert.deepEqual(testApi.resolveResumeLaunchBehavior(), {
-      autoExit: true,
-      interactive: false,
-    });
-  });
-
   it("rejects a top-level spawn with no agent and no fork", async () => {
     const { api, registeredTools } = createMockExtensionApi();
     (subagentsModule as any).default(api);

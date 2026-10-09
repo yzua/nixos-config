@@ -4,16 +4,10 @@ import { Type, type Static } from "@sinclair/typebox";
 import { Box, Text, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import { dirname, join, resolve, relative, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  readdirSync,
-  readFileSync,
-  writeFileSync,
-  existsSync,
-  mkdirSync,
-  unlinkSync,
-} from "node:fs";
+import { readdirSync, readFileSync, existsSync, mkdirSync, unlinkSync } from "node:fs";
 import { homedir } from "node:os";
-import { isMuxAvailable, muxSetupHint, sendCommand, shellEscape } from "./tmux.ts";
+import { isMuxAvailable, muxSetupHint, sendCommand } from "./tmux.ts";
+import { ChildLaunch, SPAWNING_TOOLS, type AgentDefaults } from "./child-launch.ts";
 
 import {
   getSessionId,
@@ -22,9 +16,7 @@ import {
   registerName,
   resolveNameInRegistry,
   seedSubagentSessionFile,
-  writeSubagentLoadout,
   type SessionStats,
-  type SubagentLoadout,
 } from "./session.ts";
 import {
   type StatusSnapshot,
@@ -54,6 +46,7 @@ import {
 
 /** Absolute path to `pi-extension/subagents`. https://github.com/nodejs/node/issues/37845 */
 const SUBAGENTS_DIR = dirname(fileURLToPath(import.meta.url));
+const childLaunch = new ChildLaunch(SUBAGENTS_DIR, getToolExtensionPath);
 
 // Survive /reload: clear timers and abort poll loops from the previous module load.
 // /reload re-imports this file, giving fresh module-level state, but closures from
@@ -105,30 +98,6 @@ const SubagentParams = Type.Object({
   ),
 });
 
-type SubagentSessionMode = "standalone" | "lineage-only" | "fork";
-
-interface AgentDefaults {
-  model?: string;
-  tools?: string;
-  skills?: string;
-  thinking?: string;
-  /**
-   * If set (non-empty), this agent is granted the full subagent spawning
-   * toolset and may only spawn the listed agents. Presence of this field —
-   * not the `tools` list — is what grants spawning. Enforced in the child via
-   * the PI_SUBAGENT_ALLOWED env var.
-   */
-  subagentAgents?: string[];
-  autoExit?: boolean;
-  interactive?: boolean;
-  systemPromptMode?: "append" | "replace";
-  sessionMode?: SubagentSessionMode;
-  cwd?: string;
-  cli?: string;
-  body?: string;
-  disableModelInvocation?: boolean;
-}
-
 type AgentSource = "package" | "global" | "project";
 
 interface AgentDefinition extends AgentDefaults {
@@ -140,13 +109,6 @@ interface AgentDefinition extends AgentDefaults {
 interface ListedAgentDefinition extends AgentDefinition {
   source: AgentSource;
 }
-
-/**
- * The full subagent lifecycle/spawning toolset registered by this extension.
- * An agent is granted these (and this extension is loaded into its child
- * process) only when its frontmatter declares a non-empty `subagent_agents`.
- */
-const SPAWNING_TOOLS = ["subagent", "subagent_message", "subagents_list"] as const;
 
 /** Built-in tools pi provides natively — no extension needs to be loaded. */
 const BUILTIN_TOOLS = new Set(["read", "write", "edit", "bash", "grep", "find", "ls"]);
@@ -344,32 +306,6 @@ function getDefaultSessionDirFor(cwd: string, agentDir: string): string {
     mkdirSync(sessionDir, { recursive: true });
   }
   return sessionDir;
-}
-
-function resolveEffectiveSessionMode(
-  _params: Static<typeof SubagentParams>,
-  agentDefs: AgentDefaults | null,
-): SubagentSessionMode {
-  return agentDefs?.sessionMode ?? "standalone";
-}
-
-function resolveLaunchBehavior(
-  params: Static<typeof SubagentParams>,
-  agentDefs: AgentDefaults | null,
-): {
-  sessionMode: SubagentSessionMode;
-  seededSessionMode: "lineage-only" | "fork" | null;
-  inheritsConversationContext: boolean;
-  taskDelivery: "direct" | "artifact";
-} {
-  const sessionMode = resolveEffectiveSessionMode(params, agentDefs);
-  const inheritsConversationContext = sessionMode === "fork";
-  return {
-    sessionMode,
-    seededSessionMode: sessionMode === "standalone" ? null : sessionMode,
-    inheritsConversationContext,
-    taskDelivery: inheritsConversationContext ? "direct" : "artifact",
-  };
 }
 
 /**
@@ -727,129 +663,6 @@ function updateWidget() {
   );
 }
 
-/**
- * Build the positional prompt args for a Pi CLI subagent launch.
- *
- * In artifact-backed launches (lineage-only, standalone), Pi's buildInitialMessage()
- * concatenates @file content with messages[0] into one initial prompt. That breaks
- * /skill: expansion because the message no longer starts with "/skill:". Only
- * messages[1..] are sent as separate follow-up prompts where /skill: is recognized.
- *
- * When there are skill prompts AND artifact-backed delivery, we prepend an empty
- * first positional message so that /skill: args land in messages[1..] and arrive
- * as standalone prompts in the child session.
- */
-const SUBAGENT_CONTROL_TOOLS = ["ask_question"] as const;
-
-/**
- * Build the child --tools allowlist.
- *
- * Pi 0.70+ applies --tools to built-in, extension, and custom tools. If a
- * subagent definition restricts tools to e.g. "read,bash,write", the child
- * control tools from subagent-done.ts would otherwise be hidden, leaving a
- * manually resumed or user-touched subagent unable to call ask_question.
- */
-function buildSubagentToolAllowlist(
-  effectiveTools?: string,
-  opts?: { grantSpawning?: boolean },
-): string | null {
-  const requested = (effectiveTools ?? "")
-    .split(",")
-    .map((tool) => tool.trim())
-    .filter(Boolean);
-
-  const grantSpawning = opts?.grantSpawning ?? false;
-
-  // No explicit tool restriction and no spawning grant → don't pass --tools at
-  // all (the child keeps its default toolset).
-  if (requested.length === 0 && !grantSpawning) return null;
-
-  const allow = new Set(requested);
-  if (grantSpawning) {
-    for (const tool of SPAWNING_TOOLS) allow.add(tool);
-  }
-  for (const tool of SUBAGENT_CONTROL_TOOLS) {
-    allow.add(tool);
-  }
-
-  return [...allow].join(",");
-}
-
-/**
- * Apply a loadout snapshot's sandbox to a pi command's `parts` array: model,
- * identity (system prompt), and the default-deny tool/extension restriction
- * (`--no-extensions` + `--tools` + one `-e` per tool-backing extension).
- *
- * This is the single source of truth for reconstructing a subagent's sandbox,
- * used both by the initial `launchSubagent` and by the `subagent_message`
- * resume path so the two can never drift. The managed-run module owns the
- * shared env/cwd setup, supervision, cleanup, and completion delivery.
- */
-function applySandboxToParts(
-  parts: string[],
-  loadout: SubagentLoadout,
-  opts: { artifactDir: string; name: string },
-): void {
-  if (loadout.model) {
-    parts.push("--model", shellEscape(loadout.model));
-  }
-  if (loadout.thinking) {
-    parts.push("--thinking", shellEscape(loadout.thinking));
-  }
-
-  if (loadout.identity) {
-    const flag =
-      loadout.systemPromptMode === "replace" ? "--system-prompt" : "--append-system-prompt";
-    const spTimestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const spSafeName = opts.name
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, "")
-      .replace(/\s+/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-|-$/g, "");
-    const spPath = join(
-      opts.artifactDir,
-      `context/${spSafeName || "subagent"}-sysprompt-${spTimestamp}.md`,
-    );
-    mkdirSync(dirname(spPath), { recursive: true });
-    writeFileSync(spPath, loadout.identity, "utf8");
-    parts.push(flag, shellEscape(spPath));
-  }
-
-  // Default-deny: disable global extension discovery and re-enable only the
-  // extensions backing the whitelisted tools. A null allowlist means the spawn
-  // was intentionally unrestricted (e.g. a fork clone) and is replayed as-is.
-  if (loadout.toolAllowlist) {
-    parts.push("--no-extensions");
-    parts.push("--tools", shellEscape(loadout.toolAllowlist));
-
-    const extPaths = new Set<string>();
-    for (const tool of loadout.toolAllowlist.split(",")) {
-      const extPath = getToolExtensionPath(tool);
-      if (extPath && existsSync(extPath)) extPaths.add(extPath);
-    }
-    for (const extPath of extPaths) {
-      parts.push("-e", shellEscape(extPath));
-    }
-  }
-}
-
-function buildPiPromptArgs(params: {
-  effectiveSkills?: string;
-  taskDelivery: "direct" | "artifact";
-  taskArg: string;
-}): string[] {
-  const skillPrompts = (params.effectiveSkills ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .map((skill) => `/skill:${skill}`);
-
-  const needsSeparator = params.taskDelivery === "artifact" && skillPrompts.length > 0;
-
-  return [...(needsSeparator ? [""] : []), ...skillPrompts, params.taskArg];
-}
-
 function activityLabel(activity: SubagentActivityState): string | undefined {
   if (activity.phase !== "active") return undefined;
   if (activity.activeScope === "tool") return activity.toolName ?? "tool";
@@ -1076,26 +889,13 @@ function startStatusRefresh(pi: ExtensionAPI) {
   (globalThis as any)[STATUS_INTERVAL_KEY] = statusInterval;
 }
 
-// Resuming a finished session is always autonomous: the relaunched agent runs
-// its follow-up task to completion and the harness delivers the result as a
-// steer message (fire-and-forget). An interactive resume would park the pane
-// waiting for the user, contradicting that result-delivery model.
-function resolveResumeLaunchBehavior(): { autoExit: boolean; interactive: boolean } {
-  return { autoExit: true, interactive: false };
-}
-
 export const __test__ = {
   borderLine,
   getShellReadyDelayMs,
   renderSubagentWidgetLines,
   loadAgentDefaults,
   discoverAgentDefinitions,
-  resolveEffectiveSessionMode,
-  resolveLaunchBehavior,
   resolveEffectiveInteractive,
-  buildSubagentToolAllowlist,
-  applySandboxToParts,
-  buildPiPromptArgs,
   formatWidgetRightLabel,
   observeRunningSubagent,
   getToolExtensionPath,
@@ -1105,7 +905,6 @@ export const __test__ = {
   steerSubagent,
   handleSubagentSteer,
   resolveResultPresentation,
-  resolveResumeLaunchBehavior,
   runningSubagents,
   formatElapsed,
   formatTokens,
@@ -1143,10 +942,6 @@ async function launchSubagent(
   const id = Math.random().toString(16).slice(2, 10);
 
   const agentDefs = params.agent ? loadAgentDefaults(params.agent) : null;
-  const effectiveModel = params.model ?? agentDefs?.model;
-  const effectiveTools = agentDefs?.tools;
-  const effectiveSkills = agentDefs?.skills;
-  const effectiveThinking = agentDefs?.thinking;
   const effectiveInteractive = resolveEffectiveInteractive(params, agentDefs);
 
   const sessionFile = ctx.sessionManager.getSessionFile();
@@ -1173,11 +968,11 @@ async function launchSubagent(
   ].join("-");
   const subagentSessionFile = join(sessionDir, `${timestamp}_${uuid}.jsonl`);
 
-  const launchBehavior = resolveLaunchBehavior(params, agentDefs);
+  const sessionMode = agentDefs?.sessionMode ?? "standalone";
 
-  if (launchBehavior.seededSessionMode) {
+  if (sessionMode !== "standalone") {
     seedSubagentSessionFile({
-      mode: launchBehavior.seededSessionMode,
+      mode: sessionMode,
       parentSessionFile: sessionFile,
       childSessionFile: subagentSessionFile,
       childCwd: targetCwdForSession,
@@ -1186,27 +981,6 @@ async function launchSubagent(
 
   const activityFile = getSubagentActivityFile(artifactDir, id);
   mkdirSync(dirname(activityFile), { recursive: true });
-  const { inheritsConversationContext } = launchBehavior;
-
-  // Build the task message
-  // Only full-context fork mode inherits prior conversation state.
-  // Blank-session modes need the wrapper instructions and artifact-backed handoff.
-  const modeHint = agentDefs?.autoExit
-    ? "Complete your task autonomously. When you are finished, simply stop — your session ends automatically."
-    : "Complete your task. The user can interact with you at any time, and the session ends when the user exits the pane.";
-  const summaryInstruction = agentDefs?.autoExit
-    ? "Your FINAL assistant message should summarize what you accomplished."
-    : "Your FINAL assistant message (before the user exits) should summarize what you accomplished.";
-  // An agent with a non-empty subagent_agents list is granted the spawning
-  // toolset and may only spawn the listed agents (enforced via PI_SUBAGENT_ALLOWED).
-  const grantSpawning = !!(agentDefs?.subagentAgents && agentDefs.subagentAgents.length > 0);
-  const identity = agentDefs?.body ?? null;
-  const systemPromptMode = agentDefs?.systemPromptMode;
-  const identityInSystemPrompt = systemPromptMode && identity;
-  const roleBlock = identity && !identityInSystemPrompt ? `\n\n${identity}` : "";
-  const fullTask = inheritsConversationContext
-    ? params.task
-    : `${roleBlock}\n\n${modeHint}\n\n${params.task}\n\n${summaryInstruction}`;
   const cli = agentDefs?.cli;
   const sentinelFile = cli === "claude" ? `/tmp/pi-claude-${id}-done` : undefined;
   return managedRuns.launch(
@@ -1226,155 +1000,20 @@ async function launchSubagent(
       }),
     },
     { kind: "initial" },
-    ({ surface }) => {
-      // ── Claude Code CLI path ──
-      if (cli === "claude") {
-        const pluginDir = join(SUBAGENTS_DIR, "plugin");
-
-        const cmdParts: string[] = [];
-        cmdParts.push(`PI_CLAUDE_SENTINEL=${shellEscape(sentinelFile!)}`);
-        cmdParts.push("claude");
-        cmdParts.push("--dangerously-skip-permissions");
-
-        if (existsSync(pluginDir)) {
-          cmdParts.push("--plugin-dir", shellEscape(pluginDir));
-        }
-
-        if (effectiveModel) {
-          cmdParts.push("--model", shellEscape(effectiveModel));
-        }
-
-        const sp = agentDefs.body;
-        if (sp) {
-          cmdParts.push("--append-system-prompt", shellEscape(sp));
-        }
-
-        // Always pass the task as the prompt — even for resumed sessions,
-        // the caller's task is the follow-up instruction.
-        cmdParts.push(shellEscape(params.task));
-
-        const cdPrefix = effectiveCwd ? `cd ${shellEscape(effectiveCwd)} && ` : "";
-        const command = `${cdPrefix}${cmdParts.join(" ")}`;
-
-        const launchScriptName = `${
-          (params.name || "subagent")
-            .toLowerCase()
-            .replace(/[^a-z0-9\s-]/g, "")
-            .replace(/\s+/g, "-")
-            .replace(/-+/g, "-")
-            .replace(/^-|-$/g, "") || "subagent"
-        }-${id}.sh`;
-        const launchScriptFile = join(artifactDir, "subagent-scripts", launchScriptName);
-
-        return {
-          kind: "command",
-          command,
-          launchScriptFile,
-          scriptPreamble: [
-            `# Claude Code subagent launch script for ${params.name}`,
-            `# Generated: ${new Date().toISOString()}`,
-            `# Surface: ${surface}`,
-          ].join("\n"),
-        };
-      }
-
-      // ── Pi CLI path ──
-
-      // Build pi command
-      // Match `p`'s agreed automatic project-trust policy for child processes.
-      const parts: string[] = ["pi", "--approve"];
-      parts.push("--session", shellEscape(subagentSessionFile));
-
-      const subagentDonePath = join(SUBAGENTS_DIR, "subagent-done.ts");
-      parts.push("-e", shellEscape(subagentDonePath));
-
-      // Resolve the config dir the child sees: a target-local .pi/agent/ wins,
-      // else the propagated global dir. Captured once so the launch env and the
-      // resume snapshot agree.
-      const resolvedAgentDir =
-        localAgentDir && existsSync(localAgentDir)
-          ? localAgentDir
-          : (process.env.PI_CODING_AGENT_DIR ?? null);
-
-      // Default-deny model: when an agent restricts its tools (or is granted the
-      // spawning toolset), we disable global extension discovery and re-enable only
-      // the extensions backing the whitelisted tools. Bare/fork spawns with no tool
-      // restriction keep their full default toolset and all global extensions.
-      const toolAllowlist = buildSubagentToolAllowlist(effectiveTools, { grantSpawning });
-
-      // Snapshot the fully-resolved sandbox beside the session file so a later
-      // `subagent_message({ name })` resume can replay the exact same
-      // restriction instead of relaunching pi with all global extensions + tools.
-      const loadout: SubagentLoadout = {
-        agent: params.agent ?? null,
-        toolAllowlist,
-        model: effectiveModel ?? null,
-        thinking: effectiveThinking ?? null,
-        systemPromptMode: systemPromptMode ?? null,
-        identity: identityInSystemPrompt ? identity : null,
-        spawnable: agentDefs?.subagentAgents ?? null,
-        autoExit: agentDefs?.autoExit ?? false,
-        cwd: effectiveCwd ?? null,
-        agentDir: resolvedAgentDir,
-      };
-      writeSubagentLoadout(subagentSessionFile, loadout);
-
-      // Apply model, identity, and the default-deny tool/extension restriction via
-      // the shared helper (same code path resume uses — they can't drift).
-      applySandboxToParts(parts, loadout, { artifactDir, name: params.name });
-
-      // Pass task and skill prompts to the sub-agent.
-      // Only full-context fork mode gets a direct task argument because it already
-      // inherits the parent conversation. Blank-session modes use artifact-backed
-      // handoff so the wrapper instructions arrive as the initial user message.
-      let taskArg: string;
-      if (launchBehavior.taskDelivery === "direct") {
-        taskArg = fullTask;
-      } else {
-        const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-        const safeName = params.name
-          .toLowerCase()
-          .replace(/[^a-z0-9\s-]/g, "") // strip everything except alphanumeric, spaces, hyphens
-          .replace(/\s+/g, "-") // spaces to hyphens
-          .replace(/-+/g, "-") // collapse multiple hyphens
-          .replace(/^-|-$/g, ""); // trim leading/trailing hyphens
-        const artifactName = `context/${safeName || "subagent"}-${timestamp}.md`;
-        const artifactPath = join(artifactDir, artifactName);
-        mkdirSync(dirname(artifactPath), { recursive: true });
-        writeFileSync(artifactPath, fullTask, "utf8");
-        taskArg = `@${artifactPath}`;
-      }
-
-      for (const promptArg of buildPiPromptArgs({
-        effectiveSkills,
-        taskDelivery: launchBehavior.taskDelivery,
-        taskArg,
-      })) {
-        parts.push(shellEscape(promptArg));
-      }
-
-      const launchScriptName = `${
-        (params.name || "subagent")
-          .toLowerCase()
-          .replace(/[^a-z0-9\s-]/g, "")
-          .replace(/\s+/g, "-")
-          .replace(/-+/g, "-")
-          .replace(/^-|-$/g, "") || "subagent"
-      }-${id}.sh`;
-      const launchScriptFile = join(artifactDir, "subagent-scripts", launchScriptName);
-      return {
-        kind: "pi",
-        parts,
-        loadout,
-        autoExit: agentDefs?.autoExit ?? false,
-        launchScriptFile,
-        scriptPreamble: [
-          `# Subagent launch script for ${params.name}`,
-          `# Generated: ${new Date().toISOString()}`,
-          `# Session: ${subagentSessionFile}`,
-          `# Surface: ${surface}`,
-        ].join("\n"),
-      };
+    (running) => {
+      return childLaunch.prepare(
+        {
+          kind: "initial",
+          profile: agentDefs,
+          model: params.model,
+          cwd: effectiveCwd,
+          agentDir:
+            localAgentDir && existsSync(localAgentDir)
+              ? localAgentDir
+              : (process.env.PI_CODING_AGENT_DIR ?? null),
+        },
+        running,
+      );
     },
     (running) => {
       // Persist the handle before supervision; registration failures also clean up.
@@ -1895,7 +1534,6 @@ export default function subagentsExtension(pi: ExtensionAPI) {
       // ── Resume a finished session by name ──
       const message = params.message;
       const name = requestedName; // identity preservation: the resumed run reclaims its name
-      const { autoExit, interactive } = resolveResumeLaunchBehavior();
       const startTime = Date.now();
       const id = Math.random().toString(16).slice(2, 10);
 
@@ -1948,7 +1586,8 @@ export default function subagentsExtension(pi: ExtensionAPI) {
             sessionFile: sessionPath,
             parentArtifactDir,
             activityFile,
-            interactive,
+            // Follow-ups are autonomous even when the initial run was user-driven.
+            interactive: false,
             statusState: createStatusState({ source: "pi", startTimeMs: startTime }),
           },
           {
@@ -1956,64 +1595,7 @@ export default function subagentsExtension(pi: ExtensionAPI) {
             sessionId: resumedSessionId,
             completedLegacyRun: completedLegacyRun(ctx, parentArtifactDir, name, sessionPath),
           },
-          ({ surface }) => {
-            // Build pi resume command
-            const parts = ["pi", "--approve", "--session", shellEscape(sessionPath)];
-
-            // Load subagent-done extension so the agent can self-terminate if needed
-            const subagentDonePath = join(SUBAGENTS_DIR, "subagent-done.ts");
-            parts.push("-e", shellEscape(subagentDonePath));
-
-            // Replay the model, identity, and default-deny tool/extension sandbox.
-            applySandboxToParts(parts, loadout, { artifactDir, name });
-
-            let resumeMsgFile: string | undefined;
-            if (params.message) {
-              const msgTimestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-              resumeMsgFile = join(
-                artifactDir,
-                "subagent-resume",
-                `${
-                  name
-                    .toLowerCase()
-                    .replace(/[^a-z0-9\s-]/g, "")
-                    .replace(/\s+/g, "-")
-                    .replace(/-+/g, "-")
-                    .replace(/^-|-$/g, "") || "resume"
-                }-${msgTimestamp}.md`,
-              );
-              mkdirSync(dirname(resumeMsgFile), { recursive: true });
-              writeFileSync(resumeMsgFile, message, "utf8");
-              parts.push(shellEscape(`@${resumeMsgFile}`));
-            }
-
-            const launchScriptFile = join(
-              artifactDir,
-              "subagent-scripts",
-              `${
-                name
-                  .toLowerCase()
-                  .replace(/[^a-z0-9\s-]/g, "")
-                  .replace(/\s+/g, "-")
-                  .replace(/-+/g, "-")
-                  .replace(/^-|-$/g, "") || "resume"
-              }-resume-${Date.now()}.sh`,
-            );
-            return {
-              kind: "pi",
-              parts,
-              loadout,
-              autoExit,
-              launchScriptFile,
-              scriptPreamble: [
-                `# Subagent resume script for ${name}`,
-                `# Generated: ${new Date().toISOString()}`,
-                `# Session: ${sessionPath}`,
-                `# Surface: ${surface}`,
-                ...(resumeMsgFile ? [`# Resume message file: ${resumeMsgFile}`] : []),
-              ].join("\n"),
-            };
-          },
+          (running) => childLaunch.prepare({ kind: "resume", loadout }, running),
         );
       } catch (error) {
         if (!(error instanceof RunOwnershipError)) throw error;

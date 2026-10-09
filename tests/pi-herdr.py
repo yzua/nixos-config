@@ -109,6 +109,7 @@ class HerdrSurfaces(unittest.TestCase):
         probe = self.root / "probe.ts"
         probe.write_text(
             f"import * as mux from {json.dumps(str(SURFACES))};\n"
+            f"import {{pollForExit}} from {json.dumps(str(SURFACES.with_name('run-evidence.ts')))};\n"
             f"import {{createStatusState}} from {json.dumps(str(SURFACES.with_name('status.ts')))};\n"
             + source
         )
@@ -131,7 +132,7 @@ const pane = mux.createSurface("fixture");
 mux.sendCommand(pane, "printf 'literal ; $ text'");
 const screen = mux.readScreen(pane);
 const asyncScreen = await mux.readScreenAsync(pane);
-const done = await mux.pollForExit(pane, new AbortController().signal, {interval: 10});
+const done = await pollForExit(pane, new AbortController().signal, {interval: 10});
 mux.closeSurface(pane);
 console.log(JSON.stringify({available, pane, screen, asyncScreen, done}));
 """)
@@ -394,7 +395,7 @@ console.log(JSON.stringify({old,current:mux.muxIdentity(),error}));
     def test_missing_herdr_pane_reports_loss_without_outer_tmux_probe(self):
         self.env["MISSING_PANE"] = "1"
         result = self.run_probe("""
-console.log(JSON.stringify(await mux.pollForExit("w2:p7", new AbortController().signal, {interval: 10})));
+console.log(JSON.stringify(await pollForExit("w2:p7", new AbortController().signal, {interval: 10})));
 """)
         self.assertEqual(result["reason"], "error")
         self.assertIn("disappeared", result["errorMessage"])

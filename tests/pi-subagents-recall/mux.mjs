@@ -3,6 +3,11 @@ import assert from "node:assert/strict";
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import reporter from "../../home-manager/modules/ai/pi/extensions/interactive-subagents/pi-extension/subagents/subagent-done.ts";
+export { terminalExit } from "../../home-manager/modules/ai/pi/extensions/interactive-subagents/pi-extension/subagents/run-evidence.ts";
+export async function surfaceExists(surface) {
+  const state = read(`surface-${surface}.json`, null);
+  return !!state && !state.closed;
+}
 const path = (name) => join(process.env.PI_RECALL_ROOT, name);
 const read = (name, fallback) => existsSync(path(name)) ? JSON.parse(readFileSync(path(name), "utf8")) : fallback;
 export function record(op, ...args) {
@@ -85,8 +90,9 @@ export async function pollForExit(surface, signal, options) {
   for (;;) {
     if (!late && signal.aborted) throw new Error("Aborted fake watcher");
     const state = read(`surface-${surface}.json`, null);
-    if (!state || state.closed) return { reason: "error", exitCode: 1, errorMessage: `Subagent pane ${surface} disappeared before reporting completion.` };
-    if (state.done) return { reason: "sentinel", exitCode: 0 };
+    if (state?.unavailable) return { reason: "error", evidence: "monitor-unavailable", exitCode: 1, errorMessage: `Subagent pane ${surface} disappeared before reporting completion.` };
+    if (!state || state.closed) return { reason: "error", evidence: "pane-lost", exitCode: 1, errorMessage: "Diagnostic wording is not ownership evidence." };
+    if (state.done) return { reason: "sentinel", evidence: "terminal", exitCode: 0 };
     options.onTick?.(0);
     await new Promise((r) => setTimeout(r, 5));
     if (signal.aborted) throw new Error("Aborted fake watcher");

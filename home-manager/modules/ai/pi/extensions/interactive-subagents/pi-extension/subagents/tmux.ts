@@ -3,7 +3,8 @@
  *
  * Everything the extension does to a pane goes through the small API in this
  * file: create/split a pane, type a command into it, read its screen, close
- * it, and poll for exit. Keeping the tmux calls isolated here means index.ts
+ * it, and establish presence. Completion protocol belongs to run-evidence.ts.
+ * Keeping the tmux calls isolated here means index.ts
  * stays testable without a multiplexer running.
  *
  * Panes use backend-specific IDs (`%12` or `w1:p2`). Splits always target
@@ -12,7 +13,7 @@
  */
 import { execFile, execFileSync } from "node:child_process";
 import { promisify } from "node:util";
-import { existsSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
@@ -283,152 +284,14 @@ export function closeSurface(surface: string): void {
   rebalanceSurfaces();
 }
 
-// ── Exit polling ──
-
-export interface PollResult {
-  /** How the subagent exited */
-  reason: "done" | "sentinel" | "error";
-  /** Shell exit code (from sentinel). 0 for file-based exits. */
-  exitCode: number;
-  /** Error message if reason is "error" (auto-retry exhausted, provider overload, etc.) */
-  errorMessage?: string;
-}
-
-/**
- * Interpret an `.exit` sidecar payload (written by the error path in
- * subagent-done.ts). Centralized so both the fast and slow paths in
- * pollForExit decode the payload the same way. Clean completions write no
- * sidecar and are detected via the terminal sentinel instead.
- *
- * Note: ask_question does NOT write a `.exit` sidecar — it keeps the session
- * open and signals the parent via a separate `.ask` file (see deliverPendingQuestion).
+/** Establish absence separately from a failed screen capture.
+ * A backend failure rejects: it is not evidence that this pane disappeared.
  */
-function interpretExitSidecar(data: any): PollResult {
-  if (data?.type === "error") {
-    const errorMessage =
-      typeof data.errorMessage === "string" && data.errorMessage.trim() !== ""
-        ? data.errorMessage
-        : "Subagent exited with stopReason=error (no errorMessage in sidecar).";
-    return { reason: "error", exitCode: 1, errorMessage };
-  }
-  return { reason: "done", exitCode: 0 };
-}
-
-export const __pollForExitTest__ = { interpretExitSidecar };
-
-/**
- * Poll until the subagent exits. Checks for a `.exit` sidecar file first
- * (written by the error path), falling back to the terminal sentinel for
- * clean-completion and crash detection.
- */
-export async function pollForExit(
-  surface: string,
-  signal: AbortSignal,
-  options: {
-    interval: number;
-    sessionFile?: string;
-    sentinelFile?: string;
-    onTick?: (elapsed: number) => void;
-  },
-): Promise<PollResult> {
-  const start = Date.now();
-  let paneUnavailableSince: number | undefined;
-  // Let a final sidecar reach disk after pane loss, without timing out jobs
-  // whose panes remain present. Transient capture failures alone aren't loss.
-  const paneLossGraceMs = 2000;
-
-  for (;;) {
-    if (signal.aborted) {
-      throw new Error("Aborted while waiting for subagent to finish");
-    }
-
-    // Fast path: check for .exit sidecar file (written by the error path)
-    if (options.sessionFile) {
-      try {
-        const exitFile = `${options.sessionFile}.exit`;
-        if (existsSync(exitFile)) {
-          const data = JSON.parse(readFileSync(exitFile, "utf-8"));
-          rmSync(exitFile, { force: true });
-          return interpretExitSidecar(data);
-        }
-      } catch {}
-    }
-
-    // Check Claude sentinel file (written by plugin Stop hook)
-    if (options.sentinelFile) {
-      try {
-        if (existsSync(options.sentinelFile)) {
-          return { reason: "sentinel", exitCode: 0 };
-        }
-      } catch {}
-    }
-
-    // Slow path: read terminal screen for sentinel (crash detection)
-    try {
-      const screen = await readScreenAsync(surface, 5);
-      paneUnavailableSince = undefined;
-      const match = screen.match(/__SUBAGENT_DONE_(\d+)__/);
-      if (match) {
-        return { reason: "sentinel", exitCode: parseInt(match[1], 10) };
-      }
-    } catch {
-      // Surface may have been destroyed — check if .exit file appeared in the meantime
-      if (options.sessionFile) {
-        try {
-          const exitFile = `${options.sessionFile}.exit`;
-          if (existsSync(exitFile)) {
-            const data = JSON.parse(readFileSync(exitFile, "utf-8"));
-            rmSync(exitFile, { force: true });
-            return interpretExitSidecar(data);
-          }
-        } catch {}
-      }
-
-      let paneExists: boolean | undefined;
-      try {
-        if (isHerdrContext()) {
-          paneExists = await herdrSurfaceExists(surface);
-        } else {
-          const { stdout } = await execFileAsync("tmux", ["list-panes", "-a", "-F", "#{pane_id}"], {
-            encoding: "utf8",
-          });
-          paneExists = stdout.trim().split("\n").includes(surface);
-        }
-      } catch {
-        // The tmux server itself may have gone away. Repeated inability to
-        // inspect it is a monitoring failure, rather than an endless wait.
-      }
-      if (paneExists) {
-        paneUnavailableSince = undefined;
-      } else {
-        paneUnavailableSince ??= Date.now();
-        if (Date.now() - paneUnavailableSince >= paneLossGraceMs) {
-          return {
-            reason: "error",
-            exitCode: 1,
-            errorMessage:
-              paneExists === false
-                ? `Subagent pane ${surface} disappeared before reporting completion.`
-                : `Cannot monitor subagent pane ${surface}: ${isHerdrContext() ? "Herdr" : "tmux"} is unavailable.`,
-          };
-        }
-      }
-    }
-
-    const elapsed = Math.floor((Date.now() - start) / 1000);
-    options.onTick?.(elapsed);
-
-    await new Promise<void>((resolve, reject) => {
-      if (signal.aborted) return reject(new Error("Aborted"));
-      const timer = setTimeout(() => {
-        signal.removeEventListener("abort", onAbort);
-        resolve();
-      }, options.interval);
-      function onAbort() {
-        clearTimeout(timer);
-        reject(new Error("Aborted"));
-      }
-      signal.addEventListener("abort", onAbort, { once: true });
-    });
-  }
+export async function surfaceExists(surface: string): Promise<boolean> {
+  requireTmux();
+  if (isHerdrContext()) return herdrSurfaceExists(surface);
+  const { stdout } = await execFileAsync("tmux", ["list-panes", "-a", "-F", "#{pane_id}"], {
+    encoding: "utf8",
+  });
+  return stdout.trim().split("\n").includes(surface);
 }

@@ -10,6 +10,9 @@ export async function resolve(specifier, context, nextResolve) {
   if (specifier === "node:child_process" || specifier === "child_process") {
     return { url: fixture("forbidden-process.mjs"), shortCircuit: true };
   }
+  if (specifier === "./run-evidence.ts" && context.parentURL?.endsWith("/managed-run.ts")) {
+    return { url: fixture("mux.mjs"), shortCircuit: true };
+  }
   if (specifier.endsWith("/tmux.ts") || specifier === "./tmux.ts") {
     return { url: fixture("mux.mjs"), shortCircuit: true };
   }

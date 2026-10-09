@@ -406,13 +406,17 @@ class PiRegressions(unittest.TestCase):
     def test_missing_pane_reports_failure_and_late_sidecar_wins(self):
         results = self.probes("panes")
         self.assertEqual(results["missing"].get("reason"), "error", results)
+        self.assertEqual(results["missing"]["evidence"], "pane-lost")
         self.assertIn("pane", results["missing"]["errorMessage"].lower())
         self.assertLess(results["missing"]["elapsedMs"], 3000)
         self.assertEqual(results["unavailable"].get("reason"), "error", results)
+        self.assertEqual(results["unavailable"]["evidence"], "monitor-unavailable")
         self.assertIn("tmux is unavailable", results["unavailable"]["errorMessage"])
         self.assertEqual(results["late-sidecar"]["reason"], "done", results)
+        self.assertEqual(results["late-sidecar"]["evidence"], "sidecar")
         for mode in ["transient", "sentinel"]:
             self.assertEqual(results[mode]["reason"], "sentinel", results)
+            self.assertEqual(results[mode]["evidence"], "terminal")
             self.assertEqual(results[mode]["exitCode"], 0)
         self.assertIn("Aborted", results["healthy"]["error"])
         self.assertIn("Aborted", results["capture-error"]["error"])
@@ -547,6 +551,29 @@ class PiRegressions(unittest.TestCase):
         self.assertIn("send-keys", results["launchError"])
         self.assertEqual(results["retry"]["name"], "retryable")
         self.assertEqual(results["closedPanes"], ["%1", "%2"])
+
+    def test_registered_launch_policies_through_installed_pi(self):
+        results = self.probes("launch-policy")
+        for launch in results["launches"]:
+            command = launch["command"]
+            self.assertIn("pi --approve --session", command)
+            self.assertIn("--model 'offline-override'", command)
+            self.assertIn("--thinking 'medium'", command)
+            self.assertIn("--no-extensions --tools 'read,ask_question'", command)
+            self.assertEqual(launch["identity"], "ROLE_IDENTITY")
+            self.assertEqual(launch["loadout"]["model"], "offline-override")
+            self.assertEqual(launch["loadout"]["identity"], "ROLE_IDENTITY")
+            if launch["mode"] == "fork":
+                self.assertIsNone(launch["taskArtifact"])
+                self.assertIn("'/skill:review' '/skill:lint' 'CHILD_TASK'", command)
+                self.assertIn("PARENT_CONTEXT", launch["session"])
+                self.assertNotIn("current dispatch", launch["session"])
+            else:
+                self.assertIn("'' '/skill:review' '/skill:lint' '@", command)
+                self.assertIn("Complete your task autonomously", launch["taskArtifact"])
+                self.assertIn("CHILD_TASK", launch["taskArtifact"])
+                self.assertNotIn("ROLE_IDENTITY", launch["taskArtifact"])
+                self.assertNotIn("PARENT_CONTEXT", launch["session"])
 
     def test_spawn_and_resume_apply_project_trust(self):
         results = self.probes("trust")
