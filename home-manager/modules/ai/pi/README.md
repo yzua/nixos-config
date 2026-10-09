@@ -60,9 +60,12 @@ The subagent source passes `--thinking` independently of `--model`, so a
 profile can inherit the configured model while selecting its own reasoning
 level. This applies to both initial launches and resumed follow-ups.
 
-`managed-run.ts` owns process setup, supervision, cleanup, and result delivery
-for both initial and resumed runs. Resumes replay saved restrictions and report
-only new output. Disposed runtimes stop delivering results without terminating
+`child-launch.ts` owns child commands, sandbox snapshot/replay, and task handoff
+for both initial and resumed runs. `run-evidence.ts` interprets completion and
+pane-loss evidence independently of diagnostic wording; `tmux.ts` and `herdr.ts`
+own terminal operations. `managed-run.ts` retains process ownership, dispatch,
+supervision, cleanup, and result delivery. Resumes replay saved restrictions and
+report only new output. Disposed runtimes stop delivering results without terminating
 children solely because of a reload or session replacement. Durable ownership
 claims prevent a second writer after reload or parent restart. A replacement
 parent recalls its own live children on the same surface and can steer them by
