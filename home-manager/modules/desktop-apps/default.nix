@@ -9,6 +9,7 @@
     ./librepods.nix
     ./netbird.nix
     ./vesktop.nix
+    ./yubikey.nix
   ];
 
   # These apps need no extra extensions.
