@@ -2,14 +2,17 @@
 """Official Herdr reporter lifecycle against a fake socket; never contacts a live session."""
 
 import json
-import os
 import shutil
 import socket
 import subprocess
+import sys
 import tempfile
 import threading
 import unittest
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from pi_test_support import isolated_environment
 
 
 class Reporting(unittest.TestCase):
@@ -78,11 +81,7 @@ handlers.get("agent_start")({}, ctx);
 await wait();
 """.replace("INTEGRATION", json.dumps(str(integration)))
                 )
-                env = {
-                    key: value
-                    for key, value in os.environ.items()
-                    if not key.startswith(("HERDR_", "PI_SUBAGENT", "TMUX"))
-                }
+                env = isolated_environment()
                 env.update(
                     HERDR_ENV="1",
                     HERDR_SOCKET_PATH=str(root / "fake.sock"),

@@ -4,7 +4,6 @@
 import json
 import os
 import select
-import shutil
 import socket
 import subprocess
 import sys
@@ -14,10 +13,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from pi_test_support import isolated_environment, require_pi
+
 REPO = Path(__file__).resolve().parents[1]
 FIXTURES = REPO / "tests" / "pi-subagents"
 SOURCE = REPO / "home-manager/modules/ai/pi/extensions/interactive-subagents/pi-extension/subagents"
-PI = os.environ.get("PI_BIN", shutil.which("pi"))
 
 FAKE_TMUX = """#!/usr/bin/env python3
 import json, os, shlex, signal, sys, time
@@ -149,19 +150,9 @@ elif args[0] == 'list-panes':
 """
 
 
-def offline_environment():
-    """Keep fixture processes away from the caller's live multiplexer/children."""
-    return {
-        key: value
-        for key, value in os.environ.items()
-        if not key.startswith(("PI_SUBAGENT", "HERDR_")) and key not in {"TMUX", "TMUX_PANE"}
-    }
-
-
 class PiRegressions(unittest.TestCase):
     def setUp(self):
-        if not PI:
-            self.fail("Pi is required; install it or set PI_BIN to its executable")
+        self.pi = require_pi()
         self.tmp = tempfile.TemporaryDirectory(prefix="pi-subagents-test-")
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
@@ -175,7 +166,7 @@ class PiRegressions(unittest.TestCase):
                 }
             )
         )
-        self.env = offline_environment()
+        self.env = isolated_environment()
         self.env.update(
             PI_CODING_AGENT_DIR=str(self.agent),
             PI_TEST_ROOT=str(self.root),
@@ -187,7 +178,7 @@ class PiRegressions(unittest.TestCase):
     def start(self, scenario, fixture="mock-provider.ts", done=True):
         self.env["PI_TEST_SCENARIO"] = scenario
         args = [
-            PI,
+            self.pi,
             "--mode",
             "rpc",
             "--approve",
@@ -328,7 +319,7 @@ class PiRegressions(unittest.TestCase):
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                env=offline_environment(),
+                env=isolated_environment(),
             )
             self.addCleanup(self.stop, self.mock_writer)
             self.env["PI_TEST_WRITER_PID"] = str(self.mock_writer.pid)
@@ -397,7 +388,7 @@ class PiRegressions(unittest.TestCase):
             "PI_TEST_KEEP": "fixture",
         }
         with patch.dict(os.environ, inherited):
-            isolated = offline_environment()
+            isolated = isolated_environment()
         self.assertEqual(isolated["PI_TEST_KEEP"], "fixture")
         self.assertFalse(any(key.startswith(("HERDR_", "PI_SUBAGENT")) for key in isolated))
         self.assertNotIn("TMUX", isolated)

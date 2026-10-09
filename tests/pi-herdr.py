@@ -6,9 +6,13 @@ import os
 import shutil
 import socket
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from pi_test_support import isolated_environment
 
 REPO = Path(__file__).resolve().parents[1]
 SURFACES = (
@@ -80,21 +84,17 @@ class HerdrSurfaces(unittest.TestCase):
         endpoint = socket.socket(socket.AF_UNIX)
         self.addCleanup(endpoint.close)
         endpoint.bind(str(self.root / "herdr.sock"))
-        self.env = dict(
-            {
-                key: value
-                for key, value in os.environ.items()
-                if not key.startswith(("HERDR_", "PI_SUBAGENT"))
-                and key
-                not in {
-                    "PI_CODING_AGENT_DIR",
-                    "SESSION_FILE",
-                    "MISSING_PANE",
-                    "NARROW_PANE",
-                    "NEW_PANE",
-                    "TRACK_CLOSED_PANES",
-                }
-            },
+        self.env = isolated_environment()
+        for key in {
+            "PI_CODING_AGENT_DIR",
+            "SESSION_FILE",
+            "MISSING_PANE",
+            "NARROW_PANE",
+            "NEW_PANE",
+            "TRACK_CLOSED_PANES",
+        }:
+            self.env.pop(key, None)
+        self.env.update(
             HOME=str(self.root / "home"),
             PATH=f"{self.bin}:{os.environ['PATH']}",
             HERDR_ENV="1",

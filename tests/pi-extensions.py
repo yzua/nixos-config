@@ -10,22 +10,21 @@ HTTP fixtures, sessions, and settings are private and temporary.
 import gzip
 import http.server
 import json
-import os
 import queue
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import time
 import unittest
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from pi_test_support import isolated_environment, require_pi, require_web_fetch_dependencies
+
 REPO = Path(__file__).resolve().parents[1]
 EXTENSIONS = REPO / "home-manager/modules/ai/pi/extensions"
-PI = os.environ.get("PI_BIN", shutil.which("pi"))
-DEPENDENCIES = Path(
-    os.environ.get("PI_WEB_FETCH_DIR", Path.home() / ".pi/agent/extensions/web-fetch")
-)
 TEXT_LIMIT = 5 * 1024 * 1024
 PDF_LIMIT = 20 * 1024 * 1024
 
@@ -146,10 +145,8 @@ class Fixtures(http.server.BaseHTTPRequestHandler):
 
 class Extensions(unittest.TestCase):
     def setUp(self):
-        if not PI:
-            self.fail("Pi is required; install it or set PI_BIN")
-        if not (DEPENDENCIES / "node_modules").is_dir():
-            self.fail("Install web-fetch dependencies or set PI_WEB_FETCH_DIR")
+        self.pi = require_pi()
+        dependencies = require_web_fetch_dependencies()
         temporary = tempfile.TemporaryDirectory(prefix="pi-extensions-test-")
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
@@ -162,11 +159,9 @@ class Extensions(unittest.TestCase):
         self.web.mkdir()
         shutil.copy2(EXTENSIONS / "web-fetch/index.ts", self.web / "index.ts")
         shutil.copy2(EXTENSIONS / "web-fetch/package.json", self.web / "package.json")
-        (self.web / "node_modules").symlink_to(DEPENDENCIES / "node_modules")
-        self.env = dict(os.environ, PI_CODING_AGENT_DIR=str(agent))
-        for key in tuple(self.env):
-            if key.startswith(("PI_SUBAGENT", "HERDR_")) or key in {"TMUX", "TMUX_PANE"}:
-                self.env.pop(key)
+        (self.web / "node_modules").symlink_to(dependencies / "node_modules")
+        self.env = isolated_environment()
+        self.env["PI_CODING_AGENT_DIR"] = str(agent)
         self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Fixtures)
         self.server.transfers = {}
         self.addCleanup(self.server.server_close)
@@ -176,7 +171,7 @@ class Extensions(unittest.TestCase):
 
     def command(self, extension, mode):
         return [
-            PI,
+            self.pi,
             "--offline",
             "--no-extensions",
             "--no-context-files",
