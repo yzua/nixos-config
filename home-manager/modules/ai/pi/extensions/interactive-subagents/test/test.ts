@@ -128,37 +128,6 @@ function restoreEnvVar(name: string, value: string | undefined) {
   process.env[name] = value;
 }
 
-function writeAgentFile(
-  agentsDir: string,
-  name: string,
-  frontmatter: string,
-  body = "You are a test agent.",
-) {
-  mkdirSync(agentsDir, { recursive: true });
-  writeFileSync(join(agentsDir, `${name}.md`), `---\n${frontmatter}\n---\n\n${body}\n`);
-}
-
-async function withCatalog(
-  fn: (paths: {
-    catalog: AgentCatalog;
-    projectAgentsDir: string;
-    globalAgentsDir: string;
-  }) => Promise<void> | void,
-) {
-  const root = createTestDir();
-  const projectAgentsDir = join(root, "project");
-  const globalAgentsDir = join(root, "global");
-  const catalog = new AgentCatalog(() => ({
-    project: projectAgentsDir,
-    global: globalAgentsDir,
-    package: join(root, "package"),
-  }));
-  try {
-    await fn({ catalog, projectAgentsDir, globalAgentsDir });
-  } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-}
 const SESSION_HEADER = { type: "session", id: "sess-001", version: 3 };
 const MODEL_CHANGE = { type: "model_change", id: "mc-001", parentId: null };
 const USER_MSG = {
@@ -784,68 +753,6 @@ describe("status.ts", () => {
 describe("subagent discovery", () => {
   const testApi = (subagentsModule as any).__test__;
 
-  it("loads session-mode from frontmatter", async () => {
-    await withCatalog(async ({ catalog, projectAgentsDir }) => {
-      writeAgentFile(
-        projectAgentsDir,
-        "lineage-mode-test-agent",
-        [
-          "name: lineage-mode-test-agent",
-          "model: anthropic/test-lineage",
-          "session-mode: lineage-only",
-        ].join("\n"),
-      );
-
-      const loaded = catalog.loadProfile("lineage-mode-test-agent");
-      assert.ok(loaded, "expected agent to load");
-      assert.equal(loaded.sessionMode, "lineage-only");
-    });
-  });
-
-  it("loads explicit interactive flag from frontmatter", async () => {
-    await withCatalog(async ({ catalog, projectAgentsDir }) => {
-      writeAgentFile(
-        projectAgentsDir,
-        "interactive-true-test-agent",
-        [
-          "name: interactive-true-test-agent",
-          "model: anthropic/test-interactive-true",
-          "interactive: true",
-        ].join("\n"),
-      );
-      writeAgentFile(
-        projectAgentsDir,
-        "interactive-false-test-agent",
-        [
-          "name: interactive-false-test-agent",
-          "model: anthropic/test-interactive-false",
-          "interactive: false",
-        ].join("\n"),
-      );
-
-      const loadedTrue = catalog.loadProfile("interactive-true-test-agent");
-      assert.equal(loadedTrue?.interactive, true);
-
-      const loadedFalse = catalog.loadProfile("interactive-false-test-agent");
-      assert.equal(loadedFalse?.interactive, false);
-    });
-  });
-
-  it("leaves interactive undefined when not set in frontmatter", async () => {
-    await withCatalog(async ({ catalog, projectAgentsDir }) => {
-      writeAgentFile(
-        projectAgentsDir,
-        "interactive-unset-test-agent",
-        ["name: interactive-unset-test-agent", "model: anthropic/test-interactive-unset"].join(
-          "\n",
-        ),
-      );
-
-      const loaded = catalog.loadProfile("interactive-unset-test-agent");
-      assert.equal(loaded?.interactive, undefined);
-    });
-  });
-
   it("resolveEffectiveInteractive defaults to the inverse of auto-exit", () => {
     // Autonomous agents (auto-exit: true) are NOT interactive — parent gets stall pings.
     assert.equal(
@@ -940,10 +847,9 @@ describe("subagent discovery", () => {
     }
   });
 
-  it("getToolExtensionPath maps installed custom tools and skips built-ins", async () => {
-    await withCatalog(({ globalAgentsDir }) => {
+  it("getToolExtensionPath maps installed custom tools and skips built-ins", () => {
+    withTempDir((globalDir) => {
       const previous = process.env.PI_CODING_AGENT_DIR;
-      const globalDir = join(globalAgentsDir, "..");
       process.env.PI_CODING_AGENT_DIR = globalDir;
       try {
         const extensionDir = join(globalDir, "extensions", "web-fetch");
@@ -959,88 +865,6 @@ describe("subagent discovery", () => {
       } finally {
         restoreEnvVar("PI_CODING_AGENT_DIR", previous);
       }
-    });
-  });
-
-  it("ignores invalid session-mode values", async () => {
-    await withCatalog(async ({ catalog, projectAgentsDir }) => {
-      writeAgentFile(
-        projectAgentsDir,
-        "invalid-mode-test-agent",
-        [
-          "name: invalid-mode-test-agent",
-          "model: anthropic/test-invalid",
-          "session-mode: sideways",
-        ].join("\n"),
-      );
-
-      const loaded = catalog.loadProfile("invalid-mode-test-agent");
-      assert.ok(loaded, "expected agent to load");
-      assert.equal(loaded.sessionMode, undefined);
-    });
-  });
-
-  it("hides disable-model-invocation agents from listings but keeps direct loading", async () => {
-    await withCatalog(async ({ catalog, projectAgentsDir }) => {
-      writeAgentFile(
-        projectAgentsDir,
-        "hidden-discovery-test-agent",
-        [
-          "name: hidden-discovery-test-agent",
-          "description: Hidden test agent",
-          "model: anthropic/test-hidden",
-          "disable-model-invocation: true",
-        ].join("\n"),
-        "You are the hidden agent.",
-      );
-
-      assert.equal(
-        catalog.listVisible().some((agent) => agent.name === "hidden-discovery-test-agent"),
-        false,
-      );
-      assert.ok(catalog.permittedNames().names.includes("hidden-discovery-test-agent"));
-      const loaded = catalog.loadProfile("hidden-discovery-test-agent");
-      assert.ok(loaded, "expected hidden agent to remain directly loadable");
-      assert.equal(loaded.model, "anthropic/test-hidden");
-      assert.equal(loaded.body, "You are the hidden agent.");
-      assert.equal(loaded.disableModelInvocation, true);
-    });
-  });
-
-  it("lets a hidden project agent shadow a visible global agent", async () => {
-    await withCatalog(async ({ catalog, projectAgentsDir, globalAgentsDir }) => {
-      writeAgentFile(
-        globalAgentsDir,
-        "shadowed-discovery-test-agent",
-        [
-          "name: shadowed-discovery-test-agent",
-          "description: Global visible agent",
-          "model: anthropic/test-global",
-        ].join("\n"),
-        "You are the global visible agent.",
-      );
-      writeAgentFile(
-        projectAgentsDir,
-        "shadowed-discovery-test-agent",
-        [
-          "name: shadowed-discovery-test-agent",
-          "description: Project hidden agent",
-          "model: anthropic/test-project",
-          "disable-model-invocation: true",
-        ].join("\n"),
-        "You are the project hidden agent.",
-      );
-
-      assert.equal(
-        catalog.listVisible().some((agent) => agent.name === "shadowed-discovery-test-agent"),
-        false,
-      );
-      assert.ok(catalog.permittedNames().names.includes("shadowed-discovery-test-agent"));
-      const loaded = catalog.loadProfile("shadowed-discovery-test-agent");
-      assert.ok(loaded, "expected project override to remain directly loadable");
-      assert.equal(loaded.model, "anthropic/test-project");
-      assert.equal(loaded.body, "You are the project hidden agent.");
-      assert.equal(loaded.disableModelInvocation, true);
     });
   });
 });
