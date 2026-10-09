@@ -54,8 +54,11 @@ These tests use isolated fixtures without activation or paid model calls.
 Generated-config tests require managed Niri and tmux; local-source skill tests
 require the managed skills CLI. The loader tests require managed Pi, Bun, and
 installed web-fetch dependencies;
-`PI_BIN` and `PI_WEB_FETCH_DIR` can select alternate installations. Live desktop
-focus, browser, and Android lab checks remain separate opt-in commands.
+`PI_BIN` and `PI_WEB_FETCH_DIR` can select alternate installations. Ordinary Pi
+suites share lazy resource checks and inherited-session isolation in
+`tests/pi_test_support.py`; direct runs use the same checks as the aggregate
+preflight. Live desktop focus, browser, and Android lab checks remain separate
+opt-in commands.
 `just test-preview-roots-gc` separately verifies preview retention by running GC
 only in a disposable local Nix store, never on the workstation store.
 
