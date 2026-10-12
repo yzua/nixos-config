@@ -25,6 +25,7 @@ let
       cp -r node_modules "$resources/web-fetch/"
       cp index.ts package.json "$resources/web-fetch/"
       cp ${./extensions/ask-user-question.ts} "$resources/ask-user-question.ts"
+      cp ${./extensions/network-diagnostics.ts} "$resources/network-diagnostics.ts"
       cp -r ${./extensions/prompt-snippets}/. "$resources/prompt-snippets/"
       cp -r ${./extensions/interactive-subagents} "$resources/interactive-subagents"
       runHook postInstall
@@ -78,6 +79,8 @@ in
     ".pi/agent/agents".source = ./agents;
     ".pi/agent/extensions/ask-user-question.ts".source =
       "${extensionResources}/lib/pi-config/ask-user-question.ts";
+    ".pi/agent/extensions/network-diagnostics.ts".source =
+      "${extensionResources}/lib/pi-config/network-diagnostics.ts";
     ".pi/agent/extensions/prompt-snippets".source =
       "${extensionResources}/lib/pi-config/prompt-snippets";
     ".pi/agent/extensions/web-fetch".source = "${extensionResources}/lib/pi-config/web-fetch";

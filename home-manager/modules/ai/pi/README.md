@@ -1,7 +1,7 @@
 # Pi configuration
 
-Home Manager links the global instructions, prompts, agent profiles, and four
-locally owned Amos extensions. Settings, custom models, credentials, sessions, and
+Home Manager links the global instructions, prompts, agent profiles, four
+locally owned Amos-derived extensions, and opt-in network diagnostics. Settings, custom models, credentials, sessions, and
 Herdr's extension remain writable and separately owned.
 
 The first activation backs up existing settings/models beneath
@@ -37,6 +37,22 @@ Select `system` under Theme in `/settings` to inherit the terminal palette,
 including this workstation's Gruvbox Dark Soft colors. A saved `dark` selection
 uses Pi's own palette. Theme choices stay in writable `~/.pi/agent/settings.json`;
 `/reload` applies settings changes to a running Pi session.
+
+For intermittent socket failures, run `/net-debug on` after `/reload`, reproduce
+the failure, then `/net-debug off`. Private JSONL files under
+`${XDG_STATE_HOME:-$HOME/.local/state}/pi-network/` record request sizes, response
+header timing/status, allowlisted response encoding and socket codes, SHA-256
+response request-ID digests, body-read counts/timing/errors, finalized assistant
+errors, and compaction outcomes. They are capped at 1 MiB per activation; the
+directory/file modes are 0700/0600. No URLs, raw headers, credentials, prompts,
+response content, or raw error strings are logged. This observes global fetch
+and the existing consumer's reader/iterator without an extra read, tee, new body
+or replacement Response. It does not instrument fetch implementations that bypass
+that boundary or consumption through native `response.text()`/`json()` methods.
+It changes no timeout, pooling, retry or TLS behavior. Bun's native
+`fetch(..., { verbose: true })` prints headers and must not be enabled unfiltered
+in a credential-bearing interactive session. The ordinary Pi `--verbose` flag
+only changes startup verbosity.
 
 Web fetch extracts pages/PDFs locally. Failed extraction directs the agent to the existing
 Chrome DevTools CLI skill rather than automatically sending URLs to Jina.

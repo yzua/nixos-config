@@ -13,6 +13,7 @@ python3 -B tests/pi_test_support.py
 
 bash tests/workflow.sh
 node --test tests/pi-subagents-recall.test.mjs
+bun test tests/pi-network-diagnostics.test.ts
 for suite in \
   config-artifacts steam-mouse-grab herdr-backup voice-action skills pi-config pi-test-support pi-subagents pi-extensions pi-herdr \
   pi-resume-dispatch pi-herdr-reporting \
