@@ -215,9 +215,11 @@ class SkillsTests(unittest.TestCase):
         installed = self.home / ".agents/skills/fixture/SKILL.md"
         self.assertTrue(installed.stat().st_mode & stat.S_IWUSR)
         self.assertEqual(installed.read_text(), (self.source / "SKILL.md").read_text())
-        pi = self.home / ".pi/agent/skills/fixture"
-        self.assertTrue(pi.is_symlink())
-        self.assertEqual(pi.resolve(), installed.parent)
+        # Pi now reads the canonical .agents/skills directory directly. Claude
+        # remains a non-universal agent, so it exercises installer-owned links.
+        claude = self.home / ".claude/skills/fixture"
+        self.assertTrue(claude.is_symlink())
+        self.assertEqual(claude.resolve(), installed.parent)
         self.assertEqual(unrelated.read_text(), "User-owned instructions.")
 
 

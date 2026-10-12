@@ -9,7 +9,9 @@ Installed skills remain writable and owned by skills.sh, not Home Manager.
 Before installation, the complete prepared bundle is staged into temporary
 writable directories because skills.sh preserves source permissions. Its
 `--global --agent '*'` discovery and destination/link policy are unchanged;
-unrelated installed skills are not retired by this module.
+unrelated installed skills are not retired by this module. With skills.sh 1.7.2,
+Pi uses the shared `~/.agents/skills` directory directly (supported by Pi 1.1.0);
+other agents such as Claude still receive installer-owned symlinks.
 
 The UI/UX search command resolves the caller's installed shared copy under
 `$HOME/.agents/skills`, not the immutable bundle or temporary staging directory.

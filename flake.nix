@@ -22,7 +22,6 @@
     nixcord = {
       url = "github:4evy/nixcord";
       inputs.nixpkgs.follows = "nixpkgs";
-      inputs.nixpkgs-nixcord.follows = "nixpkgs";
       inputs.home-manager.follows = "home-manager";
     };
     # Agent CLIs and desktop apps update faster than the stable Nixpkgs branch.
