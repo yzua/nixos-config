@@ -10,6 +10,9 @@
 
   services.xserver.videoDrivers = setup.graphics.videoDrivers;
 
+  # GPU monitoring and persistent fan control, independent of the desktop session.
+  services.lact.enable = true;
+
   hardware.nvidia = lib.mkIf (builtins.elem "nvidia" setup.graphics.videoDrivers) {
     open = setup.graphics.nvidiaOpen;
     gsp.enable = setup.graphics.nvidiaGsp;
