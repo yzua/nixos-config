@@ -7,6 +7,7 @@
     ./hardware-configuration.nix
     ../../modules/nixos/graphics.nix
     ../../modules/nixos/base.nix
+    ../../modules/nixos/secrets.nix
     ../../modules/nixos/desktop/audio.nix
     ../../modules/nixos/desktop/bluetooth.nix
     ../../modules/nixos/desktop/librepods.nix
@@ -16,6 +17,7 @@
     ../../modules/nixos/desktop/niri.nix
     ../../modules/nixos/networking/mullvad-vpn.nix
     ../../modules/nixos/networking/netbird.nix
+    ../../modules/nixos/networking/netbird-mullvad-private.nix
     ../../modules/nixos/networking/tailscale.nix
     ../../modules/nixos/numtide-cache.nix
     ../../modules/nixos/yubikey.nix

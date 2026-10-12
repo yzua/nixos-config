@@ -190,7 +190,10 @@
           inherit setup librepodsPackage;
           xwaylandSatellite = nixpkgs-xwayland-satellite.legacyPackages.${system}.xwayland-satellite;
         };
-        modules = [ ./hosts/PC/default.nix ];
+        modules = [
+          ./hosts/PC/default.nix
+          sops-nix.nixosModules.sops
+        ];
       };
 
       homeConfigurations."${setup.username}@${setup.hostName}" = home;

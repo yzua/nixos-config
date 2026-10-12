@@ -242,6 +242,103 @@ in git.programs.git.hooks
 
 
 class NetworkContracts(unittest.TestCase):
+    def test_netbird_private_access_uses_runtime_sops_and_configured_client(self):
+        result = evaluate(
+            """
+  lib = flake.inputs.nixpkgs.lib;
+  system = lib.nixosSystem {
+    system = builtins.currentSystem;
+    specialArgs.setup.homeDirectory = "/fixture/home";
+    modules = [ flake.inputs.sops-nix.nixosModules.sops
+      (root + "/modules/nixos/secrets.nix")
+      (root + "/modules/nixos/networking/netbird-mullvad-private.nix") {
+        boot.isContainer = true;
+        system.stateVersion = "26.05";
+        services.mullvad-vpn.enable = true;
+        services.netbird.clients.default = {
+          name = "fixture-mesh";
+          interface = "mesh-fixture";
+          port = 51820;
+        };
+      } ];
+  };
+  config = system.config;
+  unit = config.systemd.services.netbird-mullvad-private;
+  secret = config.sops.secrets.netbird-mullvad-private-endpoint;
+in {
+  ageKey = config.sops.age.keyFile;
+  sshKeys = config.sops.age.sshKeyPaths;
+  installer = builtins.hasAttr "sops-install-secrets" config.systemd.services;
+  installerMounts = config.systemd.services.sops-install-secrets.unitConfig.RequiresMountsFor;
+  inherit (unit) before requiredBy after requires;
+  service = unit.serviceConfig;
+  secret = { inherit (secret) key mode path restartUnits; };
+  httpsSecret = {
+    inherit (config.sops.secrets.netbird-mullvad-private-https-endpoint) key mode path restartUnits;
+  };
+}
+""",
+            {},
+        )
+        self.assertEqual(result["ageKey"], "/fixture/home/.config/sops/age/keys.txt")
+        self.assertEqual(result["sshKeys"], [])
+        self.assertTrue(result["installer"], "required secret installer must exist")
+        self.assertIn(result["ageKey"], result["installerMounts"])
+        self.assertEqual(result["before"], ["netbird-fixture-mesh.service"])
+        self.assertEqual(result["requiredBy"], ["netbird-fixture-mesh.service"])
+        self.assertIn("sops-install-secrets.service", result["after"])
+        self.assertIn("sops-install-secrets.service", result["requires"])
+        self.assertEqual(result["secret"]["mode"], "0400")
+        self.assertEqual(result["secret"]["key"], "private_service_ipv4")
+        self.assertEqual(result["secret"]["restartUnits"], ["netbird-mullvad-private.service"])
+        service = result["service"]
+        self.assertIn("mesh-fixture", service["ExecStart"])
+        self.assertIn(result["secret"]["path"], service["ExecStart"])
+        self.assertIn(result["httpsSecret"]["path"], service["ExecStart"])
+        self.assertEqual(result["httpsSecret"]["key"], "private_https_ipv4")
+        self.assertEqual(result["httpsSecret"]["mode"], "0400")
+        self.assertEqual(shlex.split(service["ExecStart"])[2], "apply")
+        self.assertEqual(shlex.split(service["ExecStop"])[2], "revoke")
+        self.assertEqual(service["RuntimeDirectoryMode"], "0700")
+        self.assertEqual(service["RuntimeDirectoryPreserve"], "yes")
+        self.assertEqual(service["CapabilityBoundingSet"], ["CAP_NET_ADMIN"])
+        self.assertEqual(service["ProtectSystem"], "strict")
+
+    def test_netbird_private_access_requires_both_services_before_creating_unit(self):
+        results = evaluate(
+            """
+  lib = flake.inputs.nixpkgs.lib;
+  modes = [ { netbird = false; mullvad = false; }
+    { netbird = true; mullvad = false; } { netbird = false; mullvad = true; }
+    { netbird = true; mullvad = true; } ];
+  check = mode:
+    let system = lib.nixosSystem {
+      system = builtins.currentSystem;
+      modules = [ flake.inputs.sops-nix.nixosModules.sops
+        (root + "/modules/nixos/networking/netbird-mullvad-private.nix") {
+          boot.isContainer = true;
+          system.stateVersion = "26.05";
+          services.mullvad-vpn.enable = mode.mullvad;
+          services.netbird.clients = lib.optionalAttrs mode.netbird {
+            default = { name = "fixture"; interface = "fixture0"; port = 51820; };
+          };
+        } ];
+    }; in {
+      failed = builtins.length (builtins.filter
+        (item: !item.assertion && lib.hasPrefix "NetBird/Mullvad private access requires" item.message)
+        system.config.assertions);
+      unit = builtins.hasAttr "netbird-mullvad-private" system.config.systemd.services;
+      secret = builtins.hasAttr "netbird-mullvad-private-endpoint" system.config.sops.secrets;
+    };
+in map check modes
+""",
+            {},
+        )
+        for result, failed in zip(results, (2, 1, 1, 0)):
+            self.assertEqual(result["failed"], failed)
+            self.assertEqual(result["unit"], failed == 0)
+            self.assertEqual(result["secret"], failed == 0)
+
     def test_tor_mullvad_bypass_requires_both_services_before_creating_unit(self):
         results = evaluate(
             """
