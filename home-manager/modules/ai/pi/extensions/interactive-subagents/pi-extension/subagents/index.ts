@@ -732,12 +732,45 @@ async function launchSubagent(
       getSessionDir(): string;
     };
     cwd: string;
+    modelRegistry: Pick<ExtensionContext["modelRegistry"], "getAvailable">;
   },
 ): Promise<RunningSubagent> {
   const startTime = Date.now();
   const id = Math.random().toString(16).slice(2, 10);
 
   const agentDefs = params.agent ? agentCatalog.loadProfile(params.agent) : null;
+  const { effectiveCwd, localAgentDir, effectiveAgentDir } = resolveSubagentPaths(
+    params,
+    agentDefs,
+  );
+  let model = params.model ?? agentDefs?.model;
+  if (
+    agentDefs?.cli !== "claude" &&
+    model !== undefined &&
+    resolve(effectiveAgentDir) === resolve(getAgentConfigDir())
+  ) {
+    // CLI fuzzy resolution can silently fall back to an unauthenticated provider.
+    // Validate shared-config models before creating a pane/session, then persist
+    // the provider for resumes. A different agent directory owns its own models,
+    // credentials and provider extensions: leave resolution to that child CLI.
+    const requested = model.trim();
+    const available = await ctx.modelRegistry.getAvailable();
+    const qualified = available.filter((m) => `${m.provider}/${m.id}` === requested);
+    const matches = qualified.length ? qualified : available.filter((m) => m.id === requested);
+    if (!requested || matches.length === 0) {
+      throw new Error(
+        `Subagent model ${JSON.stringify(model)} is not an available registered model. ` +
+          "Use an exact model ID with configured authentication, preferably provider/model.",
+      );
+    }
+    if (matches.length > 1) {
+      throw new Error(
+        `Ambiguous subagent model ${JSON.stringify(model)}. Use one of: ` +
+          matches.map((m) => `${m.provider}/${m.id}`).join(", "),
+      );
+    }
+    model = `${matches[0].provider}/${matches[0].id}`;
+  }
   const effectiveInteractive = resolveEffectiveInteractive(params, agentDefs);
 
   const sessionFile = ctx.sessionManager.getSessionFile();
@@ -745,10 +778,6 @@ async function launchSubagent(
   const sessionId = ctx.sessionManager.getSessionId();
   const artifactDir = getArtifactDir(ctx.sessionManager.getSessionDir(), sessionId);
 
-  const { effectiveCwd, localAgentDir, effectiveAgentDir } = resolveSubagentPaths(
-    params,
-    agentDefs,
-  );
   const targetCwdForSession = effectiveCwd ?? ctx.cwd;
   const sessionDir = getDefaultSessionDirFor(targetCwdForSession, effectiveAgentDir);
 
@@ -801,7 +830,7 @@ async function launchSubagent(
         {
           kind: "initial",
           profile: agentDefs,
-          model: params.model,
+          model,
           cwd: effectiveCwd,
           agentDir:
             localAgentDir && existsSync(localAgentDir)

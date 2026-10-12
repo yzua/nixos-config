@@ -23,17 +23,17 @@ export default function (pi: ExtensionAPI) {
     baseUrl: "http://127.0.0.1:9",
     apiKey: "unused-offline-test-key",
     api: "pi-test-api",
-    models: [
-      {
-        id: "offline",
+    models: ["offline", "offline-profile", "offline-override", "offline-fixed", "changed"].map(
+      (id) => ({
+        id,
         name: "Offline regression fixture",
         reasoning: true,
         input: ["text"],
         contextWindow: 100_000,
         maxTokens: 4096,
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      },
-    ],
+      }),
+    ),
     streamSimple(model) {
       calls++;
       log(`provider_call:${calls}`);

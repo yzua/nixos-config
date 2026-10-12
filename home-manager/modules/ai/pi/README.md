@@ -26,7 +26,11 @@ requested; new clients use the configured focus forwarding automatically.
 `/thinking` changes the main level; Ctrl+S saves a new
 default. Scout starts at medium; researcher, worker, and reviewer at high.
 Profiles use the configured default model and resolve the provider from the
-caller's settings. `/plan`, `/review`, and `/handoff` are reusable prompts.
+caller's settings. Explicit models for shared-config Pi subagents must match an
+exact authenticated model ID; ambiguous IDs require `provider/model`. A different
+role-specific `.pi/agent` directory retains child CLI resolution (including fuzzy
+matching/fallback), so prefer qualified `provider/model` values there. Claude
+profiles retain their own model aliases. `/plan`, `/review`, and `/handoff` are reusable prompts.
 Alt+S or `/snippets` toggles Verify and Delegate exploration for one message.
 
 Select `system` under Theme in `/settings` to inherit the terminal palette,

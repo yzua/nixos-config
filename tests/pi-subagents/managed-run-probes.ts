@@ -44,6 +44,7 @@ export default function (pi: ExtensionAPI) {
       },
     };
     const context = {
+      modelRegistry: realContext.modelRegistry,
       cwd: root,
       hasUI: true,
       ui: {

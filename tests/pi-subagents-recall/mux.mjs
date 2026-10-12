@@ -41,7 +41,7 @@ export function sendLongCommand(surface, command) {
   assert.equal(owner.run.activityFile.endsWith(`${owner.run.id}.json`), true);
   assert.equal(owner.policy.kind === "initial" || owner.policy.kind === "resume", true);
   assert.equal(owner.loadout.toolAllowlist.includes("read"), true);
-  assert.equal(owner.loadout.model, "offline-default");
+  assert.equal(owner.loadout.model, "pi-test/offline-default");
   const registry = JSON.parse(readFileSync(join(owner.run.parentArtifactDir, "subagent-registry.json"), "utf8"));
   assert.equal(registry.Recall.sessionFile, sessionFile, "registry persisted before dispatch");
   if (!existsSync(sessionFile)) writeFileSync(sessionFile, JSON.stringify({ type: "session", id: "original-child-session", version: 3 }) + "\n");

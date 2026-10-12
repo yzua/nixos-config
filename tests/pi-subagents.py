@@ -448,7 +448,7 @@ class PiRegressions(unittest.TestCase):
             self.assertIn(
                 "--tools 'read,subagent,subagent_message,subagents_list,ask_question'", command
             )
-            self.assertIn("--model 'offline-fixed'", command)
+            self.assertIn("--model 'pi-test/offline-fixed'", command)
             self.assertIn("--thinking 'high'", command)
             self.assertIn("--system-prompt", command)
             self.assertIn("PI_SUBAGENT_ALLOWED='scout'", command)
@@ -543,16 +543,60 @@ class PiRegressions(unittest.TestCase):
         self.assertEqual(results["retry"]["name"], "retryable")
         self.assertEqual(results["closedPanes"], ["%1", "%2"])
 
+    def test_model_guard_rejects_before_pane_and_pins_available_models(self):
+        model = {"id": "offline-shared", "name": "Offline configured default"}
+        (self.agent / "models.json").write_text(
+            json.dumps(
+                {
+                    "providers": {
+                        "configured-provider": {
+                            "api": "openai-responses",
+                            "baseUrl": "http://127.0.0.1:9",
+                            "apiKey": "unused-offline-test-key",
+                            "models": [model],
+                        },
+                        # Registered same ID without auth must never win unqualified selection.
+                        "unconfigured": {
+                            "api": "openai-responses",
+                            "baseUrl": "http://127.0.0.1:9",
+                            "models": [model],
+                        },
+                    }
+                }
+            )
+        )
+        results = self.probes("model-guard")
+        self.assertEqual(set(results["refused"]), {"override", "profile", "unavailable", "empty"})
+        for label in ["override", "profile"]:
+            self.assertIn("offline-missing", results["refused"][label])
+            self.assertIn("available", results["refused"][label])
+        self.assertIn("unconfigured/offline-shared", results["refused"]["unavailable"])
+        self.assertEqual(results["panesBeforeValid"], "0", results)
+        self.assertFalse(results["registryBeforeValid"], results)
+        self.assertEqual(results["reservations"], [], results)
+        for launch in results["valid"][:3]:
+            self.assertIn("--model 'configured-provider/offline-shared'", launch["command"])
+            self.assertEqual(launch["loadout"]["model"], "configured-provider/offline-shared")
+        self.assertEqual(results["valid"][0]["name"], "guard", results)
+        inherited, role, claude = results["valid"][3:]
+        self.assertNotIn("--model", inherited["command"])
+        self.assertIsNone(inherited["loadout"]["model"])
+        self.assertIn("--model 'role-provider/offline-role'", role["command"])
+        self.assertEqual(role["loadout"]["model"], "role-provider/offline-role")
+        self.assertEqual(role["loadout"]["agentDir"], str(self.root / "role/.pi/agent"))
+        self.assertIn("claude --dangerously-skip-permissions", claude["command"])
+        self.assertIn("--model 'sonnet'", claude["command"])
+
     def test_registered_launch_policies_through_installed_pi(self):
         results = self.probes("launch-policy")
         for launch in results["launches"]:
             command = launch["command"]
             self.assertIn("pi --approve --session", command)
-            self.assertIn("--model 'offline-override'", command)
+            self.assertIn("--model 'pi-test/offline-override'", command)
             self.assertIn("--thinking 'medium'", command)
             self.assertIn("--no-extensions --tools 'read,ask_question'", command)
             self.assertEqual(launch["identity"], "ROLE_IDENTITY")
-            self.assertEqual(launch["loadout"]["model"], "offline-override")
+            self.assertEqual(launch["loadout"]["model"], "pi-test/offline-override")
             self.assertEqual(launch["loadout"]["identity"], "ROLE_IDENTITY")
             if launch["mode"] == "fork":
                 self.assertIsNone(launch["taskArtifact"])

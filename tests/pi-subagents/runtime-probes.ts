@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import subagents, {
   __test__,
@@ -66,6 +66,7 @@ export default function (pi: ExtensionAPI) {
         };
         subagents(mockApi as unknown as ExtensionAPI);
         const context = {
+          modelRegistry: realContext.modelRegistry,
           cwd: root,
           hasUI: false,
           sessionManager: {
@@ -77,7 +78,87 @@ export default function (pi: ExtensionAPI) {
         const run = (tool: string, args: Record<string, unknown>) =>
           tools.get(tool)!.execute("fixture", args, undefined, undefined, context);
         try {
-          if (process.env.PI_TEST_SCENARIO === "launch-policy") {
+          if (process.env.PI_TEST_SCENARIO === "model-guard") {
+            writeFileSync(join(root, "tmux-mode"), "healthy");
+            const profile = join(process.env.PI_CODING_AGENT_DIR!, "agents", "fixture.md");
+            const setProfile = (model?: string, cli?: string) =>
+              writeFileSync(
+                profile,
+                `---\nname: fixture\ntools: read\nauto-exit: true\n${model ? `model: ${model}\n` : ""}${cli ? `cli: ${cli}\n` : ""}---\nOffline role.\n`,
+              );
+            const refused: Record<string, unknown> = {};
+            for (const [label, override, profileModel] of [
+              ["override", "offline-missing", undefined],
+              ["profile", undefined, "offline-missing"],
+              ["unavailable", "unconfigured/offline-shared", undefined],
+              ["empty", "", "offline-shared"],
+            ]) {
+              setProfile(profileModel);
+              try {
+                await run("subagent", {
+                  agent: "fixture",
+                  name: "guard",
+                  task: "must not launch",
+                  model: override,
+                });
+              } catch (error) {
+                refused[label!] = String(error);
+              }
+            }
+            results.refused = refused;
+            results.panesBeforeValid = existsSync(join(root, "pane-count"))
+              ? readFileSync(join(root, "pane-count"), "utf8")
+              : "0";
+            results.registryBeforeValid = existsSync(
+              join(root, "artifacts", "fixture-parent", "subagent-registry.json"),
+            );
+            results.reservations = [...__test__.reservedNames];
+            const roleCwd = join(root, "role");
+            const roleAgentDir = join(roleCwd, ".pi", "agent");
+            mkdirSync(roleAgentDir, { recursive: true });
+            writeFileSync(
+              join(roleAgentDir, "models.json"),
+              JSON.stringify({
+                providers: {
+                  "role-provider": {
+                    api: "openai-responses",
+                    baseUrl: "http://127.0.0.1:9",
+                    apiKey: "unused-offline-test-key",
+                    models: [{ id: "offline-role" }],
+                  },
+                },
+              }),
+            );
+            const valid: Record<string, unknown>[] = [];
+            for (const [label, override, profileModel, cli] of [
+              ["qualified", "configured-provider/offline-shared", "offline-missing", undefined],
+              ["unqualified", "offline-shared", undefined, undefined],
+              ["profile", undefined, "offline-shared", undefined],
+              ["inherit", undefined, undefined, undefined],
+              ["role", "role-provider/offline-role", undefined, undefined],
+              ["claude", "sonnet", "opus", "claude"],
+            ]) {
+              setProfile(profileModel, cli);
+              const response = await run("subagent", {
+                agent: "fixture",
+                name: "guard",
+                task: "offline task",
+                model: override,
+                ...(label === "role" ? { cwd: roleCwd } : {}),
+              });
+              valid.push({
+                label,
+                name: response.details.name,
+                command: readFileSync(response.details.launchScriptFile, "utf8"),
+                loadout: cli
+                  ? null
+                  : JSON.parse(
+                      readFileSync(`${response.details.sessionFile}.loadout.json`, "utf8"),
+                    ),
+              });
+            }
+            results.valid = valid;
+          } else if (process.env.PI_TEST_SCENARIO === "launch-policy") {
             writeFileSync(join(root, "tmux-mode"), "managed-empty");
             writeFileSync(
               join(root, "parent.jsonl"),

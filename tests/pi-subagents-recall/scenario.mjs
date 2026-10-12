@@ -14,6 +14,7 @@ const calls = (op) => existsSync(file("calls.jsonl")) ? readFileSync(file("calls
 const owner = (run) => JSON.parse(readFileSync(`${run.sessionFile}.owner.json`, "utf8"));
 const setOwner = (run, value) => writeFileSync(`${run.sessionFile}.owner.json`, JSON.stringify(value));
 const ctx = {
+  modelRegistry: { getAvailable: async () => [{ provider: "pi-test", id: "offline-default" }] },
   cwd: root, hasUI: false,
   sessionManager: {
     getSessionFile: () => file("parent.jsonl"),
@@ -298,7 +299,7 @@ if (mode === "restart-writer") {
   const messages = [[], []];
   const make = (n) => new ManagedRuns({ moduleSignal: () => new AbortController().signal, shellReadyDelayMs: () => 0, refresh() {}, tick() {}, present: (r) => r.summary, sendMessage: (m) => { messages[n].push(m); if (mode === "delivery-throws") throw new Error("already enqueued"); } });
   const first = make(0), second = make(1);
-  const loadout = { agent: "worker", toolAllowlist: "read", model: "offline-default", thinking: null, systemPromptMode: null, identity: null, spawnable: null, autoExit: true, cwd: root, agentDir: file("agent") };
+  const loadout = { agent: "worker", toolAllowlist: "read", model: "pi-test/offline-default", thinking: null, systemPromptMode: null, identity: null, spawnable: null, autoExit: true, cwd: root, agentDir: file("agent") };
   const parentArtifactDir = file("artifacts/parent-session");
   mkdirSync(parentArtifactDir, { recursive: true });
   const sessionFile = file("fenced.jsonl");
