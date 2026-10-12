@@ -62,6 +62,23 @@ opt-in commands.
 `just test-preview-roots-gc` separately verifies preview retention by running GC
 only in a disposable local Nix store, never on the workstation store.
 
+## Gaming
+
+Niri opens Steam game windows fullscreen automatically. Fullscreen alone does
+not guarantee mouse confinement: for Proton games on multiple monitors, close
+all Proton/Wine games and run `steam-mouse-grab` to enable Wine's
+`GrabFullscreen` setting in existing game prefixes across your Steam libraries.
+The command preserves other registry settings and saves a
+`user.reg.before-mouse-grab` backup beside each changed registry. It refuses to
+edit while a Wine server is running.
+
+New games create their own prefixes on first launch; close them and rerun the
+command afterward. Nothing is applied continuously or to native Linux games.
+Use **Super + Shift + F** to toggle Niri fullscreen and **Alt + Tab** to switch
+away. To undo confinement, close the game and remove `"GrabFullscreen"="Y"`
+from its `pfx/user.reg` section `[Software\\Wine\\X11 Driver]`; avoid restoring
+an old whole-registry backup after the game has made other settings changes.
+
 ## Layout
 
 - `flake.nix` and `flake.lock`: outputs and pinned dependencies.

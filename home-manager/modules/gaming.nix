@@ -1,11 +1,17 @@
-# User-level Lutris and opt-in MangoHud without a second Steam runtime.
+# User-level gaming apps, overlays, and opt-in Proton fullscreen mouse capture.
 
-{ pkgs, ... }:
+{ lib, pkgs, ... }:
 
+let
+  steamMouseGrab = pkgs.writeShellScriptBin "steam-mouse-grab" ''
+    exec ${lib.getExe pkgs.python3} ${./steam-mouse-grab.py} "$@"
+  '';
+in
 {
   programs.mangohud.enable = true;
 
   home.packages = [
+    steamMouseGrab
     (pkgs.lutris.override {
       steamSupport = false;
       extraPkgs = p: [ p.mangohud ];

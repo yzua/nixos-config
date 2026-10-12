@@ -78,6 +78,12 @@ in
       open-floating true
     }
 
+    // Steam games get real fullscreen; Wine's GrabFullscreen handles confinement.
+    window-rule {
+      match app-id=r#"^steam_app_[0-9]+$"#
+      open-fullscreen true
+    }
+
     // Keep startup workspaces on the main display; they remain movable.
     ${lib.concatMapStringsSep "\n"
       (name: ''

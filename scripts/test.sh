@@ -14,7 +14,7 @@ python3 -B tests/pi_test_support.py
 bash tests/workflow.sh
 node --test tests/pi-subagents-recall.test.mjs
 for suite in \
-  config-artifacts herdr-backup voice-action skills pi-config pi-test-support pi-subagents pi-extensions pi-herdr \
+  config-artifacts steam-mouse-grab herdr-backup voice-action skills pi-config pi-test-support pi-subagents pi-extensions pi-herdr \
   pi-resume-dispatch pi-herdr-reporting \
   pi-re-config pi-re-rea pi-re-android pi-re-runtime pi-re-traffic pi-re-subagent pi-re-lab; do
   printf '\n== %s ==\n' "$suite"
