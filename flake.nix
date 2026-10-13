@@ -154,8 +154,6 @@
         inherit (setup) androidLab;
       };
       reaTools = import ./packages/rea { inherit pkgs; };
-      # The Rust rewrite is newer than Nixpkgs's legacy Qt LibrePods package.
-      librepodsPackage = pkgs.callPackage ./packages/librepods-rust { };
       openDesignPackage = pkgs.callPackage ./packages/open-design {
         # Reuse the configured browser instead of downloading a render binary.
         browser = pkgs.google-chrome;
@@ -201,7 +199,7 @@
       nixosConfigurations.${setup.hostName} = nixpkgs.lib.nixosSystem {
         inherit system;
         specialArgs = {
-          inherit setup librepodsPackage;
+          inherit setup;
           xwaylandSatellite = nixpkgs-xwayland-satellite.legacyPackages.${system}.xwayland-satellite;
         };
         modules = [
@@ -216,7 +214,6 @@
       formatter.${system} = formatter;
 
       packages.${system} = {
-        librepods-rust = librepodsPackage;
         open-design = openDesignPackage;
         pi-re = nixpkgs.lib.findFirst (
           package: nixpkgs.lib.getName package == "pi-re"

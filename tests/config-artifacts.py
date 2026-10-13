@@ -414,73 +414,56 @@ in {
         self.assertFalse(result["proxy"], "mpris-proxy conflicts with WirePlumber AVRCP")
         self.assertNotIn("DeviceID", result["settings"].get("General", {}))
 
-    def test_librepods_capability_is_restricted_to_configured_account(self):
+    def test_removed_bluetooth_client_is_absent_from_all_outputs(self):
         result = evaluate(
             """
   lib = flake.inputs.nixpkgs.lib;
-  pkgs = flake.inputs.nixpkgs.legacyPackages.${builtins.currentSystem};
-  fixture = pkgs.hello;
-  system = lib.nixosSystem {
-    system = builtins.currentSystem;
-    specialArgs = {
-      librepodsPackage = fixture;
-      setup.username = "bluetooth-fixture";
-    };
-    modules = [ (root + "/modules/nixos/desktop/librepods.nix") {
-      boot.isContainer = true;
-      system.stateVersion = "26.05";
-      users.users.bluetooth-fixture.isNormalUser = true;
-    } ];
-  };
+  hasClientPackage = packages:
+    builtins.any (package: lib.hasPrefix "librepods" (lib.getName package)) packages;
 in {
-  wrapper = system.config.security.wrappers.librepods;
-  groups = system.config.users.users.bluetooth-fixture.extraGroups;
-  groupExists = builtins.hasAttr "librepods" system.config.users.groups;
-  packageInstalled = builtins.elem fixture system.config.environment.systemPackages;
-  expectedSource = lib.getExe fixture;
+  packageExport = builtins.any
+    (packages: builtins.hasAttr "librepods-rust" packages)
+    (builtins.attrValues flake.packages);
+  systems = lib.mapAttrs (_: system: let config = system.config; in {
+    package = hasClientPackage config.environment.systemPackages;
+    wrapper = builtins.hasAttr "librepods" config.security.wrappers;
+    group = builtins.hasAttr "librepods" config.users.groups;
+    membership = builtins.any (user: builtins.elem "librepods" user.extraGroups)
+      (builtins.attrValues config.users.users);
+  }) flake.nixosConfigurations;
+  homes = lib.mapAttrs (_: home: let config = home.config; in {
+    package = hasClientPackage config.home.packages;
+    service = builtins.hasAttr "librepods" config.systemd.user.services;
+    indicatorHook = builtins.hasAttr "enableLibrePodsIndicator" config.home.activation;
+    launcher = builtins.hasAttr "me.kavishdevar.librepods" config.xdg.desktopEntries;
+  }) flake.homeConfigurations;
 }
 """,
             {},
         )
-        wrapper = result["wrapper"]
-        self.assertEqual(wrapper["capabilities"], "cap_net_admin+ep")
-        self.assertEqual(wrapper["source"], result["expectedSource"])
-        self.assertEqual(wrapper["owner"], "root")
-        self.assertEqual(wrapper["group"], "librepods")
-        self.assertEqual(wrapper["permissions"], "u+rx,g+x")
-        self.assertFalse(wrapper["setuid"])
-        self.assertFalse(wrapper["setgid"])
-        self.assertTrue(result["groupExists"])
-        self.assertTrue(result["packageInstalled"])
-        self.assertIn("librepods", result["groups"])
+        self.assertFalse(result["packageExport"])
+        for kind in ("systems", "homes"):
+            for output, artifacts in result[kind].items():
+                for artifact, present in artifacts.items():
+                    with self.subTest(kind=kind, output=output, artifact=artifact):
+                        self.assertFalse(present)
+        for path in (
+            "modules/nixos/desktop/librepods.nix",
+            "home-manager/modules/desktop-apps/librepods.nix",
+            "packages/librepods-rust",
+        ):
+            self.assertFalse((ROOT / path).exists(), path)
 
-    def test_librepods_login_service_uses_wrapper_and_graphical_lifecycle(self):
-        service = evaluate(
-            """
-  lib = flake.inputs.nixpkgs.lib;
-  pkgs = flake.inputs.nixpkgs.legacyPackages.${builtins.currentSystem};
-in (import (root + "/home-manager/modules/desktop-apps/librepods.nix") { inherit lib pkgs; })
-  .systemd.user.services.librepods
-""",
-            {},
-        )
-        self.assertEqual(
-            service["Service"]["ExecStart"], "/run/wrappers/bin/librepods --start-minimized"
-        )
-        self.assertEqual(
-            service["Unit"]["ConditionPathIsExecutable"], "/run/wrappers/bin/librepods"
-        )
-        self.assertEqual(service["Unit"]["PartOf"], ["graphical-session.target"])
-        self.assertEqual(service["Install"]["WantedBy"], ["graphical-session.target"])
-        self.assertEqual(service["Service"]["Restart"], "on-failure")
 
-    def test_librepods_indicator_preserves_extensions_and_is_idempotent(self):
+class GnomeIndicators(unittest.TestCase):
+    def test_indicator_preserves_extensions_and_is_idempotent(self):
         hook = evaluate(
             """
   pkgs = flake.inputs.nixpkgs.legacyPackages.${builtins.currentSystem};
   lib = pkgs.lib // { hm.dag.entryAfter = _: script: script; };
-in (import (root + "/home-manager/modules/desktop-apps/librepods.nix") { inherit lib pkgs; })
-  .home.activation.enableLibrePodsIndicator
+  setup.keyboard.layouts = [];
+in (import (root + "/home-manager/modules/desktop/gnome.nix") { inherit lib pkgs setup; })
+  .home.activation.enableGnomeAppIndicator
 """,
             {},
         )
