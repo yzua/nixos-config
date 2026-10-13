@@ -62,6 +62,42 @@ def main():
                     ),
                     ({}, "tool_calls"),
                 )
+            elif args.pi_re and len(observed) == 2:
+                # Exercise native Pi codemode discovery and a real MCP call without a model.
+                tool = next(
+                    tool["function"]
+                    for tool in observed[-1]["tools"]
+                    if tool["function"]["name"] == "codemode"
+                )
+                properties = tool["parameters"]["properties"]
+                field = next(iter(properties))
+                script = (
+                    'const ns = await describeNamespace("mcp__rea");'
+                    'if (!ns || ns.tools.length !== 170) throw new Error("REA tool inventory missing");'
+                    "const r = await tools.mcp__rea__binary_session({});"
+                    "if (r.isError) throw new Error(JSON.stringify(r));"
+                    'text("REA_MCP_DISCOVERY_OK");'
+                )
+                deltas = (
+                    (
+                        {
+                            "role": "assistant",
+                            "tool_calls": [
+                                {
+                                    "index": 0,
+                                    "id": "fixture_rea_mcp",
+                                    "type": "function",
+                                    "function": {
+                                        "name": "codemode",
+                                        "arguments": json.dumps({field: script}),
+                                    },
+                                }
+                            ],
+                        },
+                        None,
+                    ),
+                    ({}, "tool_calls"),
+                )
             else:
                 deltas = (
                     ({"role": "assistant", "content": "LOADER_FIXTURE_OK"}, None),
@@ -268,7 +304,14 @@ def main():
                     for message in request.get("messages", [])
                     if message.get("role") == "tool"
                 ]
-                assert tool_responses and "4.1.0" in json.dumps(tool_responses), tool_responses
+                assert tool_responses and "6.4.0" in json.dumps(tool_responses), tool_responses
+                assert "reverse-engineer-anything" in body, "Official release skill missing"
+                assert "codemode" in tool_names, "MCP discovery tool missing"
+                assert "mcp__rea" in body, "Managed REA namespace missing"
+                assert "REA_MCP_DISCOVERY_OK" in json.dumps(tool_responses), (
+                    "Native MCP call failed"
+                )
+                assert not (agent / "mcp.json").exists(), "Session registration wrote client config"
                 assert "Executable not found" not in json.dumps(tool_responses)
             assert not marker.exists(), "Hostile project extension was loaded"
             # Initialization diagnostics belong on stderr, preserving JSON mode stdout.
@@ -277,7 +320,7 @@ def main():
             sessions = list((re_state / "sessions").glob("*.jsonl"))
             assert sessions, "No separate native session was written"
             print(
-                f"{'Global pi-re' if args.pi_re else 'Installed Pi'} loader: all ten reviewed skills, "
+                f"{'Global pi-re' if args.pi_re else 'Installed Pi'} loader: reviewed skills, "
                 "contract/tools, hostile cwd excluded, isolated JSON/session state"
             )
         finally:

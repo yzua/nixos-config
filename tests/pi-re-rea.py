@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
 """Offline regression tests for the pinned static REA route; no engine/model calls."""
 
+import contextlib
 import importlib.util
+import io
 import json
+import selectors
+import signal
+import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
@@ -15,6 +21,9 @@ sys.path.insert(0, str(CODE))
 spec = importlib.util.spec_from_file_location("pi_re_rea", CODE / "rea.py")
 rea = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(rea)
+adb_spec = importlib.util.spec_from_file_location("pi_re_rea_adb", CODE / "rea_adb.py")
+rea_adb = importlib.util.module_from_spec(adb_spec)
+adb_spec.loader.exec_module(rea_adb)
 
 
 class ReaTests(unittest.TestCase):
@@ -72,7 +81,8 @@ class ReaTests(unittest.TestCase):
         self.assertEqual(env["GHIDRA_INSTALL_DIR"], self.config["rea"]["ghidra"])
         self.assertEqual(env["JAVA_HOME"], self.config["rea"]["jdk"])
         self.assertEqual(env["REA_JADX_MCP_JAR"], self.config["rea"]["jadxJar"])
-        self.assertEqual(env["REA_ANALYSIS_PROVIDER"], "auto")
+        self.assertEqual(env["REA_ANALYSIS_PROVIDER"], "ghidra")
+        self.assertEqual(env["PI_RE_STATE_DIR"], str(self.locations["state"]))
         self.assertEqual(env["TMPDIR"], "/tmp")
         self.assertEqual(env["NO_UPDATE_NOTIFIER"], "1")
         self.assertNotEqual(env["HOME"], environment["HOME"])
@@ -92,21 +102,57 @@ class ReaTests(unittest.TestCase):
             self.assertTrue(path.is_relative_to(self.locations["state"]))
         self.assertEqual(environment["HOME"], "/coding")
 
-    def test_install_mcp_runtime_and_unknown_routes_rejected_before_state(self):
+    def test_analysis_controls_preserved_but_engine_injection_rejected(self):
+        settings = {
+            "REA_GHIDRA_LANGUAGE_ID": "MIPS:BE:32:default",
+            "REA_GHIDRA_COMPILER_SPEC_ID": "default",
+            "REA_GHIDRA_SEED_FILE": "/owned/seeds.tsv",
+            "REA_GHIDRA_STARTUP_TIMEOUT_MS": "420000",
+        }
+        _, env = rea.command(
+            self.config,
+            self.locations,
+            ["--help"],
+            settings
+            | {
+                "REA_BROWSER_EXECUTABLE": "/ambient/browser",
+                "REA_GHIDRA_NATIVEAOT_JAR": "/ambient/plugin.jar",
+            },
+        )
+        for key, value in settings.items():
+            self.assertEqual(env[key], value)
+        self.assertNotIn("REA_BROWSER_EXECUTABLE", env)
+        self.assertNotIn("REA_GHIDRA_NATIVEAOT_JAR", env)
+
+    def test_install_transport_and_unknown_routes_rejected_before_state(self):
         for args in (
             ["setup"],
             ["update"],
             ["uninstall"],
             ["mcp"],
             ["--mcp"],
-            ["capture-process", "scenario.json"],
-            ["capture-browser-scenario", "scenario.json"],
             ["function", "target", "leaf", "--mcp"],
             ["unknown"],
         ):
             with self.subTest(args=args), self.assertRaises(ValueError):
                 rea.command(self.config, self.locations, args, {})
         self.assertFalse(self.locations["state"].exists())
+
+    def test_network_runtime_routes_and_pinned_mcp_transport(self):
+        for args in (
+            ["inspect-web-network-capture", "capture.har", "har", "--json"],
+            ["capture-process", "scenario.json", "--json"],
+            ["capture-browser-scenario", "scenario.json", "--json"],
+            ["inspect-analysis-view", "request.json", "--json"],
+        ):
+            argv, _ = rea.command(self.config, self.locations, args, {})
+            self.assertEqual(argv[1:], args)
+        self.config["rea"]["environment"] = {"REA_MITMDUMP_COMMAND": "/pinned/mitmdump"}
+        argv, env = rea.command(self.config, self.locations, [], {}, mcp=True)
+        self.assertEqual(argv[1:], ["--mcp"])
+        self.assertEqual(env["REA_MITMDUMP_COMMAND"], "/pinned/mitmdump")
+        with self.assertRaisesRegex(ValueError, "takes no arguments"):
+            rea.command(self.config, self.locations, ["--update"], {}, mcp=True)
 
     def test_global_updater_flags_rejected_on_every_allowed_route_before_state(self):
         for route in rea.COMMANDS | rea.HELP:
@@ -145,13 +191,71 @@ class ReaTests(unittest.TestCase):
 
     def test_runtime_lock_preserves_release_pins_without_dev_dependencies(self):
         lock = json.loads((ROOT / "packages/rea/package-lock.json").read_text())
-        self.assertEqual(lock["version"], "4.1.0")
+        self.assertEqual(lock["version"], "6.4.0")
         self.assertNotIn("devDependencies", lock["packages"][""])
         self.assertFalse(any(item.get("dev") for item in lock["packages"].values()))
         for name, item in lock["packages"].items():
             if name:
                 self.assertTrue(item["resolved"].startswith("https://registry.npmjs.org/"))
                 self.assertTrue(item["integrity"].startswith("sha512-"))
+
+    def test_adb_transport_selects_owned_root_and_sanitizes_enumeration(self):
+        lab = MagicMock()
+        lab.serial = "emulator-5678"
+        lab.env = {"ADB_SERVER_SOCKET": "tcp:localhost:5037"}
+        lab.lock.side_effect = lambda: contextlib.nullcontext()
+        lab.adb.return_value = (0, "0\n")
+        execute = MagicMock(
+            return_value=subprocess.CompletedProcess(
+                [], 0, "List of devices attached\nemulator-5678 device\nforeign device\n", ""
+            )
+        )
+        config = {"android": {"adb": "/pinned/adb"}}
+        with patch.object(rea_adb, "Android", return_value=lab):
+            with self.assertRaisesRegex(rea_adb.LabError, "selected"):
+                rea_adb.run(config, self.root, ["-s", "foreign", "shell", "id"], execute=execute)
+            execute.assert_not_called()
+            with contextlib.redirect_stdout(io.StringIO()) as output:
+                rea_adb.run(config, self.root, ["devices", "-l"], execute=execute)
+            self.assertNotIn("foreign", output.getvalue())
+            self.assertEqual(execute.call_args.kwargs["env"], lab.env)
+            rea_adb.run(config, self.root, ["version"], execute=execute)
+            self.assertEqual(execute.call_args.kwargs["env"], lab.env)
+            rea_adb.run(
+                config, self.root, ["-s", lab.serial, "pull", "/owned", "/copy"], execute=execute
+            )
+            lab.device_identity.assert_called_once()
+            self.assertEqual(execute.call_args.kwargs["timeout"], 600)
+            lab.adb.return_value = (0, "2000\n")
+            execute.reset_mock()
+            with self.assertRaisesRegex(rea_adb.LabError, "already rooted"):
+                rea_adb.run(config, self.root, ["-s", lab.serial, "shell", "id"], execute=execute)
+            execute.assert_not_called()
+
+    def test_adb_cancellation_reaps_resistant_client_before_outer_escalation(self):
+        script = (
+            f"import sys;sys.path.insert(0,{str(CODE)!r});import rea_adb;"
+            "rea_adb.owned_run([sys.executable,'-c',"
+            "'import os,time,signal;signal.signal(signal.SIGTERM,signal.SIG_IGN);"
+            "print(os.getpid(),flush=True);time.sleep(60)'],timeout=90)"
+        )
+        process = subprocess.Popen(
+            [sys.executable, "-B", "-c", script], stdout=subprocess.PIPE, text=True
+        )
+        selector = selectors.DefaultSelector()
+        selector.register(process.stdout, selectors.EVENT_READ)
+        try:
+            self.assertTrue(selector.select(10), "Owned ADB stand-in did not start")
+            child_pid = int(process.stdout.readline())
+            process.send_signal(signal.SIGTERM)
+            self.assertEqual(process.wait(timeout=4), 128 + signal.SIGTERM)
+            self.assertFalse(Path(f"/proc/{child_pid}").exists(), "ADB child escaped cancellation")
+        finally:
+            selector.close()
+            if process.poll() is None:
+                process.kill()
+                process.wait(timeout=10)
+            process.stdout.close()
 
     def test_prompts_and_domain_skills_route_to_reviewed_backend(self):
         self.assertIn('"rea-analysis"', (CODE / "launcher.py").read_text())

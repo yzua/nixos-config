@@ -100,7 +100,9 @@ submit sends traffic; route hooks modify behavior. Record owners and finite
 lifetimes before starting. Filters and browser contexts are not network/sandbox
 boundaries. Default lab capture semantics follow the
 [contract](../../contract.md#open-box-autonomy); optional tools still require
-actual availability/compatibility, and MCP remains disabled.
+actual availability/compatibility. Root REA MCP/codemode is enabled; load
+[rea-analysis](../rea-analysis/SKILL.md) for saved capture inspection and scoped
+browser/process scenarios. Other ambient MCP servers remain disabled.
 
 On timeout/lost response, inspect owned state and server outcome before retry.
 Non-idempotent actions need reconciliation. Preserve partial captures and errors;

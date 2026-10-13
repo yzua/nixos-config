@@ -26,6 +26,17 @@ guest proxy changes. The fixture check verifies decrypted HTTPS and narrow-mode
 CONNECT denial; it is not a generic replay/flow-reader interface. Other capture
 modes below need their own routing/readiness and scope checks.
 
+## REA capture inspection
+
+For bounded saved HAR/native flow inspection, load
+[rea-analysis](../../rea-analysis/SKILL.md). `pi-re rea inspect-web-network-capture`
+and root MCP `inspect_web_network_capture` use the pinned mitmdump 12.2.3 adapter
+without fetching recorded URLs. Select original record ordinals and preserve
+producer/byte-coverage unknowns. The upstream adapter caps input at 32 MiB;
+record selection does not avoid whole-file admission/decoding. For larger owned
+flows, use the streaming reader below rather than assuming REA pagination removes
+that cap. Raw Evidence is private; inspect/release only approved fields.
+
 ## Pure offline reading
 
 Prefer `mitmproxy.io.FlowReader` over dispatching captures through mitmdump addons.

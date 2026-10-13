@@ -84,7 +84,9 @@ IDs and snapshot UIDs are scoped state; preserve page/run/time identity.
   does not sanitize UI strings, console/network diagnostics or binary artifacts.
 - Experimental CLI excludes some MCP commands; extensions/PWA/vision/WebMCP/
   memory/trace families need actual availability, compatibility and bounded
-  coverage tests under the shared policy. MCP integration remains disabled.
+  coverage tests under the shared policy. The separate REA root MCP provides
+  scoped browser Evidence operations; load [rea-analysis](../../rea-analysis/SKILL.md).
+  This does not enable ambient Chrome DevTools MCP registration.
   Do not assume installed skill recipes describe an enabled CLI command.
 - Chrome/Chrome for Testing are upstream supported; arbitrary Chromium forks
   are not certified. Playwright fixtures are a separate binding/browser family,

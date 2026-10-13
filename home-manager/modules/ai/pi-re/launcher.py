@@ -9,7 +9,7 @@ import stat
 import sys
 from pathlib import Path
 
-from initialize import initialize
+from initialize import initialize, read_object, reject_symlinks
 
 SKILLS = (
     "re-intake",
@@ -130,7 +130,45 @@ def pi_arguments(config, locations, args):
             if not extension.is_absolute() or not extension.is_file():
                 raise ValueError(f"Reviewed root extension is missing: {extension}")
             result.extend(("--extension", str(extension)))
+    if os.environ.get("PI_RE_CHILD") != "1" and config.get("reaSkill"):
+        skill = Path(config["reaSkill"])
+        if not skill.is_absolute() or not (skill / "SKILL.md").is_file():
+            raise ValueError("Pinned upstream REA skill is missing")
+        result.extend(("--skill", str(skill)))
+        # Explicit built-ins override discovery suppression and old profile defaults.
+        extension = resources / "rea-mcp.mjs"
+        if not extension.is_file():
+            raise ValueError("Managed REA MCP extension is missing")
+        result.extend(
+            (
+                "--extension",
+                "builtin:mcp",
+                "--extension",
+                "builtin:codemode",
+                "--extension",
+                str(extension),
+                "--tools",
+                "+codemode",
+            )
+        )
     return result + checked_args(args, locations["sessions"])
+
+
+def validate_rea_mcp(config, locations):
+    """Preserve foreign configuration; only our session registration may connect."""
+    if os.environ.get("PI_RE_CHILD") == "1" or not config.get("reaSkill"):
+        return
+    path = locations["agent"] / "mcp.json"
+    reject_symlinks(path)
+    if path.exists():
+        info = path.stat()
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_nlink != 1:
+            raise ValueError("RE MCP configuration must be a caller-owned single-link regular file")
+        current = read_object(path)
+        if current.get("mcpServers") or set(current) - {"mcpServers", "autoEnableCodemode"}:
+            raise ValueError(
+                "Foreign RE MCP configuration: preserve it outside the managed profile"
+            )
 
 
 def doctor(config, locations, as_json):
@@ -181,7 +219,7 @@ def main():
         print(
             "pi-re [Pi prompt/options]\n"
             "pi-re init | doctor [--json]\n"
-            "pi-re rea <static command> [args] (pinned Ghidra/JADX/JavaScript analysis)\n"
+            "pi-re rea <command> [args] (pinned REA analysis/network/runtime CLI)\n"
             "pi-re android create|start|status|root|stop|reset [--json] [--visible]\n"
             "pi-re device <agent-device command>\n"
             "pi-re frida setup|status|stop|run [options]\n"
@@ -201,10 +239,10 @@ def main():
             raise ValueError("init takes no arguments")
         initialize(locations["agent"], locations["state"], Path(config["sourceAgentDir"]))
         return
-    if args and args[0] == "rea":
+    if args and args[0] in ("rea", "rea-mcp"):
         from rea import command as rea_command
 
-        command, environment = rea_command(config, locations, args[1:])
+        command, environment = rea_command(config, locations, args[1:], mcp=args[0] == "rea-mcp")
         os.execve(command[0], command, environment)
     if args and args[0] in ("android", "device", "frida", "lab"):
         script = {"android": "android.py", "lab": "lab.py"}.get(args[0], "runtime.py")
@@ -225,6 +263,7 @@ def main():
     command = pi_arguments(config, locations, args)
     with contextlib.redirect_stdout(sys.stderr):
         initialize(locations["agent"], locations["state"], Path(config["sourceAgentDir"]))
+    validate_rea_mcp(config, locations)
     locations["sessions"].mkdir(parents=True, exist_ok=True, mode=0o700)
     if locations["sessions"].is_symlink():
         raise ValueError("RE sessions must not be a symlink")

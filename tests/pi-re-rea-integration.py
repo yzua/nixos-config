@@ -89,7 +89,7 @@ def main():
         assert not doctor["profileInitialized"], (
             "Static queries must not initialize/read coding login"
         )
-        assert run("version", ["rea", "--version"], structured=False) == "4.1.0"
+        assert run("version", ["rea", "--version"], structured=False) == "6.4.0"
         health = run("ghidra-readiness", ["rea", "doctor", "--provider", "ghidra", "--json"])
         assert health["healthy"] and health["scope"]["mode"] == "explicit"
         # NixOS is outside upstream's whole-host distribution allowlist; scoped checks matter.

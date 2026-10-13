@@ -37,11 +37,16 @@ OAuth refresh tokens can require a separate login after token rotation. Subseque
 initialization preserves the RE copy rather than synchronizing it.
 
 The launcher retains Pi's default system prompt and explicitly loads the compact
-contract, ten reviewed skills and four prompts. Ambient context, project trust,
+contract, ten reviewed adapter/domain skills and four prompts. Roots additionally
+load the matching official REA skill (version 37) and all six upstream references. Ambient context, project trust,
 skills, extensions, themes and prompts are suppressed. Foreign session files and
 resource-control flags are rejected. The root profile explicitly loads only its
 reviewed `re_subagent` extension plus the shared user-question UI and pinned official
-Herdr reporter; children load none. These root integrations are explicit immutable
+Herdr reporter plus native MCP/codemode built-ins; children load no extensions.
+A reviewed extension registers only the pinned `rea` server for the current
+root session; no `mcp.json` is written. Startup rejects existing RE-profile MCP
+server registrations (including a custom server named `rea`) intact rather than
+connecting/overwriting them. Coding/project MCP configuration is never imported. These root integrations are explicit immutable
 resources, not discovery of the coding profile's mutable extension directory.
 Questions report blocked/working/idle to Herdr and use its existing notification
 transport (including tmux focus forwarding). Headless Flash helpers/children strip
@@ -61,8 +66,9 @@ privately for Z.ai Coding Plan GLM-5.3/high, with GLM-5.3-Flash/high for fresh
 180-second child jobs (maximum two, 16 KiB summaries). GPT/copied providers remain
 available. Credentials and model defaults remain independent writable state,
 never Nix secrets. The Coding Plan endpoint is `https://api.z.ai/api/coding/paas/v4`.
-The REA static pack is provisioned for native, Android and JavaScript/Electron
-queries. MCP, broader browser/scanner/gateway packs remain unfinished.
+REA 6.4.0 provides native, Android, JavaScript/Electron, portable managed/package,
+network and runtime Evidence workflows through CLI and root-only native MCP.
+Optional engines and broader scanner/gateway packs remain unfinished.
 
 `python3 tests/pi-herdr-reporting.py` checks the pinned reporter with a fake socket.
 `python3 tests/pi-resume-dispatch.py` checks profile-safe restore routing, and
@@ -72,7 +78,7 @@ profile and named Herdr/tmux session to verify actual questions and cold restora
 without credentials or model calls. It seeds a native fixture conversation because
 Pi does not persist an empty chat until its first assistant turn.
 
-## Pinned REA static backend
+## Pinned REA CLI and native MCP
 
 Use the globally installed launcher from any investigation folder:
 
@@ -84,13 +90,23 @@ pi-re rea inspect-android-method "$APK" "$CLASS" "$METHOD" --json
 pi-re rea analyze-javascript-application "$APP_TREE_OR_ASAR" --json
 ```
 
-REA 4.1.0, official Ghidra 12.1.4, full JDK21 and the headless Android engine
+REA 6.4.0, official Ghidra 12.1.4, full JDK21 and the headless Android engine
 0.7.1 are pinned/hash-verified through `packages/rea/`; no upstream setup,
 Hopper installation, npm bootstrap or coding-profile changes are needed.
 `pi-re doctor` reports installed static facts without starting Java;
 `pi-re rea doctor --provider ghidra` additionally probes Java/engine readiness.
 
-The root and children discover the reviewed `rea-analysis` skill. Native and
+The root connects its own REA stdio MCP server using Pi's native support and
+codemode exposure. This exposes all 170 advertised tools, including persistent
+native sessions, call graphs/batch queries, naming and retained Evidence/unknown
+ledgers. Search/describe tools on demand instead of putting every schema into each
+model request. The matching `reverse-engineer-anything` upstream skill is loaded
+unchanged, including references and MIT attribution; our adapter/contract replaces
+its npx/setup repair recipes with managed Nix maintenance. Open/close only owned
+native sessions and export private Evidence before shutdown. Another root/child
+must not write the same Ghidra project.
+
+The root and children discover the reviewed `rea-analysis` adapter skill. Native and
 Android skills and all four prompts route to it; the agent calls the CLI through
 Bash. Native queries explicitly select Ghidra. REA runs with isolated private
 HOME/XDG directories under the RE state, pinned engine paths and a short temporary
@@ -98,11 +114,27 @@ parent. Each native CLI call imports into a disposable Ghidra project and closes
 it; repeated calls can reimport. Evidence JSON/snapshots are saved only at
 caller-selected paths, not automatically released to the model.
 
-The enabled route covers static native/Android/JavaScript queries and evidence
-operations. Upstream setup/update/uninstall, MCP and REA runtime capture are
-excluded from this wrapper. Nix owns dependency maintenance; our rooted lab,
-Frida, device and traffic tools remain the runtime workflow. This routing is not
-a host sandbox or a restriction on ordinary in-scope Bash.
+All 125 non-installer primary/alias CLI routes are enabled, including saved
+HAR/native mitmproxy inspection, browser/Electron/process scenarios, Android
+resource decoding, artifact extraction and reconstruction comparisons. Existing
+pinned mitmdump 12.2.3, Apktool, Chrome and NixOS resource-limit paths are supplied
+explicitly. The ADB transport filters enumeration and binds every operation to
+the setup-selected running owned/rooted emulator while holding its lifecycle lock;
+it does not implicitly boot/root or change trust/proxy state. Prepare the owned
+lab first. Our coordinated lab/Frida/device tools remain available.
+
+Upstream setup/update/uninstall and caller-selected transport/update flags remain
+excluded; Nix owns maintenance. Roots use managed MCP; children remain CLI-only.
+Runtime scenarios can execute code/send requests and are not sandboxes. Passive
+browser CDP observation requires an explicit dedicated debugging endpoint; a
+Chrome executable alone does not imply an already-running approved browser.
+
+Some command routes remain capability-dependent: IDA/Hopper/JEB need licensed
+installations, firmware needs Binwalk/Unblob plus extractors, ELF layout/core
+needs the exact pwntools/pyelftools/Unicorn combination, JS source recovery needs
+Wakaru, and Apple/Windows runtime branches need their matching host. None is
+silently installed. The [command guide](skills/rea-analysis/references/commands.md)
+records these boundaries; exposed is not the same as qualified.
 
 Read [REA commands/limits](skills/rea-analysis/references/commands.md) before
 queries. Pseudocode is reconstructed, static references are not runtime calls,
@@ -124,6 +156,22 @@ Set those variables from the printed store paths (`bin/pi-re` and
 `bin/rea-fixture`). This integration test is opt-in because it starts Java/Ghidra,
 may take several minutes and writes private scratch evidence; it is not part of
 `just test`. The offline route regression is `tests/pi-re-rea.py`.
+
+Additional opt-in network/runtime/MCP qualification uses only synthetic saved
+captures, a harmless PTY process and an owned loopback web page:
+
+```bash
+python3 -B tests/pi-re-rea-workflows.py --pi-re "$PI_RE_BIN" \
+  --native "$FIXTURE_ELF" --browser "$CHROME_BIN" --python "$RE_TOOLCHAIN_PYTHON"
+```
+
+Supply those absolute executable paths from the configured runtime. Omitting
+optional arguments skips their fixture branches. This checks all 170 advertised
+tools, CLI/MCP HAR inspection, native mitmproxy decoding, PTY capture, persistent
+Ghidra open/query/close and a fresh owned Chrome click/network scenario. It never
+attaches to a personal browser, calls an external site, boots a device or uses a
+real model. A passing fixture does not qualify arbitrary targets or optional
+engines; real-device REA acquisition remains untested.
 
 Owned-fixture backend coverage includes native function/string/xref/instruction/
 decompilation, missing-symbol/malformed-input failures, Android package/class/
@@ -255,7 +303,8 @@ The loader check runs the installed global wrapper from an unrelated hostile
 working folder, using isolated HOME/XDG paths, synthetic preinitialized credentials
 and a loopback mock provider. It verifies all ten skills, the contract, model-visible
 tools, packaged capability availability and private sessions without reading the
-coding login, starting a device or calling a paid model. The `--pi` alternative
+coding login, starting a device or calling a paid model. For the built profile it
+also checks the upstream skill and native MCP/codemode namespace. The `--pi` alternative
 checks checkout resources with an explicitly supplied Pi executable.
 
 `tests/fixtures/pi-re-android/` supplies a locally built counter/HTTPS APK for

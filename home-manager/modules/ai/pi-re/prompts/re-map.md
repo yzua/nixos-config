@@ -13,9 +13,11 @@ provider/evidence release policy, finite budgets/stop conditions, tool versions
 and enabled/qualified versus blocked capabilities. Choose the smallest next
 query and expected evidence. For native functions/xrefs, Android class/method
 navigation or JavaScript/Electron graphs, route through
-[rea-analysis](../skills/rea-analysis/SKILL.md): use the pinned `pi-re rea` CLI via
-Bash, with explicit `--provider ghidra` for native queries. Existing lab tools
-remain the runtime route. `pi-re doctor [--json]` is read-only; it does not
+[rea-analysis](../skills/rea-analysis/SKILL.md): roots discover native MCP tools
+through codemode and the official `reverse-engineer-anything` skill; children
+use pinned `pi-re rea` CLI via Bash, with `--provider ghidra` for native queries.
+Route saved HAR/mitmproxy inspection and browser/process scenarios through the
+same guide, preserving owned lab and evidence controls. `pi-re doctor [--json]` is read-only; it does not
 scan/provision devices or refresh credentials. Runtime Android requires explicit
 setup-selected owned-emulator serial and verified root. Android status has no
 caller serial flag and reports root uninspected; start/root verify UID0 separately.
@@ -24,8 +26,8 @@ Implemented device/Frida wrappers are documented in their guides; Frida status i
 a live guest operation. Catalog installed-unqualified is not workflow readiness;
 developer manual qualification may invoke approved wrappers to gather evidence.
 
-Host/yolo is not a sandbox/VM. Keep ordinary coding resources unchanged. MCP remains
-disabled; root-only delegation and child restrictions follow the authoritative
+Host/yolo is not a sandbox/VM. Keep ordinary coding resources unchanged. REA MCP is
+root-only; root-only delegation and child restrictions follow the authoritative
 [contract](../contract.md#interfaces). No installs, target connections, device
 discovery or credential inspection is implied by mapping. Continue routine in-scope work
 autonomously once the baseline is complete; ask only for material missing scope.

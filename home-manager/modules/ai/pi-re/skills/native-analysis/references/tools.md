@@ -7,7 +7,8 @@ Ghidra projects. Read [REA commands](../../rea-analysis/references/commands.md)
 for function/string/xref queries, exact engine requirements and startup budgets.
 Use explicit `--provider ghidra`. The backend supplies the Java bridge; write
 custom exporters only for queries it cannot answer. Native and Android query
-engines are installed through Nix; MCP transport remains disabled.
+engines are installed through Nix; root REA MCP is enabled through codemode.
+Use its persistent native session for repeated queries; children remain CLI-only.
 
 ## Rizin: optional metadata before analysis
 
@@ -94,8 +95,8 @@ absence. Headless process success alone does not prove all analyzers completed.
 Keep logs/status and tested coverage. Unknown executable samples require an
 approved whole-process lab boundary before dynamic analysis.
 
-REA's bundled Ghidra bridge is enabled through its static CLI. Other ambient
-bridges and MCP transport remain disabled. New transports/plugins require a
+REA's bundled Ghidra bridge is enabled through its CLI and root-only native MCP.
+Other ambient bridges remain disabled. New transports/plugins require a
 reviewed compatibility and ownership test; no silent installation follows an
 awkward query. Close owned pipes/decompiler/project work
 and retain partial exports; never start a second writer to solve a timeout.

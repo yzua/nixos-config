@@ -1,8 +1,8 @@
 # Pinned REA commands
 
 The Nix runtime records exact dependency versions. `pi-re rea --version` and
-subcommand `--help` are interface authority. This profile pins REA **4.1.0**, its
-exact supported **Ghidra 12.1.4**, **64-bit full JDK 21**, and
+subcommand `--help` are interface authority. This profile pins REA **6.4.0**, its
+verified **Ghidra 12.1.4** (upstream accepts 12.1.x), **64-bit full JDK 21**, and
 **jadx-headless-mcp 0.7.1**. Linux native support here is x86_64.
 The maintained CLI entry point is `pi-re rea`; it is also available to children.
 
@@ -38,8 +38,20 @@ can still contain partial evidence. A cancelled caller does not prove cleanup.
 For snapshots, consult that command's help and select an existing private parent
 for `--snapshot`. REA validates target/provider/query identities and writes atomic
 owner-only evidence. Do not assume a snapshot caches the whole imported program
-or every operation. The profile intentionally uses CLI rather than a persistent
-MCP session; repeated native queries can incur reimport cost.
+or every operation. Root MCP sessions avoid repeated imports and expose native
+navigation, naming, batch decompilation, call graphs and unknown/evidence ledgers
+that have no dedicated CLI counterpart. Children use disposable CLI sessions.
+Never let another writer reuse the root's project.
+
+Ghidra import controls are explicitly preserved from the caller's environment:
+`REA_GHIDRA_LANGUAGE_ID`, `REA_GHIDRA_COMPILER_SPEC_ID`,
+`REA_GHIDRA_SEED_FILE` and `REA_GHIDRA_STARTUP_TIMEOUT_MS`. Upstream validates
+language/compiler combinations, absolute seed-file identity/format and timeout
+bounds. Set them before starting a root session or for one CLI invocation; restart
+the root server before changing its import profile. Seeds are caller assertions,
+not discovered facts. Executable/plugin paths remain pinned, not ambient.
+JavaScript analyses also expose `--max-heap-mb` and `--analysis-timeout-ms`; consult
+installed help and retain explicit partial results when a resource budget expires.
 
 ## Android APK queries
 
@@ -80,6 +92,67 @@ unresolved. Feature tracing accepts a structured Evidence request; read
 Browser observation/runtime capture is a separate workflow, not established by
 this static graph.
 
+## Network, browser and process evidence
+
+The wrapper now exposes all 125 non-installer primary/alias CLI routes, including
+capability-dependent operations. Command availability is not engine qualification.
+The root's matching official skill exposes all advertised MCP tools through
+`codemode`, avoiding 170 schemas in every model request. Discover narrowly:
+
+```javascript
+return await searchTools("inspect web network capture", { namespace: "mcp__rea", limit: 3 });
+```
+
+Use `describeTool()` for the returned name before calling it. MCP results are
+`CallToolResult`: check `isError`, then `structuredContent` or `content`. Preserve
+Evidence IDs and use summary/paged views rather than printing whole graphs.
+CLI `inspect-analysis-view` and `inspect-evidence-bundle` take explicit saved JSON
+inputs; they cannot read the root server's in-memory Evidence IDs.
+
+```bash
+pi-re rea inspect-web-network-capture "$CAPTURE" har --json
+pi-re rea inspect-web-network-capture "$FLOWS" mitmproxy --json
+pi-re rea capture-process --help
+pi-re rea capture-browser-scenario --help
+pi-re rea decode-android-resources --help
+```
+
+Saved capture inspection never fetches recorded URLs. Native flow decoding uses
+pinned mitmdump 12.2.3; the adapter has a 32 MiB input cap. Keep originals private
+and read [traffic](../../web-protocol/references/traffic.md) for release policy.
+Browser scenarios use the pinned Chrome executable with an owned profile or an
+explicit dedicated loopback CDP endpoint. Passive page inspection/listing does
+not launch that endpoint. Browser/process/Electron scenarios can execute targets
+and send requests: read the official runtime guide and shared scope policy first.
+`observe-web-execution` resets counters and temporarily disables optimization;
+it is not passive observation. Do not attach to an ordinary personal browser.
+
+REA ADB requests must select the configured emulator serial. The pinned ADB
+transport filters enumeration, rejects other serials and verifies the existing
+owned/rooted lab while holding its lifecycle lock; it does not boot/root the
+emulator or alter CA/proxy state. Prepare it with `pi-re lab start` first. Reuse
+our device/Frida/traffic interfaces for coordinated runtime work.
+
+## Optional engine boundaries
+
+Ghidra, full JDK21, headless JADX, direct JADX/Apktool, ADB, mitmdump and Chrome are
+provisioned. PE resources, managed metadata and EVM parsing need no commercial
+engine. EVM's resource limiter is pinned for NixOS rather than `/usr/bin/prlimit`.
+Some routes remain unavailable until a separate reviewed prerequisite change:
+
+- IDA, Hopper and JEB require proprietary installations/licenses; JEB also needs
+  a caller-started local MCP server. Default native provider is pinned Ghidra.
+- ELF layout/core diagnostics need pwntools 4.15.0, pyelftools 0.33 and Unicorn
+  2.1.2; stock tool presence is not proof of that version combination.
+- Firmware needs Binwalk 3.1.x or Unblob 26.6.x plus format extractors.
+- JavaScript source recovery needs Wakaru ^1.13.0 (verified 1.14.0).
+- Apple UI/signing/runtime tools require macOS; Windows-specific runtime paths
+  are not certified on Linux. Opening their portable metadata is separate.
+
+The wrapper strips ambient `REA_*` engine/transport configuration and supplies
+reviewed absolute paths, preserving only the explicit Ghidra import controls above. Arbitrary provider installation, engine downloads and upstream `npx/setup`
+recovery instructions are replaced by a focused Nix configuration update.
+
 ## Provenance and maintenance
 
 The release package, official Ghidra ZIP and Android JAR are fixed-output,
@@ -90,7 +163,8 @@ configuration checkout, which is not a runtime prerequisite. Use installed help
 rather than expecting checkout documentation in an investigation folder.
 
 Primary references:
-[REA release](https://github.com/morluto/rea/tree/rea-agents-4.1.0),
-[Ghidra installation probe](https://github.com/morluto/rea/blob/rea-agents-4.1.0/src/ghidra/GhidraInstallation.ts),
-[Android provider](https://github.com/morluto/rea/blob/rea-agents-4.1.0/docs/android-analysis.md),
-[JavaScript workflows](https://github.com/morluto/rea/blob/rea-agents-4.1.0/docs/javascript-application-workflows.md).
+[REA release](https://github.com/morluto/rea/tree/rea-agents-6.4.0),
+[Ghidra policy](https://github.com/morluto/rea/blob/rea-agents-6.4.0/src/ghidra/GhidraInstallationPolicy.ts),
+[Android provider](https://github.com/morluto/rea/blob/rea-agents-6.4.0/docs/android-analysis.md),
+[JavaScript workflows](https://github.com/morluto/rea/blob/rea-agents-6.4.0/docs/javascript-application-workflows.md),
+[CLI/MCP inventory](https://github.com/morluto/rea/blob/rea-agents-6.4.0/src/cliCommandNames.ts).

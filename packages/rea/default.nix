@@ -1,14 +1,14 @@
-# Pin published REA and its static-analysis engines without upstream installers.
+# Pin published REA, its official skill and analysis engines without upstream installers.
 { pkgs }:
 let
   # Runtime-only projection of the exact release lock; versions/integrities are unchanged.
   lock = builtins.fromJSON (builtins.readFile ./package-lock.json);
   cli = pkgs.stdenvNoCC.mkDerivation {
     pname = "rea-agents";
-    version = "4.1.0";
+    version = "6.4.0";
     src = pkgs.fetchurl {
-      url = "https://registry.npmjs.org/rea-agents/-/rea-agents-4.1.0.tgz";
-      hash = "sha512-BOig7QyPtOJLZtCa7MIVyecGdsI5C8kX0HHjp9Fo5LkotSqD3cRV91KCp0pakLqLuyF1BFl4RSyV/9F/Wk6OBQ==";
+      url = "https://registry.npmjs.org/rea-agents/-/rea-agents-6.4.0.tgz";
+      hash = "sha512-Vj1zWfSlna5bphGoaoI/TcVBuYvze9u+OyPC3Shz8YkBqaCTqB4COnnRoX7XDwMpwI24ZlFEel2yEj0k8LTWEQ==";
     };
     npmDeps = pkgs.importNpmLock {
       package = lock.packages."";
@@ -26,7 +26,7 @@ let
     installPhase = ''
       runHook preInstall
       mkdir -p "$out/lib/rea" "$out/bin"
-      cp -r dist bridge scripts skills package.json LICENSE "$out/lib/rea/"
+      cp -r dist bridge scripts skills native third_party licenses package.json LICENSE "$out/lib/rea/"
       cp -r node_modules "$out/lib/rea/"
       # Unsupported Windows addon is not part of this Linux profile.
       makeWrapper ${pkgs.nodejs}/bin/node "$out/bin/rea" \
@@ -49,7 +49,7 @@ let
       mainProgram = "rea";
     };
   };
-  # REA 4.1.0's actual release probe requires this exact build, not stock 12.0.4.
+  # REA 6.4.0 verifies this build and accepts the 12.1.x release line.
   ghidra = pkgs.ghidra-bin.overrideAttrs (old: {
     version = "12.1.4";
     versiondate = "20260921";

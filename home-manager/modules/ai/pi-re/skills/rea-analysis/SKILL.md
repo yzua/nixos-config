@@ -1,12 +1,19 @@
 ---
 name: rea-analysis
-description: Query native functions/xrefs through pinned REA/Ghidra, inspect Android classes/methods/references, or map JavaScript/Electron applications without executing targets.
+description: Use pinned REA/Ghidra for native, Android, JavaScript, managed/package analysis, saved network captures, browser/Electron runtime evidence and reconstruction workflows.
 ---
 
-# REA static analysis
+# Managed REA integration
 
-Use **`pi-re rea` through Bash**: the launcher supplies pinned REA, Ghidra,
-JDK 21 and the Android engine. No MCP registration or upstream setup is needed.
+The root profile connects pinned REA through native MCP/codemode and loads the
+release's official `reverse-engineer-anything` skill with all its references.
+Discover `mcp__rea` tools through `searchTools()`/`describeTool()` before calling;
+use its actual schemas, not guessed names. MCP retains one native session and
+Evidence ledger: open once, query narrowly, export privately, close when done.
+Children use **`pi-re rea` through Bash**; CLI is also the root's fallback.
+The launcher supplies pinned REA, Ghidra, JDK21, Android engines, mitmdump and
+Chrome. Nix owns dependencies; upstream skill setup/npx repair recipes are replaced
+by this managed integration. No setup or client registration is needed.
 Read [intake](../re-intake/SKILL.md) for new scope and
 [the evidence policy](../re-intake/references/evidence.md) before releasing output.
 Read [commands and limits](references/commands.md) before the first query.
@@ -19,7 +26,10 @@ Read [commands and limits](references/commands.md) before the first query.
    are recorded. Bind the exact input path once to a shell variable and reuse it
    across queries rather than retyping store hashes. Static parsing runs on the
    host, not in a sandbox.
-2. **Select the branch.** Run `pi-re doctor --json` for installed facts. Native:
+2. **Select the branch.** Consult `pi-re doctor --json` when installed facts are
+   unknown; use the official skill for MCP target routing and summary-first views.
+   Saved HAR/mitmproxy or browser traffic: load
+   [web-protocol](../web-protocol/SKILL.md) and its evidence/lifecycle guide. Native:
    load [native-analysis](../native-analysis/SKILL.md), then use REA with explicit
    `--provider ghidra`. Android: load
    [android-static](../android-static/SKILL.md); use REA for repeated class/method/
@@ -66,9 +76,14 @@ A missing/mistyped artifact path is an input failure: correct the bound identity
 before retrying, rather than labeling it a transient engine error.
 An engine failure is an error to diagnose, not permission to run npm, upstream
 setup/update, download an engine or select a different provider. Dependencies
-are maintained in Nix. Runtime/capture commands remain with the existing scoped
-lab/browser workflows. CLI routing excludes package management, MCP and REA
-runtime capture; ordinary host Bash is still available under the shared contract.
+are maintained in Nix. All release CLI analysis/runtime routes are enabled;
+upstream setup/update/uninstall and caller-selected transport flags remain excluded.
+The managed MCP transport is root-only; CLI calls do not share its open target.
+For Android, prepare the owned rooted lab first, select its exact serial explicitly
+in every REA ADB request, and serialize device mutations. REA ADB does not replace
+our lab's ownership/root/CA/proxy/Frida guards. Browser/process/Electron captures
+require an authorized target, explicit scenario and finite budgets; executing an
+unknown host sample requires an approved whole-process boundary.
 
 On timeout, send SIGINT and allow owned cleanup before retrying. Inspect retained
 runtime paths or `cleanup_incomplete`; stop only verified owned processes.

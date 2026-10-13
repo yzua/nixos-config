@@ -52,8 +52,9 @@ ownership, recovery and capability interpretation, and
   tested coverage/limits, not permission gates. Unavailable or incompatible
   operations block that branch; untested compatible operations require a bounded
   experiment and explicit partial coverage, not blanket refusal or certification.
-  REA native/Android/JavaScript static CLI is provisioned; MCP and other
-  unimplemented packs remain disabled. Consult actual installed facts.
+  REA CLI and root-only native MCP are provisioned, including network/capture
+  workflows. Optional commercial/firmware/pwntools/Wakaru and foreign-platform
+  engines remain unavailable unless separately configured. Consult actual facts.
 - `pi-re android create|start|status|root|stop|reset [--json]`: owned emulator
   selected by setup configuration, **no caller serial flag**. Only `start`
   supports `--visible` intent. `status` is process-only/read-only, reports the
@@ -73,13 +74,23 @@ ownership, recovery and capability interpretation, and
   explicitly load its bundled Java bridge through Python; no npm/pip bootstrap.
   Read [Frida guide](skills/android-runtime/references/frida.md). Frida status
   contacts/verifies the selected guest; it is not the no-probe status interface.
-- `pi-re rea <static command> [args]`: pinned REA with Ghidra 12.1.4, full JDK21
-  and Android query engine. Use Bash; load `rea-analysis` and its command guide
-  before native, Android class/reference or JavaScript/Electron graph queries.
-  Native queries explicitly select `--provider ghidra`. CLI calls own temporary
-  engine sessions; use finite import/cleanup budgets and save JSON privately.
-  Upstream setup/update/install, MCP and runtime capture are not enabled routes;
-  Nix owns dependencies and existing lab workflows own runtime operations.
+- REA root MCP: load `rea-analysis` and the matching official
+  `reverse-engineer-anything` skill; discover `mcp__rea` tools with codemode
+  `searchTools()`/`describeTool()`. Native defaults to Ghidra 12.1.4. Open one
+  target, query narrowly, export private Evidence, then close it. No shared
+  engine writers. Each root owns a separate server; children retain CLI-only
+  analysis. Upstream skill npx/setup repair recipes are replaced by Nix.
+- `pi-re rea <command> [args]`: REA 6.4.0 CLI, full JDK21 and Android query engine,
+  plus pinned Apktool/mitmdump/Chrome. Use Bash and actual subcommand help.
+  All release non-installer CLI routes are exposed; engine/platform prerequisites
+  still apply. Native queries select `--provider ghidra`; CLI engine sessions are
+  disposable and independent of root MCP. Budget imports/cleanup, save JSON
+  privately. REA ADB transport selects and verifies only the existing owned
+  rooted emulator, holding its lifecycle lock; no implicit boot/root or CA/proxy
+  changes. Prepare our lab first. Browser/process scenarios execute their declared
+  target and may send traffic: respect scope and the whole-process boundary.
+  `observe-web-execution` is instrumented, not passive. Nix owns installation and
+  updates; runtime capture does not authorize login/replay/destructive actions.
   `pi-re rea doctor --provider ghidra --json` probes engine/Java readiness, unlike
   no-probe `pi-re doctor`; it does not repair anything.
 - Direct JADX/apktool, ADB, Frida/Python and task-specific analysis scripts are

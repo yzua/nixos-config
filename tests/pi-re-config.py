@@ -177,7 +177,7 @@ class ProfileTests(unittest.TestCase):
     def test_mapping_prompt_agrees_with_root_only_delegation(self):
         prompt = (CODE / "prompts/re-map.md").read_text()
         contract = (CODE / "contract.md").read_text()
-        self.assertIn("MCP remains", prompt)
+        self.assertIn("REA MCP is", prompt)
         self.assertIn("root-only delegation", prompt)
         self.assertIn("../contract.md#interfaces", prompt)
         self.assertNotIn("MCP/delegation remain disabled", prompt)
@@ -203,6 +203,33 @@ class ProfileTests(unittest.TestCase):
             self.assertIn(str(extension), launcher.pi_arguments(config, locations, []))
         with patch.dict(os.environ, {"PI_RE_CHILD": "1"}):
             self.assertNotIn(str(extension), launcher.pi_arguments(config, locations, []))
+
+    def test_managed_mcp_is_session_only_and_preserves_foreign_config(self):
+        config = {"reaSkill": "/pinned/skill"}
+        locations = {"agent": self.agent}
+        with patch.dict(os.environ, {"PI_RE_CHILD": "0"}):
+            launcher.validate_rea_mcp(config, locations)
+            self.assertFalse((self.agent / "mcp.json").exists())
+            self.agent.mkdir(parents=True)
+            path = self.agent / "mcp.json"
+            for name in ("foreign", "rea"):
+                path.write_text(json.dumps({"mcpServers": {name: {"command": "evil"}}}))
+                before = path.read_bytes()
+                with self.assertRaisesRegex(ValueError, "Foreign"):
+                    launcher.validate_rea_mcp(config, locations)
+                self.assertEqual(path.read_bytes(), before)
+            path.write_text('{"mcpServers":{},"autoEnableCodemode":false}')
+            launcher.validate_rea_mcp(config, locations)
+            self.assertIn("false", path.read_text())
+            path.unlink()
+            target = self.root / "foreign-mcp.json"
+            target.write_text("{}")
+            path.symlink_to(target)
+            with self.assertRaisesRegex(ValueError, "symlinks"):
+                launcher.validate_rea_mcp(config, locations)
+            self.assertEqual(target.read_text(), "{}")
+        with patch.dict(os.environ, {"PI_RE_CHILD": "1"}):
+            launcher.validate_rea_mcp(config, locations)
 
     def test_protected_flags_rejected(self):
         for flag in ("--approve", "--skill", "--extension", "--session-dir", "--system-prompt"):

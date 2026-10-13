@@ -14,14 +14,21 @@ let
     mkdir -p "$out/lib/pi-re"
     cp -r ${./.}/. "$out/lib/pi-re/"
     cp -r ${../../../../tests/fixtures/pi-re-android} "$out/lib/pi-re/fixture"
+    mkdir -p "$out/lib/pi-re/upstream"
+    cp -r ${reaTools.cli}/lib/rea/skills/reverse-engineer-anything "$out/lib/pi-re/upstream/"
+    cp ${reaTools.cli}/lib/rea/LICENSE "$out/lib/pi-re/upstream/LICENSE-REA"
   '';
   python = "${androidTools.python}/bin/python3";
+  reaAdb = pkgs.writeShellScript "pi-re-rea-adb" ''
+    exec ${python} ${resources}/lib/pi-re/rea_adb.py "$@"
+  '';
   runtime = pkgs.writeText "pi-re-runtime.json" (
     builtins.toJSON {
       inherit python;
       jdk = "${pkgs.jdk}";
       pi = lib.getExe aiPackages.pi;
       resources = "${resources}/lib/pi-re";
+      reaSkill = "${resources}/lib/pi-re/upstream/reverse-engineer-anything";
       # Explicit, immutable root integrations; never load the coding profile's directory.
       herdrIntegration = "${aiPackages.herdr}/share/herdr/integrations/pi/herdr-agent-state.ts";
       questionExtension = "${../pi/extensions/ask-user-question.ts}";
@@ -37,6 +44,15 @@ let
         ghidra = "${reaTools.ghidra}/lib/ghidra";
         jdk = "${reaTools.jdk}";
         jadxJar = "${reaTools.jadxEngine}";
+        environment = {
+          REA_ADB_PATH = "${reaAdb}";
+          REA_APKTOOL_COMMAND = "${pkgs.apktool}/bin/apktool";
+          REA_MITMDUMP_COMMAND = "${pkgs.mitmproxy}/bin/mitmdump";
+          REA_BROWSER_EXECUTABLE = "${pkgs.google-chrome}/bin/google-chrome-stable";
+          REA_EVM_PRLIMIT_COMMAND = "${pkgs.util-linux}/bin/prlimit";
+          REA_FIRMWARE_PRLIMIT_COMMAND = "${pkgs.util-linux}/bin/prlimit";
+          REA_JAVASCRIPT_PRLIMIT_COMMAND = "${pkgs.util-linux}/bin/prlimit";
+        };
       };
       agentDevice = "${androidTools.agentDevice}/bin/agent-device";
       traffic = {
@@ -71,6 +87,19 @@ let
             ghidra = reaTools.ghidra.version;
             jdk = reaTools.jdk.version;
             jadxEngine = "0.7.1";
+          };
+        }
+        {
+          id = "rea-network";
+          skill = "rea-analysis";
+          tools = {
+            rea = "${reaTools.cli}/bin/rea";
+            mitmdump = "${pkgs.mitmproxy}/bin/mitmdump";
+            browser = "${pkgs.google-chrome}/bin/google-chrome-stable";
+          };
+          versions = {
+            mitmproxy = pkgs.mitmproxy.version;
+            browser = pkgs.google-chrome.version;
           };
         }
         {
