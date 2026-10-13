@@ -151,6 +151,10 @@
       reaTools = import ./packages/rea { inherit pkgs; };
       # The Rust rewrite is newer than Nixpkgs's legacy Qt LibrePods package.
       librepodsPackage = pkgs.callPackage ./packages/librepods-rust { };
+      openDesignPackage = pkgs.callPackage ./packages/open-design {
+        # Reuse the configured browser instead of downloading a render binary.
+        browser = pkgs.google-chrome;
+      };
       # Reuse one formatter for `nix fmt` and the development shell.
       formatter = pkgs.nixfmt-tree.override {
         runtimeInputs = [ pkgs.shfmt ];
@@ -172,7 +176,12 @@
       home = home-manager.lib.homeManagerConfiguration {
         inherit pkgs;
         extraSpecialArgs = {
-          inherit setup androidTools reaTools;
+          inherit
+            setup
+            androidTools
+            reaTools
+            openDesignPackage
+            ;
           aiPackages = llm-agents.packages.${system};
           inherit nixcord;
         };
@@ -203,6 +212,7 @@
 
       packages.${system} = {
         librepods-rust = librepodsPackage;
+        open-design = openDesignPackage;
         pi-re = nixpkgs.lib.findFirst (
           package: nixpkgs.lib.getName package == "pi-re"
         ) (throw "The selected Home Manager profile does not provide pi-re") home.config.home.packages;

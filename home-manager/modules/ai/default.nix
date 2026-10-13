@@ -43,6 +43,7 @@ in
   imports = [
     ./herdr.nix
     ./herdr-backup.nix
+    ./open-design.nix
     ./chrome-devtools
     ./pi
     ./pi-re
