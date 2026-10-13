@@ -28,6 +28,7 @@ let
       cp index.ts package.json "$resources/web-fetch/"
       cp ${./extensions/ask-user-question.ts} "$resources/ask-user-question.ts"
       cp ${./extensions/network-diagnostics.ts} "$resources/network-diagnostics.ts"
+      cp ${./extensions/upstream-retry.ts} "$resources/upstream-retry.ts"
       cp -r ${./extensions/prompt-snippets}/. "$resources/prompt-snippets/"
       cp -r ${./extensions/web-search} "$resources/web-search"
       chmod u+w "$resources/web-search"
@@ -86,6 +87,8 @@ in
       "${extensionResources}/lib/pi-config/ask-user-question.ts";
     ".pi/agent/extensions/network-diagnostics.ts".source =
       "${extensionResources}/lib/pi-config/network-diagnostics.ts";
+    ".pi/agent/extensions/upstream-retry.ts".source =
+      "${extensionResources}/lib/pi-config/upstream-retry.ts";
     ".pi/agent/extensions/prompt-snippets".source =
       "${extensionResources}/lib/pi-config/prompt-snippets";
     ".pi/agent/extensions/web-fetch".source = "${extensionResources}/lib/pi-config/web-fetch";

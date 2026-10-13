@@ -38,6 +38,15 @@ including this workstation's Gruvbox Dark Soft colors. A saved `dark` selection
 uses Pi's own palette. Theme choices stay in writable `~/.pi/agent/settings.json`;
 `/reload` applies settings changes to a running Pi session.
 
+`upstream-retry.ts` normalizes only the exact assistant error
+`upstream_error: native upstream response body failed` by appending `(network error)`.
+This lets Pi's built-in retry policy handle it: by default, three retries after
+2, 4, and 8 seconds. Existing `retry` settings, cancellation, and failed-attempt
+omission remain owned by Pi; no synthetic "keep going" messages are sent.
+Other errors and aborted responses are unchanged. The extension neither fixes
+the upstream service nor retries indefinitely. Activate Home Manager and run
+`/reload` to enable it; disable automatic retries in Pi's settings to stop retries.
+
 For intermittent socket failures, run `/net-debug on` after `/reload`, reproduce
 the failure, then `/net-debug off`. Private JSONL files under
 `${XDG_STATE_HOME:-$HOME/.local/state}/pi-network/` record request sizes, response
@@ -79,7 +88,7 @@ Chrome DevTools CLI skill rather than automatically sending URLs to Jina.
 Pi has no MCP tools configured; the Chrome CLI retains its own daemon.
 
 Edit TypeScript directly in `extensions/`: `ask-user-question.ts`,
-`prompt-snippets/index.ts`, `web-fetch/index.ts`, `web-search/index.ts`, and
+`upstream-retry.ts`, `prompt-snippets/index.ts`, `web-fetch/index.ts`, `web-search/index.ts`, and
 `interactive-subagents/pi-extension/subagents/`. Agent profiles and prompts
 are alongside this README. Stage new files, run the checks and Home Manager
 preview, then `just home-switch` and `/reload` in Pi to load edits.
@@ -165,6 +174,9 @@ directory. `python3 -B tests/pi-web-search.py` exercises native search through P
 with local HTTP fixtures: authentication/header precedence, query privacy,
 endpoint routing, separate-provider search and credential isolation, result bounds,
 sanitized errors, cancellation and timeouts.
-These tests make no paid model calls. Set `PI_BIN` to test another Pi binary.
+`python3 -B tests/pi-upstream-retry.py` exercises the exact upstream failure,
+recovery without extra user messages, retry caps/backoff, disabled retries,
+auth/quota exclusions, and cancellation through Pi's real loader with an offline
+provider. These tests make no paid model calls. Set `PI_BIN` to test another Pi binary.
 Run `just check` and `just home-preview` before activation. Smoke-test browser
 use and real tmux subagent completion/follow-up with the installed Pi.
