@@ -106,8 +106,22 @@ stdenv.mkDerivation (finalAttrs: {
     cp -r apps/web/out "$root/apps/web/"
     # Root development-tool links are unused and their targets aren't shipped.
     rm "$root"/node_modules/@open-design/tools-{dev,pack,release,serve}
-    # Install scripts are disabled throughout. Build only the required native
-    # addons against Nix's Node headers, without fetching prebuilt binaries.
+    # Node 24.19+ added ObjectWrap hooks without the supporting runtime
+    # registry: statement GC can abort in RemoveEnvironmentCleanupHook.
+    # Restore the pre-24.19 header-only behavior for these addons, keeping
+    # the maintained Node runtime and all other headers unchanged.
+    # https://github.com/nodejs/node/issues/65446
+    # https://github.com/nexu-io/open-design/issues/6462
+    headers="$TMPDIR/open-design-node-headers"
+    mkdir -p "$headers"
+    cp -rL ${nodejs_24}/include "$headers/"
+    chmod -R u+w "$headers"
+    substituteInPlace "$headers/include/node/node_object_wrap.h" \
+      --replace-fail '    AddCleanupHook();' "" \
+      --replace-fail '    RemoveCleanupHook();' ""
+    export npm_config_nodedir="$headers"
+    # Install scripts are disabled throughout. Compile native addons locally,
+    # without downloading headers or prebuilt host binaries.
     for package in better-sqlite3 node-pty; do
       directory=$(readlink -f "$root/apps/daemon/node_modules/$package")
       (cd "$directory" && node ${nodejs_24}/lib/node_modules/npm/node_modules/node-gyp/bin/node-gyp.js rebuild)
@@ -146,13 +160,12 @@ stdenv.mkDerivation (finalAttrs: {
   installCheckPhase = ''
     runHook preInstallCheck
     "$out/bin/open-design" --help > /dev/null
+    # Stdin plus mixed native addons deterministically exposes the Node24 GC
+    # regression; a simple addon-load or SQLite exec test does not.
+    node - "$out/share/open-design/apps/daemon" < ${../../tests/open-design-native.cjs}
     node - "$out/share/open-design/apps/daemon" <<'JS'
     const { createRequire } = require('node:module');
     const load = createRequire(process.argv[2] + '/package.json');
-    const database = new (load('better-sqlite3'))(':memory:');
-    database.exec('CREATE TABLE smoke(value INTEGER); INSERT INTO smoke VALUES (42)');
-    database.close();
-    load('node-pty');
     const fs = require('node:fs');
     const path = require('node:path');
     const crypto = require('node:crypto');

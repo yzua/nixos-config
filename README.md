@@ -104,6 +104,13 @@ build. To smoke-test a built package with temporary data and a mock agent:
 python3 tests/open-design.py "$(nix build .#open-design --no-link --print-out-paths)/bin/open-design"
 ```
 
+A temporary native-addon build workaround restores the pre-24.19 `ObjectWrap`
+cleanup behavior in copied headers, without downgrading the Node runtime.
+This avoids the [Node 24 cleanup-hook regression](https://github.com/nodejs/node/issues/65446)
+that aborts OpenDesign during SQLite statement collection. The package build
+runs `tests/open-design-native.cjs` through stdin to catch this exact failure;
+remove the workaround once a verified Node runtime fix is available.
+
 Browser automation and media/export workflows may require additional
 upstream tool setup and are not covered by the basic workspace smoke checks.
 Local-first does not mean offline: model/cloud requests and upstream telemetry
