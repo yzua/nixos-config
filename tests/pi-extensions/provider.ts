@@ -12,10 +12,29 @@ export default function (pi: ExtensionAPI) {
       appendFileSync(eventLog, JSON.stringify(event) + "\n");
     });
   }
+  if (fixture.searchProvider) {
+    pi.registerProvider("search-test", {
+      baseUrl: fixture.searchProvider.baseUrl,
+      apiKey: fixture.searchProvider.apiKey,
+      api: "openai-responses",
+      models: [
+        {
+          id: "search-model",
+          name: "Search backend fixture",
+          reasoning: false,
+          input: ["text"],
+          contextWindow: 100_000,
+          maxTokens: 1024,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        },
+      ],
+    });
+  }
   pi.registerProvider("extension-test", {
-    baseUrl: "http://127.0.0.1:9",
-    apiKey: "unused-offline-fixture",
-    api: "extension-test-api",
+    baseUrl: fixture.baseUrl ?? "http://127.0.0.1:9",
+    apiKey: fixture.apiKey ?? "unused-offline-fixture",
+    headers: fixture.headers,
+    api: fixture.api ?? "extension-test-api",
     models: [
       {
         id: "offline",
@@ -24,6 +43,7 @@ export default function (pi: ExtensionAPI) {
         input: ["text"],
         contextWindow: 100_000,
         maxTokens: 1024,
+        headers: fixture.modelHeaders,
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       },
     ],

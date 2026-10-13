@@ -5,12 +5,14 @@
   config,
   lib,
   pkgs,
+  setup,
   ...
 }:
 
 let
   # Web-fetch is the only extension with external dependencies. Fetch its lock,
   # then assemble the complete local extension resource bundle below.
+  searchConfig = pkgs.writeText "pi-web-search-config.json" (builtins.toJSON setup.pi.webSearch);
   extensionResources = pkgs.buildNpmPackage {
     pname = "pi-personal-extensions";
     version = "local";
@@ -27,6 +29,9 @@ let
       cp ${./extensions/ask-user-question.ts} "$resources/ask-user-question.ts"
       cp ${./extensions/network-diagnostics.ts} "$resources/network-diagnostics.ts"
       cp -r ${./extensions/prompt-snippets}/. "$resources/prompt-snippets/"
+      cp -r ${./extensions/web-search} "$resources/web-search"
+      chmod u+w "$resources/web-search"
+      cp ${searchConfig} "$resources/web-search/config.json"
       cp -r ${./extensions/interactive-subagents} "$resources/interactive-subagents"
       runHook postInstall
     '';
@@ -84,6 +89,7 @@ in
     ".pi/agent/extensions/prompt-snippets".source =
       "${extensionResources}/lib/pi-config/prompt-snippets";
     ".pi/agent/extensions/web-fetch".source = "${extensionResources}/lib/pi-config/web-fetch";
+    ".pi/agent/extensions/web-search".source = "${extensionResources}/lib/pi-config/web-search";
     ".pi/agent/extensions/interactive-subagents".source =
       "${extensionResources}/lib/pi-config/interactive-subagents";
   };

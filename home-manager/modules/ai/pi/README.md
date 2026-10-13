@@ -1,7 +1,7 @@
 # Pi configuration
 
 Home Manager links the global instructions, prompts, agent profiles, four
-locally owned Amos-derived extensions, and opt-in network diagnostics. Settings, custom models, credentials, sessions, and
+locally owned Amos-derived extensions, native web search, and opt-in network diagnostics. Settings, custom models, credentials, sessions, and
 Herdr's extension remain writable and separately owned.
 
 The first activation backs up existing settings/models beneath
@@ -54,12 +54,32 @@ It changes no timeout, pooling, retry or TLS behavior. Bun's native
 in a credential-bearing interactive session. The ordinary Pi `--verbose` flag
 only changes startup verbosity.
 
+Web search uses the backend selected by `setup.pi.webSearch` in `flake.nix`,
+independently of Pi's chat model. Home Manager writes this non-secret provider/model
+choice beside the extension as `config.json`. GLM and other chat models can use
+search while keeping their normal chat provider. Pi resolves the search provider's
+own request-time credentials; a runtime chat API-key override on another provider
+is not sent to search. The selected search model must exist in Pi's `models.json`
+or provider catalog and use OpenAI Responses. A missing backend fails explicitly
+rather than silently falling back to another provider. Direct source invocations
+without `config.json` use the active model instead.
+
+A `/v1` base maps to its sibling `/backend-api/codex/alpha/search`; a
+`/backend-api/codex` base appends `/alpha/search`. This requires a compatible
+backend such as Codex-LB; it does not make ordinary Responses endpoints support
+search. Only the query is sent, not conversation history. Results are untrusted snippets with
+source URLs; use web fetch to read them. Search uses live external access and
+existing provider limits. The endpoint supplies no token usage, so these calls
+are not added to Pi's model-token totals. Requests have a 30-second deadline,
+1 MiB response cap, sanitized errors, refused redirects, and bounded output.
+No new credentials, packages, or mutable profile settings are needed.
+
 Web fetch extracts pages/PDFs locally. Failed extraction directs the agent to the existing
 Chrome DevTools CLI skill rather than automatically sending URLs to Jina.
 Pi has no MCP tools configured; the Chrome CLI retains its own daemon.
 
 Edit TypeScript directly in `extensions/`: `ask-user-question.ts`,
-`prompt-snippets/index.ts`, `web-fetch/index.ts`, and
+`prompt-snippets/index.ts`, `web-fetch/index.ts`, `web-search/index.ts`, and
 `interactive-subagents/pi-extension/subagents/`. Agent profiles and prompts
 are alongside this README. Stage new files, run the checks and Home Manager
 preview, then `just home-switch` and `/reload` in Pi to load edits.
@@ -141,6 +161,10 @@ alerts with focus forwarding disabled/enabled (requires a graphical session and 
 question answers/cancellation and Herdr waiting events, and the optional
 `safe_bash` tool through Pi's loader. It uses local HTTP fixtures and the
 installed web-fetch dependencies; set `PI_WEB_FETCH_DIR` to use another dependency
-directory. These tests make no paid model calls. Set `PI_BIN` to test another Pi binary.
+directory. `python3 -B tests/pi-web-search.py` exercises native search through Pi's loader
+with local HTTP fixtures: authentication/header precedence, query privacy,
+endpoint routing, separate-provider search and credential isolation, result bounds,
+sanitized errors, cancellation and timeouts.
+These tests make no paid model calls. Set `PI_BIN` to test another Pi binary.
 Run `just check` and `just home-preview` before activation. Smoke-test browser
 use and real tmux subagent completion/follow-up with the installed Pi.

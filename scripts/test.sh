@@ -15,7 +15,7 @@ bash tests/workflow.sh
 node --test tests/pi-subagents-recall.test.mjs
 bun test tests/pi-network-diagnostics.test.ts
 for suite in \
-  config-artifacts netbird-mullvad steam-mouse-grab herdr-backup voice-action skills pi-config pi-test-support pi-subagents pi-extensions pi-herdr \
+  config-artifacts netbird-mullvad steam-mouse-grab herdr-backup voice-action skills pi-config pi-test-support pi-subagents pi-extensions pi-web-search pi-herdr \
   pi-resume-dispatch pi-herdr-reporting \
   pi-re-config pi-re-rea pi-re-android pi-re-runtime pi-re-traffic pi-re-subagent pi-re-lab; do
   printf '\n== %s ==\n' "$suite"

@@ -93,6 +93,11 @@
           nvidiaOpen = false;
           nvidiaGsp = false;
         };
+        # Search backend is independent of Pi's selected chat model/provider.
+        pi.webSearch = {
+          provider = "codex-lb";
+          model = "gpt-6.1-sol";
+        };
         androidLab = {
           acceptLicense = true;
           apiLevel = "35";

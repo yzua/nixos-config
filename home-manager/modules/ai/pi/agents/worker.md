@@ -2,7 +2,7 @@
 name: worker
 description: Implement and verify a focused change
 thinking: high
-tools: read, write, edit, bash, grep, find, ls, web_fetch
+tools: read, write, edit, bash, grep, find, ls, web_search, web_fetch
 subagent_agents: scout, researcher, reviewer
 session-mode: lineage-only
 system-prompt: append
