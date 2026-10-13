@@ -19,8 +19,12 @@ CLI calls can implicitly start/reuse a background daemon/browser. Before the
 first call require a compatible **dedicated RE daemon endpoint and browser profile**
 with ownership/identity evidence. Do not attach to personal/default coding browser
 state, use ambient auto-connect, or infer isolation from an isolated tab context.
-If the actual CLI cannot prove distinct daemon routing/state, report blocked;
-no guessed daemon-socket flag or `pi-re browser` launcher is supplied here.
+The pinned CLI's hidden `--sessionId` option supplies daemon scoping (confirmed
+against the installed source; it is not `--session`). The root-only
+`pi-re browser read URL` wrapper uses a fresh session ID plus private runtime and
+profile paths, checks daemon script/namespace/PID/start/boot identity and uses a
+pidfd for cleanup. It reads one documentation page, not interactive RE workflows.
+For other instances, if distinct routing/state cannot be proved, report blocked.
 
 During approved managed setup, read `chrome-devtools start --help` for supported
 forwarded options. `start` can restart a daemon and `stop` affects its instance;

@@ -100,6 +100,9 @@ export default function(pi) {{
                      undefined, undefined, ctx);
  }}}});
 }}""")
+        # This question/restore fixture needs no network tools or their dependencies.
+        web_stub = root / "web-fixture.ts"
+        web_stub.write_text("export default function() {}")
         config = root / "runtime.json"
         private_json(
             config,
@@ -110,6 +113,8 @@ export default function(pi) {{
                 "sourceAgentDir": str(root / "unused-coding-source"),
                 "herdrIntegration": str(integration),
                 "questionExtension": str(question),
+                "webSearchExtension": str(web_stub),
+                "webFetchExtension": str(web_stub),
                 "capabilities": [],
             },
         )

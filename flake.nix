@@ -98,6 +98,12 @@
           provider = "codex-lb";
           model = "gpt-6.1-sol";
         };
+        # Read-only research workers; runtime RE jobs retain their separate limits.
+        pi.research = {
+          maxConcurrent = 4;
+          defaultTimeoutSeconds = 600;
+          maxTimeoutSeconds = 1800;
+        };
         androidLab = {
           acceptLicense = true;
           apiLevel = "35";

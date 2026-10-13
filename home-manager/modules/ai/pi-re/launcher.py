@@ -120,12 +120,15 @@ def pi_arguments(config, locations, args):
         result.extend(("--skill", str(path)))
     result.extend(("--prompt-template", str(resources / "prompts")))
     if os.environ.get("PI_RE_CHILD") != "1":
-        # Share only reviewed root question/reporting resources, not ambient
-        # coding extensions. Headless Flash children retain no extensions.
+        # Explicit immutable root resources, never ambient coding extensions.
+        # Search resolves authentication from this RE profile. Children stay unchanged.
         for extension in (
             resources / "flash-subagent.ts",
+            resources / "research-subagent.ts",
             Path(config["herdrIntegration"]),
             Path(config["questionExtension"]),
+            Path(config["webSearchExtension"]),
+            Path(config["webFetchExtension"]),
         ):
             if not extension.is_absolute() or not extension.is_file():
                 raise ValueError(f"Reviewed root extension is missing: {extension}")
@@ -211,6 +214,7 @@ def doctor(config, locations, as_json):
 
 
 def main():
+    os.umask(0o077)  # Native transcripts and new private research/browser artifacts.
     config = json.loads(Path(os.environ["PI_RE_CONFIG"]).read_text())
     locations = paths()
     child_sessions(locations)
@@ -224,6 +228,7 @@ def main():
             "pi-re device <agent-device command>\n"
             "pi-re frida setup|status|stop|run [options]\n"
             "pi-re lab start [--allow-host NAME] [--visible] | status | stop | check [--json]\n"
+            "pi-re browser read <approved documentation URL> [--json]\n"
             "Pi options: --model, --provider, --thinking, --print, --mode text|json, "
             "--continue, --resume, --session <RE file>.\n"
             "Host mode is autonomous, not a sandbox; use owned/authorized targets."
@@ -244,9 +249,11 @@ def main():
 
         command, environment = rea_command(config, locations, args[1:], mcp=args[0] == "rea-mcp")
         os.execve(command[0], command, environment)
-    if args and args[0] in ("android", "device", "frida", "lab"):
-        script = {"android": "android.py", "lab": "lab.py"}.get(args[0], "runtime.py")
-        command = args[1:] if args[0] in ("android", "lab") else args
+    if args and args[0] in ("android", "device", "frida", "lab", "browser"):
+        script = {"android": "android.py", "lab": "lab.py", "browser": "browser.py"}.get(
+            args[0], "runtime.py"
+        )
+        command = args[1:] if args[0] in ("android", "lab", "browser") else args
         os.execv(
             config["python"],
             [

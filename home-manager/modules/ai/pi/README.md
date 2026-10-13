@@ -2,7 +2,9 @@
 
 Home Manager links the global instructions, prompts, agent profiles, four
 locally owned Amos-derived extensions, native web search, and opt-in network diagnostics. Settings, custom models, credentials, sessions, and
-Herdr's extension remain writable and separately owned.
+Herdr's extension remain writable and separately owned. `extension-resources.nix`
+builds the immutable extension bundle shared with `pi-re`; each profile explicitly
+selects its own resources and resolves credentials from its own writable state.
 
 The first activation backs up existing settings/models beneath
 `${XDG_STATE_HOME:-$HOME/.local/state}/pi-config/backups/`, selects GPT-6.1 Sol

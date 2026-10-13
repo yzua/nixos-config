@@ -1,15 +1,23 @@
 #!/usr/bin/env python3
-"""Installed Pi loader isolation with a loopback mock provider, no real login/model."""
+"""Pi loader isolation with loopback sources and synthetic credentials.
+
+--pi uses checkout resources plus managed dependencies (PI_WEB_FETCH_DIR).
+--pi-re reads public resource routing from the selected managed launcher itself;
+no coding-profile dependency installation or search configuration is needed.
+"""
 
 import argparse
 import http.server
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import tempfile
 import threading
 from pathlib import Path
+
+from pi_test_support import pdf_fixture, require_web_fetch_dependencies
 
 
 def main():
@@ -20,20 +28,89 @@ def main():
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     code = root / "home-manager/modules/ai/pi-re"
+    if args.pi_re:
+        # Read only the selected managed launcher's public immutable configuration.
+        # Built-mode fixtures need no coding-profile resources or dependencies.
+        assignment = next(
+            line
+            for line in args.pi_re.resolve().read_text().splitlines()
+            if line.startswith("export PI_RE_CONFIG=")
+        )
+        runtime_path = Path(shlex.split(assignment)[1].removeprefix("PI_RE_CONFIG="))
+        runtime_config = json.loads(runtime_path.read_text())
+        search_config = Path(runtime_config["webSearchExtension"]).with_name("config.json")
+        search_backend = json.loads(search_config.read_text())
+    else:
+        fetch_dependencies = require_web_fetch_dependencies().resolve() / "node_modules"
+        search_backend = {"provider": "fixture-search", "model": "fixture-search-model"}
     observed = []
+    search_requests = []
+    fetch_requests = []
+    research_requests = []
 
     class Handler(http.server.BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass
 
+        def do_GET(self):
+            fetch_requests.append((self.path, self.headers.get("Authorization")))
+            article = (
+                "<html><head><title>RE public manual fixture</title></head>"
+                "<body><article><h1>PI-RE-HTML-MARKER</h1>"
+                + "<p>Public synthetic documentation for the loader fixture.</p>" * 30
+                + "</article></body></html>"
+            ).encode()
+            content_type, body = {
+                "/article": ("text/html", article),
+                "/sample.pdf": ("application/pdf", pdf_fixture()),
+                "/manual.txt": ("text/plain", b"PI_RE_TEXT_MARKER: synthetic manual"),
+            }[self.path]
+            self.send_response(200)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
         def do_POST(self):
             length = int(self.headers["Content-Length"])
             assert length < 1024 * 1024
-            observed.append(json.loads(self.rfile.read(length)))
+            body = json.loads(self.rfile.read(length))
+            if self.path == "/backend-api/codex/alpha/search":
+                search_requests.append((body, self.headers.get("Authorization")))
+                response = json.dumps(
+                    {
+                        "output": "PI_RE_SEARCH_MARKER",
+                        "results": [
+                            {
+                                "type": "text_result",
+                                "title": "PI_RE_SEARCH_MARKER",
+                                "url": f"http://127.0.0.1:{self.server.server_port}/article",
+                                "snippet": "Synthetic public documentation",
+                            }
+                        ],
+                    }
+                ).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(response)))
+                self.end_headers()
+                self.wfile.write(response)
+                return
+            is_research = body.get("model") == "glm-5.3-flash"
+            (research_requests if is_research else observed).append(body)
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
             self.end_headers()
-            if args.pi_re and len(observed) == 1:
+            if is_research:
+                names = {tool["function"]["name"] for tool in body.get("tools", [])}
+                assert names == {"research_read", "research_list", "web_search", "web_fetch"}
+                answer = (
+                    "RESEARCH_RESUME_OK"
+                    if "RESEARCH_FOLLOWUP_MARKER" in json.dumps(body)
+                    else "RESEARCH_FIRST_OK"
+                )
+                deltas = (({"role": "assistant", "content": answer}, None), ({}, "stop"))
+            elif args.pi_re and len(observed) == 1:
                 # Exercise the actual Pi Bash tool with no ambient shell or launcher.
                 # A mock model requests a harmless pinned-CLI version check.
                 command = (
@@ -98,6 +175,64 @@ def main():
                     ),
                     ({}, "tool_calls"),
                 )
+            elif len(observed) == (3 if args.pi_re else 1):
+                base = f"http://127.0.0.1:{self.server.server_port}"
+                calls = [
+                    ("web_fetch", {"url": base + path})
+                    for path in ("/article", "/sample.pdf", "/manual.txt")
+                ] + [("web_search", {"query": "synthetic public manual", "limit": 1})]
+                deltas = (
+                    (
+                        {
+                            "role": "assistant",
+                            "tool_calls": [
+                                {
+                                    "index": index,
+                                    "id": f"fixture_web_{index}",
+                                    "type": "function",
+                                    "function": {"name": name, "arguments": json.dumps(params)},
+                                }
+                                for index, (name, params) in enumerate(calls)
+                            ],
+                        },
+                        None,
+                    ),
+                    ({}, "tool_calls"),
+                )
+            elif len(observed) in ((4, 5) if args.pi_re else (2, 3)):
+                resume = len(observed) == (5 if args.pi_re else 3)
+                name = "research_subagent_message" if resume else "research_subagent"
+                params = (
+                    {
+                        "name": "docs-fixture",
+                        "message": "RESEARCH_FOLLOWUP_MARKER",
+                        "timeout_seconds": 30,
+                    }
+                    if resume
+                    else {
+                        "name": "docs-fixture",
+                        "task": "ROOT_RESEARCH_FIRST_MARKER",
+                        "cwd": str(project),
+                        "timeout_seconds": 30,
+                    }
+                )
+                deltas = (
+                    (
+                        {
+                            "role": "assistant",
+                            "tool_calls": [
+                                {
+                                    "index": 0,
+                                    "id": "fixture_research_" + str(resume),
+                                    "type": "function",
+                                    "function": {"name": name, "arguments": json.dumps(params)},
+                                }
+                            ],
+                        },
+                        None,
+                    ),
+                    ({}, "tool_calls"),
+                )
             else:
                 deltas = (
                     ({"role": "assistant", "content": "LOADER_FIXTURE_OK"}, None),
@@ -155,6 +290,18 @@ def main():
                         "models": [model],
                     }
                 }
+            }
+            models["providers"][search_backend["provider"]] = {
+                "baseUrl": f"http://127.0.0.1:{server.server_port}/v1",
+                "api": "openai-responses",
+                "apiKey": "FIXTURE_RE_SEARCH_KEY_CANARY",
+                "models": [{**model, "id": search_backend["model"]}],
+            }
+            models["providers"]["zai"] = {
+                "baseUrl": f"http://127.0.0.1:{server.server_port}/v1",
+                "api": "openai-completions",
+                "apiKey": "FIXTURE_RESEARCH_KEY_CANARY",
+                "models": [{**model, "id": "glm-5.3-flash"}],
             }
             data = home / "isolated-data"
             state = home / "isolated-state"
@@ -221,11 +368,27 @@ def main():
                     "native",
                 } <= available
             else:
+                # Load current checkout code with managed dependencies and explicit routing.
+                search = home / "web-search"
+                search.mkdir()
+                shutil.copyfile(
+                    root / "home-manager/modules/ai/pi/extensions/web-search/index.ts",
+                    search / "index.ts",
+                )
+                (search / "config.json").write_text(json.dumps(search_backend))
+                fetch = home / "web-fetch"
+                fetch.mkdir()
+                shutil.copyfile(
+                    root / "home-manager/modules/ai/pi/extensions/web-fetch/index.ts",
+                    fetch / "index.ts",
+                )
+                (fetch / "node_modules").symlink_to(fetch_dependencies)
                 runtime = home / "config.json"
                 runtime.write_text(
                     json.dumps(
                         {
                             "pi": str(args.pi.resolve()),
+                            "python": os.sys.executable,
                             "resources": str(code),
                             "sourceAgentDir": str(source),
                             "herdrIntegration": str(
@@ -235,6 +398,8 @@ def main():
                             "questionExtension": str(
                                 root / "home-manager/modules/ai/pi/extensions/ask-user-question.ts"
                             ),
+                            "webSearchExtension": str(search / "index.ts"),
+                            "webFetchExtension": str(fetch / "index.ts"),
                             "capabilities": [],
                         }
                     )
@@ -253,7 +418,8 @@ def main():
                     "--print",
                     "--mode",
                     "json",
-                    "Check the loader fixture; only a pinned REA version check is permitted.",
+                    "Check synthetic loopback web sources and pinned REA only. "
+                    "PRIVATE_HISTORY_CANARY_DO_NOT_SEARCH",
                 ],
                 cwd=project,
                 env=env,
@@ -268,7 +434,12 @@ def main():
             body = json.dumps(observed)
             assert "UNTRUSTED_CONTEXT_CANARY" not in body
             assert "UNREVIEWED_SKILL_CANARY" not in body
-            assert "FIXTURE_PRIVATE_KEY_CANARY" not in body + result.stdout + result.stderr
+            for secret in (
+                "FIXTURE_PRIVATE_KEY_CANARY",
+                "FIXTURE_RE_SEARCH_KEY_CANARY",
+                "FIXTURE_RESEARCH_KEY_CANARY",
+            ):
+                assert secret not in body + result.stdout + result.stderr
             assert "host" in body and "sandbox" in body
             for name in (
                 "re-intake",
@@ -294,16 +465,44 @@ def main():
                 "edit",
                 "write",
                 "re_subagent",
+                "research_subagent",
+                "research_subagent_message",
                 "ask_user_question",
+                "web_search",
+                "web_fetch",
             } <= tool_names, tool_names
             assert not {"subagent", "subagent_message", "ask_question"} & tool_names, tool_names
+            tool_responses = [
+                message
+                for request in observed
+                for message in request.get("messages", [])
+                if message.get("role") == "tool"
+            ]
+            for marker_text in (
+                "PI-RE-HTML-MARKER",
+                "PI_PDF_MARKER",
+                "PI_RE_TEXT_MARKER",
+                "PI_RE_SEARCH_MARKER",
+                "RESEARCH_FIRST_OK",
+                "RESEARCH_RESUME_OK",
+            ):
+                assert marker_text in json.dumps(tool_responses), tool_responses
+            assert sorted(fetch_requests) == [
+                ("/article", None),
+                ("/manual.txt", None),
+                ("/sample.pdf", None),
+            ], fetch_requests
+            assert len(search_requests) == 1, search_requests
+            search_body, authorization = search_requests[0]
+            assert authorization == "Bearer FIXTURE_RE_SEARCH_KEY_CANARY"
+            assert search_body["model"] == search_backend["model"]
+            assert search_body["commands"]["search_query"] == [{"q": "synthetic public manual"}]
+            assert "PRIVATE_HISTORY_CANARY" not in json.dumps(search_body)
+            assert len(research_requests) == 2, research_requests
+            assert "RESEARCH_FIRST_OK" in json.dumps(research_requests[1])
+            assert "ROOT_RESEARCH_FIRST_MARKER" in json.dumps(research_requests[1])
+            assert "PRIVATE_HISTORY_CANARY" not in json.dumps(research_requests)
             if args.pi_re:
-                tool_responses = [
-                    message
-                    for request in observed
-                    for message in request.get("messages", [])
-                    if message.get("role") == "tool"
-                ]
                 assert tool_responses and "6.4.0" in json.dumps(tool_responses), tool_responses
                 assert "reverse-engineer-anything" in body, "Official release skill missing"
                 assert "codemode" in tool_names, "MCP discovery tool missing"
@@ -321,7 +520,8 @@ def main():
             assert sessions, "No separate native session was written"
             print(
                 f"{'Global pi-re' if args.pi_re else 'Installed Pi'} loader: reviewed skills, "
-                "contract/tools, hostile cwd excluded, isolated JSON/session state"
+                "contract/tools, web research and named worker resume with RE credentials, "
+                "hostile cwd excluded, isolated JSON/session state"
             )
         finally:
             server.shutdown()

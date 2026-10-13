@@ -1,6 +1,6 @@
 ---
 name: re-browser
-description: Explore an authorized browser page's DOM, console and selected network requests through an available dedicated RE Chrome DevTools CLI instance.
+description: Read JavaScript-rendered documentation with an owned Chrome DevTools browser, or inspect an already approved dedicated RE browser instance.
 ---
 
 # RE browser exploration
@@ -19,6 +19,25 @@ Read [policy](../re-intake/references/policy.md),
 [evidence](../re-intake/references/evidence.md), and
 [bounded queries](../re-intake/references/queries.md).
 Load [intake](../re-intake/SKILL.md) for new/changed browser scope.
+
+## Documentation fallback
+
+For one approved public documentation page that `web_fetch` cannot extract:
+
+```bash
+pi-re browser read "$DOC_URL" --json
+```
+
+The root-only wrapper provisions a fresh pinned CLI daemon/profile, reads one
+owned page's accessibility snapshot and closes its owned state. It returns page,
+URL, private artifact and cleanup identities; done when the cited content answers
+the research question or its limits are reported. It has no personal browser
+state, input/network-inspection/arbitrary-evaluation tools or provider secrets.
+Page JavaScript still runs. On unresolved cleanup, report the private recovery
+record; this route is not an interactive browser or host sandbox.
+
+The remaining procedure applies only to separately approved interactive browser
+work, not to expanding the documentation wrapper's tools.
 
 ## Prerequisites
 
@@ -75,7 +94,8 @@ Expected evidence: created identity, bounded request summaries and checked close
 Save responses privately when they are not approved for model exposure; JSON
 mode is not redaction. Read per-command help for version-varying shapes.
 
-This direct CLI recipe does not implement daemon isolation or a browser launcher.
+This direct interactive CLI recipe does not implement daemon isolation; the
+one-page documentation wrapper is a separate owned lifecycle.
 If the installed CLI's dedicated lifecycle cannot be proved, return blocked.
 
 ## Interpretation

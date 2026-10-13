@@ -18,6 +18,9 @@ let
     cp -r ${reaTools.cli}/lib/rea/skills/reverse-engineer-anything "$out/lib/pi-re/upstream/"
     cp ${reaTools.cli}/lib/rea/LICENSE "$out/lib/pi-re/upstream/LICENSE-REA"
   '';
+  extensionResources = import ../pi/extension-resources.nix { inherit pkgs setup; };
+  # Reuse the already managed pinned CLI, not an ambient PATH installation.
+  chromeDevtools = builtins.head (import ../chrome-devtools { inherit pkgs; }).home.packages;
   python = "${androidTools.python}/bin/python3";
   reaAdb = pkgs.writeShellScript "pi-re-rea-adb" ''
     exec ${python} ${resources}/lib/pi-re/rea_adb.py "$@"
@@ -32,6 +35,14 @@ let
       # Explicit, immutable root integrations; never load the coding profile's directory.
       herdrIntegration = "${aiPackages.herdr}/share/herdr/integrations/pi/herdr-agent-state.ts";
       questionExtension = "${../pi/extensions/ask-user-question.ts}";
+      webSearchExtension = "${extensionResources}/lib/pi-config/web-search/index.ts";
+      webFetchExtension = "${extensionResources}/lib/pi-config/web-fetch/index.ts";
+      research = setup.pi.research;
+      browser = {
+        cli = "${chromeDevtools}/bin/chrome-devtools";
+        executable = "${pkgs.google-chrome}/bin/google-chrome-stable";
+        daemonScript = "${chromeDevtools}/lib/chrome-devtools-mcp/node_modules/chrome-devtools-mcp/build/src/daemon/daemon.js";
+      };
       sourceAgentDir = "${config.home.homeDirectory}/.pi/agent";
       android = setup.androidLab // {
         inherit (androidTools) sdkRoot;
@@ -168,6 +179,17 @@ let
             tools = pkgs.frida-tools.version;
           };
         }
+        {
+          id = "browser";
+          skill = "re-browser";
+          tools = {
+            cli = "${chromeDevtools}/bin/chrome-devtools";
+            browser = "${pkgs.google-chrome}/bin/google-chrome-stable";
+          };
+          versions = {
+            cli = chromeDevtools.version;
+          };
+        }
       ]
       ++
         map
@@ -176,10 +198,6 @@ let
             tools = { };
           })
           [
-            {
-              id = "browser";
-              skill = "re-browser";
-            }
             {
               id = "validation";
               skill = "finding-validation";

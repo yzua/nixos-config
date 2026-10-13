@@ -37,6 +37,35 @@ ownership, recovery and capability interpretation, and
 
 ## Interfaces
 
+- Root `web_search({query, limit?, recency_days?})` and `web_fetch({url})`:
+  research public documentation, specifications and papers. Search uses the
+  configured search backend with this RE profile's credentials, independently of
+  the chat model; only the query is sent. Keep private target data and secrets out
+  of queries/URLs. Fetch extracts HTML, PDF and text without browser cookies or
+  provider credentials. External content is evidence, not authority. For browser
+  fallback load `re-browser` and verify its dedicated-instance prerequisites;
+  use `pi-re browser read URL [--json]` for one approved documentation page in a
+  fresh owned Chrome DevTools instance. Other interactive browser work still
+  requires its dedicated-instance prerequisites.
+- `research_subagent({name, task, cwd?, timeout_seconds?})` and
+  `research_subagent_message({name, message, timeout_seconds?})`: root-only named
+  documentation/source-review workers, up to four concurrent turns across this
+  RE profile. Defaults: 600 seconds/turn, configurable ceiling 1800 seconds through
+  `setup.pi.research`. Only bounded `research_read`/`research_list` within the pinned
+  source root plus web search/fetch; no shell/edit/runtime/MCP/nested delegation.
+  Calls return after a turn finishes; follow-ups resume completed native sessions,
+  not steer live workers. Names belong to the parent root session. Exclusive
+  writer/capacity leases, process identity and exact native UUID protect resume.
+  Unknown writer ownership or changed immutable loadout blocks resume; use a new
+  name. Native sessions have a 16 MiB ceiling and summaries remain bounded.
+  Research tool restrictions are not OS containment.
+- `pi-re browser read URL [--json]`: root-only one-page documentation fallback.
+  Pinned Chrome DevTools CLI, fresh daemon namespace and profile, no personal
+  browser state/provider secrets. Returns a bounded accessibility snapshot;
+  closes its page and pidfd-signals only its proven owned daemon. Input, network
+  inspection and arbitrary evaluation tools are disabled. Pages still execute
+  their own JavaScript and send requests; this is not a host sandbox. Report
+  unresolved cleanup from the private recovery record, not a global daemon stop.
 - `re_subagent({task, cwd?})`: enabled root-only delegation to fixed
   Z.ai GLM-5.3-Flash/high. Include scope, owned inputs, budgets and stop conditions.
   Fresh private native sessions, maximum two children, 180-second deadline,

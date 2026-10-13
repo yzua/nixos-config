@@ -140,14 +140,26 @@ class ProfileTests(unittest.TestCase):
             path = resources / "skills" / skill
             path.mkdir(parents=True)
             (path / "SKILL.md").write_text("fixture")
-        extensions = [resources / name for name in ("flash-subagent.ts", "herdr.ts", "question.ts")]
+        extensions = [
+            resources / name
+            for name in (
+                "flash-subagent.ts",
+                "research-subagent.ts",
+                "herdr.ts",
+                "question.ts",
+                "search.ts",
+                "fetch.ts",
+            )
+        ]
         for extension in extensions:
             extension.write_text("export default function() {}")
         config = {
             "pi": "/fixture/bin/pi",
             "resources": str(resources),
-            "herdrIntegration": str(extensions[1]),
-            "questionExtension": str(extensions[2]),
+            "herdrIntegration": str(extensions[2]),
+            "questionExtension": str(extensions[3]),
+            "webSearchExtension": str(extensions[4]),
+            "webFetchExtension": str(extensions[5]),
         }
         locations = {"sessions": self.state / "sessions"}
         with patch.dict(os.environ, {"PI_RE_CHILD": "0"}):
@@ -189,14 +201,18 @@ class ProfileTests(unittest.TestCase):
             (directory / "SKILL.md").write_text("fixture")
         extension = resources / "flash-subagent.ts"
         extension.write_text("fixture")
+        (resources / "research-subagent.ts").write_text("fixture")
         reporter, question = resources / "herdr.ts", resources / "question.ts"
-        for resource in (reporter, question):
+        search, fetch = resources / "search.ts", resources / "fetch.ts"
+        for resource in (reporter, question, search, fetch):
             resource.write_text("fixture")
         config = {
             "pi": "/fixture/bin/pi",
             "resources": str(resources),
             "herdrIntegration": str(reporter),
             "questionExtension": str(question),
+            "webSearchExtension": str(search),
+            "webFetchExtension": str(fetch),
         }
         locations = {"sessions": self.state / "sessions"}
         with patch.dict(os.environ, {"PI_RE_CHILD": "0"}):

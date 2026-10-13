@@ -37,12 +37,14 @@ OAuth refresh tokens can require a separate login after token rotation. Subseque
 initialization preserves the RE copy rather than synchronizing it.
 
 The launcher retains Pi's default system prompt and explicitly loads the compact
-contract, ten reviewed adapter/domain skills and four prompts. Roots additionally
+contract, ten reviewed adapter/domain skills and seven prompts. Roots additionally
 load the matching official REA skill (version 37) and all six upstream references. Ambient context, project trust,
 skills, extensions, themes and prompts are suppressed. Foreign session files and
 resource-control flags are rejected. The root profile explicitly loads only its
-reviewed `re_subagent` extension plus the shared user-question UI and pinned official
-Herdr reporter plus native MCP/codemode built-ins; children load no extensions.
+reviewed RE and named research-worker extensions plus shared user-question,
+web-search and page/PDF-fetch extensions, the pinned official Herdr reporter and
+native MCP/codemode built-ins. Runtime Flash children load no extensions;
+research workers load only their read-only source tools and web extensions.
 A reviewed extension registers only the pinned `rea` server for the current
 root session; no `mcp.json` is written. Startup rejects existing RE-profile MCP
 server registrations (including a custom server named `rea`) intact rather than
@@ -58,12 +60,14 @@ through `pi-re`, preserving the RE contract, resource whitelist and independent
 profile. Normal coding invocations pass unchanged to the same pinned Pi binary.
 For manual resume in either terminal, use `pi-re --continue`, `pi-re --resume`, or
 `pi-re --session PATH`. Flash job artifacts are not interactive root sessions and
-cannot be promoted through this dispatcher. RE delegation remains bounded and
-non-resumable; regular Pi's interactive subagents are a separate feature.
+cannot be promoted through this dispatcher. Runtime RE delegation remains bounded and non-resumable. Named read-only
+research workers now support completed-turn follow-ups in their private native
+sessions; regular Pi's interactive live subagents remain a separate feature.
 
  Main sessions are configured
 privately for Z.ai Coding Plan GLM-5.3/high, with GLM-5.3-Flash/high for fresh
-180-second child jobs (maximum two, 16 KiB summaries). GPT/copied providers remain
+180-second runtime child jobs (maximum two, 16 KiB summaries). The same Flash
+model powers the separate four-slot named research pool. GPT/copied providers remain
 available. Credentials and model defaults remain independent writable state,
 never Nix secrets. The Coding Plan endpoint is `https://api.z.ai/api/coding/paas/v4`.
 REA 6.4.0 provides native, Android, JavaScript/Electron, portable managed/package,
@@ -77,6 +81,83 @@ Optional engines and broader scanner/gateway packs remain unfinished.
 profile and named Herdr/tmux session to verify actual questions and cold restoration
 without credentials or model calls. It seeds a native fixture conversation because
 Pi does not persist an empty chat until its first assistant turn.
+
+## Public web research
+
+Root sessions expose `web_search` and `web_fetch` using the same immutable
+extension bundle as coding Pi, but never discover the coding extension directory.
+Search routing comes from `setup.pi.webSearch`, independently of the chat model;
+credentials resolve from the independent RE profile. A missing search model,
+credential or compatible backend fails explicitly, without a coding-login fallback.
+Existing RE credentials/models are not refreshed by activation; configure or log
+in to the search provider in that profile when needed.
+
+Search sends only the query, not conversation history. Keep private target data
+out of queries and URLs. Page/PDF/plain-text extraction runs locally and sends
+neither browser cookies nor provider authentication to source pages. External
+content is untrusted evidence. JavaScript-rendered pages may need the existing
+`re-browser` skill, whose dedicated daemon/browser ownership prerequisites still
+apply for interactive work. `pi-re browser read URL` now supplies a one-page
+owned documentation fallback; runtime Flash children remain unchanged. Named
+research workers use the web tools through their explicit read-only allowlist.
+
+The loader fixture exercises HTML/PDF/text extraction and separate-provider search
+against loopback sources with synthetic RE credentials, including query privacy
+and source-request authentication isolation. The shared extensions retain their
+existing response limits and regressions in `tests/pi-extensions.py` and
+`tests/pi-web-search.py`.
+
+## Named research workers and documentation browser
+
+Root sessions expose `research_subagent` and `research_subagent_message` for
+public-documentation and source review. Give each worker a lowercase name and
+specific approved source directory. There are **four concurrent research slots**
+across the caller's RE profile, separate from the two existing runtime RE slots.
+`setup.pi.research` sets concurrency (1–4), default turn duration (600 seconds)
+and maximum duration (1800 seconds). The per-call `timeout_seconds` can choose
+another finite duration within that ceiling. Nesting stays disabled.
+
+A call runs until its turn completes, then returns a bounded summary. Follow-ups
+resume that worker's native conversation with its original source root and tools;
+only new-turn output is returned. This is not a background acknowledgement/live
+steering interface. Names are parent-session-scoped: resume the root session to
+reuse its names. Workers have bounded source-reading/listing and web tools only,
+not shell, file edits, REA/MCP, device controls or browser lifecycle. Known private
+configuration/key filenames, outside paths, symlinks and binary reads are excluded;
+that is not a complete secret detector or an OS sandbox.
+
+Kernel-held capacity/writer leases and PID/start/boot evidence prevent concurrent
+writers. A crashed known writer can resume one private native file matching its
+allocated UUID after the writer is dead. Unknown startup/writer ownership blocks
+resume. An immutable runtime/loadout change also blocks resume; create a new name
+rather than silently replaying a different policy. Native transcripts are capped
+at 16 MiB. Cancellation stops only the invocation's owned process group.
+
+The reviewed `/plan`, `/review` and `/handoff` prompts add research planning,
+independent source review and continuation notes without importing ambient coding
+skills/extensions. Existing RE prompts remain available.
+
+For a JavaScript-rendered documentation page, load `re-browser` and use:
+
+```bash
+pi-re browser read "$DOC_URL" --json
+```
+
+This root-only route pins the existing Chrome DevTools CLI/browser, creates a
+fresh scoped daemon and private browser profile, opens one approved page, saves
+and returns a snapshot capped at 64 KiB, then closes its page and owned daemon.
+It excludes personal cookies/provider environment secrets, disables CLI input,
+network inspection and arbitrary evaluation, and disables telemetry/update checks.
+Page JavaScript and network requests still run; no host containment is claimed.
+Unknown ownership/partial cleanup retains a private recovery record rather than
+signaling unrelated processes. It is not a general interactive RE browser launcher.
+
+`tests/pi-re-research.py` verifies four-slot admission, exclusive/native resume,
+finite deadlines and real-Pi read-only tool behavior using mock providers.
+`tests/pi-re-browser.py` checks owned lifecycle with synthetic daemons;
+`PI_RE_BROWSER_LIVE=1 python3 -B tests/pi-re-browser.py` additionally reads a harmless
+JavaScript-rendered loopback page in real Chrome. No external target/account/model
+is used. The root loader also executes actual named-worker creation and follow-up.
 
 ## Pinned REA CLI and native MCP
 

@@ -516,7 +516,11 @@ class PiInitialization(unittest.TestCase):
     home.homeDirectory = builtins.getEnv "CONFIG_TEST_HOME";
     xdg.stateHome = builtins.getEnv "CONFIG_TEST_STATE";
   };
-in (import (root + "/home-manager/modules/ai/pi") { inherit pkgs lib config; aiPackages = {}; })
+in (import (root + "/home-manager/modules/ai/pi") {
+  inherit pkgs lib config;
+  aiPackages = {};
+  setup = {};
+})
   .home.activation.initializePi
 """,
                 {"CONFIG_TEST_HOME": str(home), "CONFIG_TEST_STATE": str(state)},

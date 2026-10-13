@@ -21,35 +21,17 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from pi_test_support import isolated_environment, require_pi, require_web_fetch_dependencies
+from pi_test_support import (
+    isolated_environment,
+    pdf_fixture,
+    require_pi,
+    require_web_fetch_dependencies,
+)
 
 REPO = Path(__file__).resolve().parents[1]
 EXTENSIONS = REPO / "home-manager/modules/ai/pi/extensions"
 TEXT_LIMIT = 5 * 1024 * 1024
 PDF_LIMIT = 20 * 1024 * 1024
-
-
-def pdf_fixture(padding=0):
-    content = b"BT /F1 16 Tf 72 720 Td (PI_PDF_MARKER: PDF extraction works.) Tj ET"
-    content += b" " * padding
-    objects = [
-        b"<< /Type /Catalog /Pages 2 0 R >>",
-        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
-        b"/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
-        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-        b"<< /Length " + str(len(content)).encode() + b" >>\nstream\n" + content + b"\nendstream",
-    ]
-    result = b"%PDF-1.4\n"
-    offsets = []
-    for index, obj in enumerate(objects, 1):
-        offsets.append(len(result))
-        result += str(index).encode() + b" 0 obj\n" + obj + b"\nendobj\n"
-    xref = len(result)
-    result += b"xref\n0 6\n0000000000 65535 f \n"
-    result += b"".join(f"{offset:010d} 00000 n \n".encode() for offset in offsets)
-    result += f"trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()
-    return result
 
 
 class Fixtures(http.server.BaseHTTPRequestHandler):
