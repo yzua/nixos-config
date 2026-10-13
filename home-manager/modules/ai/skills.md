@@ -1,9 +1,15 @@
 # Shared skills ownership
 
-`skills.nix` pins the same upstream revisions and prepares their resources during
-build/preview. `skills.py` owns source validation, the UI/UX search-path repair,
-and local installation. Activation runs only after `linkGeneration`; it does not
-clone repositories or repair live skill files.
+`skills.nix` pins upstream revisions and includes repository-owned skills from
+`skills/`, preparing their resources during build/preview. `skills.py` owns source
+validation, the UI/UX search-path repair, and local installation. Activation runs
+only after `linkGeneration`; it does not clone repositories or repair live skill
+files.
+
+The local [app-design skill](skills/app-design/SKILL.md) connects product context,
+layout exploration, implementation, and browser critique for web apps and
+dashboards. Invoke it by name, for example: “Use app-design to improve this
+dashboard.” It uses relevant installed skills and the app's existing tooling.
 
 Installed skills remain writable and owned by skills.sh, not Home Manager.
 Before installation, the complete prepared bundle is staged into temporary
@@ -19,11 +25,13 @@ Its interpreter comes from the configured Nix Python package.
 
 ## Provenance and failure behavior
 
-The prepared bundle's `manifest.json` records original pinned source URLs. Nix
-source hashes and this manifest are authoritative. Local global installations
-do not refresh skills.sh's remote lock entries; existing entries may be stale.
-Use the Nix pins for managed updates rather than treating the old skills.sh lock
-as proof of installed contents.
+The prepared bundle's `manifest.json` records original pinned upstream URLs or
+`repo:` identifiers for repository-owned skills. Upstream hashes and the captured
+repository source in the Nix store determine the prepared contents. Stage new
+local skill files before evaluation or preview so Git flakes include them.
+Local global installations do not refresh skills.sh's remote lock entries;
+existing entries may be stale. Use the managed sources rather than treating the
+old skills.sh lock as proof of installed contents.
 
 Fetching, missing resources, or a changed UI/UX command fail during preparation,
 before activation. All sources are staged before the first installer invocation;

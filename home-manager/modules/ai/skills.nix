@@ -1,4 +1,4 @@
-# Prepare pinned skill sources before activation; skills.sh owns writable installed copies.
+# Prepare pinned and local skills before activation; skills.sh owns writable installed copies.
 
 {
   aiPackages,
@@ -45,7 +45,7 @@ let
   ];
   sourceManifest = pkgs.writeText "agent-skills-sources.json" (
     builtins.toJSON (
-      map (source: {
+      (map (source: {
         path = "${
           pkgs.fetchFromGitHub {
             inherit (source)
@@ -59,7 +59,14 @@ let
         url = "https://github.com/${source.owner}/${source.repo}/tree/${source.rev}${source.subdir}";
         inherit (source) skill;
         repairUiSearch = source.repairUiSearch or false;
-      }) skillSources
+      }) skillSources)
+      ++ [
+        {
+          path = ./skills/app-design;
+          url = "repo:home-manager/modules/ai/skills/app-design";
+          skill = "app-design";
+        }
+      ]
     )
   );
   preparedSkills = pkgs.runCommand "prepared-agent-skills" { } ''
