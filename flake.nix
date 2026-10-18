@@ -87,6 +87,19 @@
             primary = false;
           }
         ];
+        desktop = {
+          voice = true;
+          fullAutostart = true;
+          vpnAutostart = true;
+          touchpad = false;
+          fontSizes = {
+            desktop = 13;
+            applications = 14;
+            terminal = 16;
+            popups = 13;
+          };
+          editorSettings = { };
+        };
         graphics = {
           videoDrivers = [ "nvidia" ];
           # Test the proprietary kernel module without GSP after GPU hangs.
@@ -128,6 +141,57 @@
           email = "git.remarry972@simplelogin.com";
           githubEmail = "260740417+yzua@users.noreply.github.com";
           signingKey = "${homeDirectory}/.ssh/id_ed25519.pub";
+        };
+      };
+      # Keep host-specific facts here; the desktop remains the tooling default.
+      laptopSetup = setup // {
+        hostName = "laptop";
+        # Preserve the laptop's installed baseline independently of the desktop.
+        stateVersion = {
+          system = "26.05";
+          home = "26.05";
+        };
+        monitors = [
+          {
+            match = "eDP-1";
+            mode = "2560x1600@60.000";
+            scale = 2;
+            transform = "normal";
+            position = {
+              x = 0;
+              y = 0;
+            };
+            primary = true;
+          }
+        ];
+        graphics.videoDrivers = [ "modesetting" ];
+        # Leave room for the desktop and large multilingual speech model.
+        androidLab = setup.androidLab // {
+          cores = 2;
+          memoryMiB = 2048;
+          bootTimeoutSeconds = 300;
+        };
+        desktop = {
+          voice = true;
+          fullAutostart = true;
+          vpnAutostart = true;
+          touchpad = true;
+          fontSizes = {
+            desktop = 11;
+            applications = 12;
+            terminal = 13;
+            popups = 11;
+          };
+          editorSettings = {
+            "window.zoomLevel" = 0;
+            "editor.fontSize" = 13;
+            "terminal.integrated.fontSize" = 13;
+          };
+        };
+        pi = setup.pi // {
+          research = setup.pi.research // {
+            maxConcurrent = 2;
+          };
         };
       };
       inherit (setup) system;
@@ -182,24 +246,28 @@
           "**/hardware-configuration.nix"
         ];
       };
-      home = home-manager.lib.homeManagerConfiguration {
-        inherit pkgs;
-        extraSpecialArgs = {
-          inherit
-            setup
-            androidTools
-            reaTools
-            openDesignPackage
-            ;
-          aiPackages = llm-agents.packages.${system};
-          inherit nixcord;
+      mkHome =
+        hostSetup: module:
+        home-manager.lib.homeManagerConfiguration {
+          inherit pkgs;
+          extraSpecialArgs = {
+            setup = hostSetup;
+            androidTools = import ./packages/android-re-toolchain {
+              inherit pkgs;
+              inherit (hostSetup) androidLab;
+            };
+            inherit reaTools openDesignPackage;
+            aiPackages = llm-agents.packages.${system};
+            inherit nixcord;
+          };
+          modules = [
+            module
+            stylix.homeModules.stylix
+            sops-nix.homeManagerModules.sops
+          ];
         };
-        modules = [
-          ./home-manager/home.nix
-          stylix.homeModules.stylix
-          sops-nix.homeManagerModules.sops
-        ];
-      };
+      home = mkHome setup ./home-manager/home.nix;
+      laptopHome = mkHome laptopSetup ./home-manager/laptop.nix;
     in
     {
       nixosConfigurations.${setup.hostName} = nixpkgs.lib.nixosSystem {
@@ -214,8 +282,26 @@
         ];
       };
 
-      homeConfigurations."${setup.username}@${setup.hostName}" = home;
-      checks.${system}."home-${setup.username}-${setup.hostName}" = home.activationPackage;
+      nixosConfigurations.${laptopSetup.hostName} = nixpkgs.lib.nixosSystem {
+        inherit system;
+        specialArgs = {
+          setup = laptopSetup;
+          xwaylandSatellite = nixpkgs-xwayland-satellite.legacyPackages.${system}.xwayland-satellite;
+        };
+        modules = [
+          ./hosts/macbook/default.nix
+          sops-nix.nixosModules.sops
+        ];
+      };
+
+      homeConfigurations = {
+        "${setup.username}@${setup.hostName}" = home;
+        "${laptopSetup.username}@${laptopSetup.hostName}" = laptopHome;
+      };
+      checks.${system} = {
+        "home-${setup.username}-${setup.hostName}" = home.activationPackage;
+        "home-${laptopSetup.username}-${laptopSetup.hostName}" = laptopHome.activationPackage;
+      };
 
       formatter.${system} = formatter;
 

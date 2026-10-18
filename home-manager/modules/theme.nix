@@ -4,6 +4,7 @@
   config,
   lib,
   pkgs,
+  setup,
   ...
 }:
 
@@ -37,13 +38,8 @@
         package = pkgs.noto-fonts-color-emoji;
         name = "Noto Color Emoji";
       };
-      # Enlarge text without resampling the native-resolution desktop.
-      sizes = {
-        desktop = 13;
-        applications = 14;
-        terminal = 16;
-        popups = 13;
-      };
+      # Host-selected text sizes are independent of the display's pixel scale.
+      sizes = setup.desktop.fontSizes;
     };
 
     targets = {

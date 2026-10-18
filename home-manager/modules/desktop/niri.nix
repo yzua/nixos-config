@@ -35,6 +35,13 @@ in
           options "${setup.keyboard.toggle}"
         }
       }
+      ${lib.optionalString setup.desktop.touchpad ''
+        touchpad {
+          tap
+          natural-scroll
+          dwt
+        }
+      ''}
     }
 
     cursor {
@@ -127,15 +134,19 @@ in
     }
 
     spawn-at-startup "${noctalia}"
-    spawn-at-startup "${lib.getExe config.programs.firefox.package}"
     spawn-at-startup "${ghostty}"
-    spawn-at-startup "${lib.getExe config.programs.vscode.package}"
-    spawn-at-startup "${lib.getExe' pkgs.telegram-desktop "Telegram"}"
-    spawn-at-startup "${lib.getExe config.programs.nixcord.vesktop.package}"
-    // Launch the Mullvad GUI supplied by the active NixOS VPN service.
-    spawn-at-startup "${lib.getExe' pkgs.glib "gio"}" "launch" "/run/current-system/sw/share/applications/mullvad-vpn.desktop"
-    // Reuse NetBird's launcher, including its daemon-control group handling.
-    spawn-at-startup "${lib.getExe' pkgs.glib "gio"}" "launch" "${config.home.profileDirectory}/share/applications/netbird.desktop"
+    ${lib.optionalString setup.desktop.fullAutostart ''
+      spawn-at-startup "${lib.getExe config.programs.firefox.package}"
+      spawn-at-startup "${lib.getExe config.programs.vscode.package}"
+      spawn-at-startup "${lib.getExe' pkgs.telegram-desktop "Telegram"}"
+      spawn-at-startup "${lib.getExe config.programs.nixcord.vesktop.package}"
+    ''}
+    ${lib.optionalString setup.desktop.vpnAutostart ''
+      // Launch the Mullvad GUI supplied by the active NixOS VPN service.
+      spawn-at-startup "${lib.getExe' pkgs.glib "gio"}" "launch" "/run/current-system/sw/share/applications/mullvad-vpn.desktop"
+      // Reuse NetBird's launcher, including its daemon-control group handling.
+      spawn-at-startup "${lib.getExe' pkgs.glib "gio"}" "launch" "${config.home.profileDirectory}/share/applications/netbird.desktop"
+    ''}
 
     binds {
       Mod+Shift+Slash { show-hotkey-overlay; }
@@ -145,10 +156,12 @@ in
       Mod+Space { spawn "${noctalia}" "msg" "panel-toggle" "launcher"; }
       Mod+V { spawn "${noctalia}" "msg" "panel-toggle" "clipboard"; }
       Mod+S { spawn "${noctalia}" "msg" "panel-toggle" "control-center"; }
-      Mod+D repeat=false { spawn "${voiceAction}" "dictation-toggle"; }
-      Mod+X repeat=false { spawn "${voiceAction}"; }
-      Mod+Shift+X repeat=false { spawn "${voiceAction}" "reset"; }
-      Mod+Shift+Escape repeat=false { spawn "${voiceAction}" "cancel"; }
+      ${lib.optionalString setup.desktop.voice ''
+        Mod+D repeat=false { spawn "${voiceAction}" "dictation-toggle"; }
+        Mod+X repeat=false { spawn "${voiceAction}"; }
+        Mod+Shift+X repeat=false { spawn "${voiceAction}" "reset"; }
+        Mod+Shift+Escape repeat=false { spawn "${voiceAction}" "cancel"; }
+      ''}
       Mod+Shift+Comma { spawn "${noctalia}" "msg" "settings-toggle"; }
       Alt+Tab { spawn "${noctalia}" "msg" "window-switcher"; }
       Mod+Home { spawn "${noctalia}" "msg" "session" "lock"; }
@@ -159,6 +172,15 @@ in
       XF86AudioMicMute repeat=false { spawn "${noctalia}" "msg" "mic-mute"; }
       XF86MonBrightnessUp { spawn "${noctalia}" "msg" "brightness-up"; }
       XF86MonBrightnessDown { spawn "${noctalia}" "msg" "brightness-down"; }
+      ${lib.optionalString setup.desktop.touchpad ''
+        XF86KbdBrightnessUp { spawn "${noctalia}" "msg" "keyboard-backlight-up"; }
+        XF86KbdBrightnessDown { spawn "${noctalia}" "msg" "keyboard-backlight-down"; }
+        XF86KbdLightOnOff repeat=false { spawn "${noctalia}" "msg" "keyboard-backlight-toggle"; }
+        // MacBook keyboards have neither Print Screen nor a dedicated Home key.
+        Mod+Shift+S { screenshot; }
+        Mod+Ctrl+Shift+S { screenshot-screen; }
+        Mod+Shift+BackSpace { spawn "${noctalia}" "msg" "session" "lock"; }
+      ''}
       XF86AudioPlay repeat=false { spawn "${noctalia}" "msg" "media" "toggle"; }
       XF86AudioStop repeat=false { spawn "${noctalia}" "msg" "media" "stop"; }
       XF86AudioPrev repeat=false { spawn "${noctalia}" "msg" "media" "previous"; }

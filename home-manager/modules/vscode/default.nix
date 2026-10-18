@@ -4,13 +4,14 @@
   config,
   lib,
   pkgs,
+  setup,
   ...
 }:
 
 let
   extensions = pkgs.vscode-extensions;
   settings = (pkgs.formats.json { }).generate "vscode-settings" (
-    import ./settings.nix { inherit pkgs; }
+    (import ./settings.nix { inherit pkgs; }) // setup.desktop.editorSettings
   );
   settingsPath = "${config.xdg.configHome}/Code/User/settings.json";
   backupRoot = "${config.xdg.stateHome}/nixos";

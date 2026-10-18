@@ -63,6 +63,7 @@ class WritableSettings(unittest.TestCase):
             """
   lib = flake.inputs.nixpkgs.lib;
   settings = import (root + "/home-manager/modules/vscode") {
+    setup.desktop.editorSettings = {};
     config.xdg = {
       configHome = builtins.getEnv "CONFIG_TEST_HOME";
       stateHome = builtins.getEnv "CONFIG_TEST_STATE";
@@ -655,7 +656,12 @@ class DesktopArtifacts(unittest.TestCase):
         cls.root = Path(cls.temporary.name)
         cls.config_home = cls.root / "config with $dollar and 'quote"
         selection = subprocess.run(
-            ["bash", "-c", 'source scripts/config.sh; select_home; printf "%s" "$HOME_CONFIG"'],
+            [
+                "bash",
+                "-eu",
+                "-c",
+                'source scripts/config.sh; select_home; printf "%s" "$HOME_CONFIG"',
+            ],
             cwd=ROOT,
             capture_output=True,
             text=True,
@@ -666,19 +672,23 @@ class DesktopArtifacts(unittest.TestCase):
             """
   home = flake.homeConfigurations.${builtins.getEnv "CONFIG_TEST_OUTPUT"};
   custom = home.extendModules { modules = [{ xdg.configHome = builtins.getEnv "CONFIG_TEST_HOME"; }]; };
-  niriFor = monitors: (import (root + "/home-manager/modules/desktop/niri.nix") {
+  desktop = { voice = true; fullAutostart = true; vpnAutostart = true; touchpad = false; };
+  niriFor = monitors: desktop: (import (root + "/home-manager/modules/desktop/niri.nix") {
     inherit (home) pkgs;
     inherit (home) config;
     lib = flake.inputs.nixpkgs.lib;
     aiPackages = flake.inputs.llm-agents.packages.${builtins.currentSystem};
     setup = {
-      inherit monitors;
+      inherit monitors desktop;
       keyboard = { layouts = [ "us" ]; toggle = "grp:caps_toggle"; };
     };
   }).xdg.configFile."niri/config.kdl".text;
 in {
   niri = home.config.xdg.configFile."niri/config.kdl".text;
-  niriAutomatic = niriFor [];
+  niriAutomatic = niriFor [] desktop;
+  niriLaptop = niriFor [] {
+    voice = false; fullAutostart = false; vpnAutostart = false; touchpad = true;
+  };
   niriMultiple = niriFor [
     {
       match = "Fixture Portrait";
@@ -696,7 +706,7 @@ in {
       position = { x = 0; y = 0; };
       primary = true;
     }
-  ];
+  ] desktop;
   tmux = custom.config.programs.tmux.extraConfig;
   mimeDefaults = home.config.xdg.mimeApps.defaultApplications;
 }
@@ -705,7 +715,7 @@ in {
         )
 
     def test_niri_configuration_is_accepted(self):
-        for name in ("niri", "niriAutomatic", "niriMultiple"):
+        for name in ("niri", "niriAutomatic", "niriMultiple", "niriLaptop"):
             with self.subTest(config=name):
                 config = self.root / f"{name}.kdl"
                 config.write_text(self.generated[name])
@@ -737,6 +747,19 @@ in {
         self.assertNotIn("focus-at-startup", config)
         self.assertNotIn("open-on-output", config)
         self.assertIn('workspace "1" {', config)
+
+    def test_niri_laptop_omits_heavy_startup_and_voice(self):
+        config = self.generated["niriLaptop"]
+        self.assertIn("touchpad {", config)
+        self.assertIn("natural-scroll", config)
+        self.assertIn("XF86KbdBrightnessUp", config)
+        self.assertIn("XF86KbdBrightnessDown", config)
+        self.assertIn("Mod+Shift+S", config)
+        self.assertIn("Mod+Shift+BackSpace", config)
+        self.assertEqual(config.count("spawn-at-startup"), 2)
+        self.assertNotIn("voxtype-pi-action", config)
+        self.assertNotIn("mullvad-vpn.desktop", config)
+        self.assertNotIn("netbird.desktop", config)
 
     def test_niri_monitor_shortcuts_and_named_workspaces(self):
         config = self.generated["niri"]
