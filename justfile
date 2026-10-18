@@ -72,7 +72,7 @@ test:
 test-preview-roots-gc:
     @bash tests/preview-roots-gc.sh
 
-# Show the desired, saved preview, and active system/home generations (no build or switch).
+# Detect local hostname/user outputs and show generations (no build or switch).
 status:
     @./scripts/status.sh
 
@@ -88,6 +88,6 @@ switch:
 home-preview:
     @./scripts/home-preview.sh
 
-# Explicitly activate this user's Home Manager config (never run with sudo).
+# Activate this user's reviewed Home Manager config (never run with sudo).
 home-switch:
     @./scripts/home-switch.sh

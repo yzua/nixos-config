@@ -160,7 +160,7 @@ start_case() {
   unset NIXOS_CONFIG HOME_CONFIG TEST_RUNNING_HOST TEST_FAIL_DIFF TEST_FAIL_DESIRED TEST_FAIL_DCONF TEST_FAIL_BUILD TEST_FAIL_ALIAS TEST_FAIL_PUBLICATION TEST_BAD_ROOT TEST_FLOCK_NOTIFY TEST_MV_GATE
 }
 
-# Selection stays explicit when a flake has several outputs.
+# Multiple outputs select exact local hostname/user names, never an arbitrary host.
 (
   start_case selection
   source scripts/config.sh
@@ -170,12 +170,20 @@ start_case() {
 
   unset NIXOS_CONFIG HOME_CONFIG
   export TEST_SYSTEM_NAMES=$'host-a\nhost-b'
-  export TEST_HOME_NAMES=$'test-user@host-a\ntest-user@host-b'
+  TEST_HOME_NAMES="$(id -un)@host-a"$'\n'"$(id -un)@host-b"
+  select_system || fail 'local hostname selection'
+  select_home || fail 'local user/hostname selection'
+  [[ "$NIXOS_CONFIG" == host-a && "$HOME_CONFIG" == "$(id -un)@host-a" ]] || fail 'selected wrong local outputs'
+  just status >"$case_root/output" 2>&1 || fail 'automatically selected status'
+  [[ ! -s "$TEST_BUILD_LOG" && ! -s "$TEST_LOG" ]] || fail 'automatic status built or activated'
+
+  unset NIXOS_CONFIG HOME_CONFIG
+  export TEST_RUNNING_HOST=unknown-host
   if select_system >"$case_root/output" 2>&1; then
-    fail 'ambiguous NixOS selection succeeded'
+    fail 'unknown hostname selected a system'
   fi
   if select_home >"$case_root/output" 2>&1; then
-    fail 'ambiguous Home selection succeeded'
+    fail 'unknown hostname selected a home'
   fi
   for command in preview home-preview switch home-switch status; do
     if just "$command" >"$case_root/output" 2>&1; then
@@ -183,9 +191,34 @@ start_case() {
     fi
   done
   [[ ! -s "$TEST_BUILD_LOG" && ! -s "$TEST_LOG" ]] || fail 'ambiguous selection built or activated'
-  NIXOS_CONFIG=host-b HOME_CONFIG=test-user@host-b
+  NIXOS_CONFIG=host-b HOME_CONFIG="$(id -un)@host-b"
   select_system || fail 'explicit NixOS selection'
   select_home || fail 'explicit Home selection'
+  [[ "$NIXOS_CONFIG" == host-b && "$HOME_CONFIG" == "$(id -un)@host-b" ]] || fail 'override ignored'
+
+  unset NIXOS_CONFIG HOME_CONFIG TEST_RUNNING_HOST
+  export TEST_HOME_NAMES=$'different-user@host-a\ndifferent-user@host-b'
+  if select_home >"$case_root/output" 2>&1; then
+    fail 'another user automatically selected a home'
+  fi
+  NIXOS_CONFIG=missing HOME_CONFIG=missing
+  if select_system >"$case_root/output" 2>&1 || select_home >"$case_root/output" 2>&1; then
+    fail 'invalid explicit selector fell back to automatic selection'
+  fi
+)
+
+# Every normal entrypoint detects local outputs with no inherited selectors.
+(
+  start_case automatic-entrypoints
+  export TEST_SYSTEM_NAMES=$'host-a\nhost-b'
+  TEST_HOME_NAMES="$(id -un)@host-a"$'\n'"$(id -un)@host-b"
+  for command in status preview home-preview switch home-switch; do
+    just "$command" >"$case_root/output" 2>&1 || fail "automatic $command"
+  done
+  [[ -L "$XDG_STATE_HOME/nixos/result-system-host-a" ]] || fail 'automatic system preview name'
+  [[ -L "$XDG_STATE_HOME/nixos/result-home-$(id -un)@host-a" ]] || fail 'automatic Home preview name'
+  grep -q '^system ' "$TEST_LOG" || fail 'automatic system activation missing'
+  grep -q '^activate ' "$TEST_LOG" || fail 'automatic Home activation missing'
 )
 
 # Status never builds or activates.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Source this from just recipes or scripts to select flake outputs.
-# Set NIXOS_CONFIG / HOME_CONFIG when a flake has multiple outputs.
+# Prefer matching hostname/user outputs; explicit selectors override detection.
 
 flake_output_names() {
   nix eval --raw --no-write-lock-file \
@@ -17,7 +17,7 @@ valid_output_name() {
 }
 
 select_output() {
-  local group="$1" variable="$2" candidate="$3" names
+  local group="$1" variable="$2" candidate="$3" automatic="$4" names
   names=$(flake_output_names "$group") || return 1
   if [[ -z "$names" ]]; then
     printf 'No %s outputs in this flake.\n' "$group" >&2
@@ -25,10 +25,16 @@ select_output() {
   fi
   if [[ -z "$candidate" ]]; then
     if [[ "$names" == *$'\n'* ]]; then
-      printf 'Multiple %s outputs. Set %s to one of:\n%s\n' "$group" "$variable" "$names" >&2
-      return 1
+      if valid_output_name "$automatic" && has_output "$automatic" "$names"; then
+        candidate="$automatic"
+      else
+        printf 'No unique local match (%s) among multiple %s outputs. Set %s to one of:\n%s\n' \
+          "$automatic" "$group" "$variable" "$names" >&2
+        return 1
+      fi
+    else
+      candidate="$names"
     fi
-    candidate="$names"
   fi
   if ! valid_output_name "$candidate" || ! has_output "$candidate" "$names"; then
     printf 'Invalid %s=%s; available outputs:\n%s\n' "$variable" "$candidate" "$names" >&2
@@ -38,7 +44,7 @@ select_output() {
 }
 
 select_system() {
-  NIXOS_CONFIG=$(select_output nixosConfigurations NIXOS_CONFIG "${NIXOS_CONFIG:-}") || return 1
+  NIXOS_CONFIG=$(select_output nixosConfigurations NIXOS_CONFIG "${NIXOS_CONFIG:-}" "$(hostname)") || return 1
   # Consumed by scripts and just recipes that source this file.
   # shellcheck disable=SC2034
   system_ref=".#nixosConfigurations.\"${NIXOS_CONFIG}\""
@@ -46,7 +52,7 @@ select_system() {
 }
 
 select_home() {
-  HOME_CONFIG=$(select_output homeConfigurations HOME_CONFIG "${HOME_CONFIG:-}") || return 1
+  HOME_CONFIG=$(select_output homeConfigurations HOME_CONFIG "${HOME_CONFIG:-}" "$(id -un)@$(hostname)") || return 1
   # Consumed by scripts and just recipes that source this file.
   # shellcheck disable=SC2034
   home_ref=".#homeConfigurations.\"${HOME_CONFIG}\""
