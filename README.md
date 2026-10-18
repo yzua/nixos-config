@@ -6,6 +6,47 @@ system; Home Manager manages user apps and preferences.
 ## Usage
 
 Run commands from the repo root. Use `nix develop` if the tools are missing.
+On a configured machine, ordinary commands detect the system output by hostname
+and the Home Manager output by `username@hostname`:
+
+```sh
+just preview
+just switch
+just home-preview
+just home-switch
+```
+
+Explicit selectors override detection for cross-host builds. If several outputs
+exist and no local name matches, the scripts refuse to guess:
+
+```sh
+nix eval --json .#nixosConfigurations --apply builtins.attrNames
+nix eval --json .#homeConfigurations --apply builtins.attrNames
+export NIXOS_CONFIG='<selected-system-output>'
+export HOME_CONFIG='<selected-home-output>'
+```
+
+The desktop and MacBook share tools, account preferences, and dependency pins.
+The laptop keeps its generated storage/Broadcom configuration and installed state
+version, adds Intel graphics, Retina scaling, touchpad and power management, and
+retains GNOME as a fallback to Niri. Its Home Manager profile includes the
+on-demand Android/RE lab and large multilingual voice model, but omits gaming,
+OpenDesign, and unrelated desktop AI applications. Mullvad, NetBird, and Tailscale
+have separate device enrollment. The normal desktop apps and VPN UIs start with
+Niri; the emulator remains on-demand. See [MacBook hardware and readiness notes](hosts/macbook/README.md)
+for camera/video support, resource limits, VPN prerequisites, and remaining checks.
+The laptop hostname/output is `laptop`, with Home Manager output `yz@laptop`;
+the desktop remains `PC` / `yz@PC`. Laptop remote administration uses key-only
+OpenSSH; authorized keys remain user-owned in `~/.ssh/authorized_keys`.
+
+Credentials stay outside this repository and the Nix store. Transfer only selected
+mutable auth/config files over verified SSH with private file permissions;
+Git signing keys, GitHub CLI authentication, and API logins are separate.
+Copying GitHub CLI's configuration alone does not migrate a keyring-backed token.
+OpenCode 2 also stores credentials separately from provider configuration; use
+its `auth export` / `auth import` commands through a private pipe, never a log
+or repository file. Successful credential import does not prove a provider's
+model catalog or inference works.
 
 ```sh
 just check          # validate the configuration
@@ -34,7 +75,8 @@ and check the system hostname or Home Manager user and home directory.
 When moving apps from NixOS to Home Manager, apply Home Manager first.
 Successful previews retain their builds with per-output GC roots under the caller's
 XDG state directory. Failed builds or reviews leave the previous saved preview intact.
-With multiple outputs, select one using `NIXOS_CONFIG` or `HOME_CONFIG`.
+With multiple outputs, local hostname/user matches are automatic; use
+`NIXOS_CONFIG` or `HOME_CONFIG` to deliberately select another output.
 
 Development tools come from the pinned Nixpkgs input; no npm or pip install is
 needed. In `nix develop`, run `just fmt` to format files, `just fmt-check` for a
@@ -48,6 +90,9 @@ Markdown, including links and structures that affect rendering, without
 requiring line wrapping or headings in prompt fragments. For quick focused
 checks, use `just lint-ts`, `just lint-python`, `just lint-shell`, or
 `just lint-markdown`.
+With the laptop outputs selected, `python3 -B tests/laptop-profile.py` evaluates
+its hardware, lab/voice, VPN, power, and key-only SSH invariants without building
+or activating.
 Run `just test` for the explicit offline regression suites, including generation
 workflows, voice actions, Pi extensions/subagents, and the RE profile/lab mocks.
 These tests use isolated fixtures without activation or paid model calls.
@@ -61,77 +106,6 @@ preflight. Live desktop focus, browser, and Android lab checks remain separate
 opt-in commands.
 `just test-preview-roots-gc` separately verifies preview retention by running GC
 only in a disposable local Nix store, never on the workstation store.
-
-## OpenDesign
-
-OpenDesign is installed by Home Manager as a local browser workspace, built
-from the pinned upstream `open-design-v0.24.1` release. Linux has no official
-prebuilt desktop release yet; this package builds the daemon and static web UI,
-not the Electron shell. The release's embedded API version still reports `0.23.1`.
-
-After reviewing `just home-preview` and applying `just home-switch`, launch
-**OpenDesign** from the application menu or run:
-
-```sh
-open-design                 # start the workspace and open your browser
-open-design --no-open       # start without opening a browser
-open-design --help          # upstream CLI commands (called od in its help)
-```
-
-Open <http://127.0.0.1:7456> while the command is running. The menu launcher
-keeps a terminal open; press **Ctrl+C** to stop. Nothing starts at login.
-The command deliberately does not replace the system's `od` utility.
-
-The launcher defaults `OD_DATA_DIR` to the caller's XDG data directory under
-`open-design`, and binds to localhost. Projects, settings, and credentials
-remain writable and outside the Nix store; Home Manager does not manage them.
-For upstream data ownership rules, see the pinned release's
-[daemon data directory contract](https://github.com/nexu-io/open-design/blob/89e64d813bb1c7a11519b3f668f011f7017637d7/AGENTS.md#daemon-data-directory-contract).
-Installed agent CLIs remain discoverable through the caller's PATH. Choose
-**Local AI** during onboarding and authenticate the agent normally; no API keys
-are added to this configuration. HyperFrames uses the configured Nix-managed
-Chrome instead of downloading a browser. The DeepSeek Harness connection
-component is bundled, but the official `dsh` CLI is not installed by this module. OpenDesign's bundled skills stay inside the app rather than
-replacing the shared skills managed by this repository.
-
-The source and npm dependencies are hash-pinned. Packaging uses maintained
-pnpm with a compatibility adjustment that preserves the upstream lockfile,
-rather than enabling Nixpkgs's insecure pnpm 10. A targeted build is available
-with `nix build .#open-design`; frontend/native-addon changes require a local
-build. To smoke-test a built package with temporary data and a mock agent:
-
-```sh
-python3 tests/open-design.py "$(nix build .#open-design --no-link --print-out-paths)/bin/open-design"
-```
-
-A temporary native-addon build workaround restores the pre-24.19 `ObjectWrap`
-cleanup behavior in copied headers, without downgrading the Node runtime.
-This avoids the [Node 24 cleanup-hook regression](https://github.com/nodejs/node/issues/65446)
-that aborts OpenDesign during SQLite statement collection. The package build
-runs `tests/open-design-native.cjs` through stdin to catch this exact failure;
-remove the workaround once a verified Node runtime fix is available.
-
-Browser automation and media/export workflows may require additional
-upstream tool setup and are not covered by the basic workspace smoke checks.
-Local-first does not mean offline: model/cloud requests and upstream telemetry
-can contact external services; review the app's privacy settings before use.
-
-## Gaming
-
-Niri opens Steam game windows fullscreen automatically. Fullscreen alone does
-not guarantee mouse confinement: for Proton games on multiple monitors, close
-all Proton/Wine games and run `steam-mouse-grab` to enable Wine's
-`GrabFullscreen` setting in existing game prefixes across your Steam libraries.
-The command preserves other registry settings and saves a
-`user.reg.before-mouse-grab` backup beside each changed registry. It refuses to
-edit while a Wine server is running.
-
-New games create their own prefixes on first launch; close them and rerun the
-command afterward. Nothing is applied continuously or to native Linux games.
-Use **Super + Shift + F** to toggle Niri fullscreen and **Alt + Tab** to switch
-away. To undo confinement, close the game and remove `"GrabFullscreen"="Y"`
-from its `pfx/user.reg` section `[Software\\Wine\\X11 Driver]`; avoid restoring
-an old whole-registry backup after the game has made other settings changes.
 
 ## Layout
 
