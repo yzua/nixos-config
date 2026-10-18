@@ -26,16 +26,16 @@ let
       hash = "sha256-jr8v92AuF0fzzDKefJms9zSNAZ7EVuVjnZ2Qrwt6/sM=";
     }
     {
-      name = "octotree-8.3.1";
+      name = "octotree-9.3.2";
       id = "jid1-Om7eJGwA1U8Akg@jetpack";
-      url = "https://addons.mozilla.org/firefox/downloads/file/5059273/octotree-8.3.1.xpi";
-      hash = "sha256-2KqhHHTa8JMEeSYvbRdNGUFmQCInx/eYga2uOsf0W2I=";
+      url = "https://addons.mozilla.org/firefox/downloads/file/5085903/octotree-9.3.2.xpi";
+      hash = "sha256-iwiX+9x0buMx9ELDK68oKPMZsXhe/E/07LfdvphJeXI=";
     }
     {
-      name = "refined-github-26.9.12";
+      name = "refined-github-26.10.15";
       id = "{a4c4eda4-fb84-4a84-b4a1-f7c1cbf2a1ad}";
-      url = "https://addons.mozilla.org/firefox/downloads/file/5024350/refined_github-26.9.12.xpi";
-      hash = "sha256-7/YBFTqyjxmsO82ktdjz+Mj060esRd3ao6SaZ7c0E40=";
+      url = "https://addons.mozilla.org/firefox/downloads/file/5125706/refined_github-26.10.15.xpi";
+      hash = "sha256-EDEybmh0Yd+QGAq8kjrRIGlJqpTpGBFzC1mphVuhnBw=";
     }
 
     # Privacy and security
@@ -85,10 +85,10 @@ let
       hash = "sha256-D/+04I5eFuj9WYwU/XKnd3EdyUG+VN+AMXx1R0LKmUI=";
     }
     {
-      name = "wappalyzer-6.12.6";
+      name = "wappalyzer-6.12.7";
       id = "wappalyzer@crunchlabz.com";
-      url = "https://addons.mozilla.org/firefox/downloads/file/4982523/wappalyzer-6.12.6.xpi";
-      hash = "sha256-OjaeVYChtIZAAcAh4PW1JKfwiWi0OPt9XXy+iH6M7ok=";
+      url = "https://addons.mozilla.org/firefox/downloads/file/5067215/wappalyzer-6.12.7.xpi";
+      hash = "sha256-joK8gvKSYScwnye89kqqvBzzrtkYuTJ7RgCvNpt1d0s=";
     }
 
     # YouTube and social
@@ -105,10 +105,10 @@ let
       hash = "sha256-Rrv0C3gazjI3cf8ZPF3ieFtBDV2INkH48Hw5Oo+W1pw=";
     }
     {
-      name = "control-panel-for-twitter-4.24.2";
+      name = "control-panel-for-twitter-4.25.1";
       id = "{5cce4ab5-3d47-41b9-af5e-8203eea05245}";
-      url = "https://addons.mozilla.org/firefox/downloads/file/5048223/control_panel_for_twitter-4.24.2.xpi";
-      hash = "sha256-xz7U9mOoPjXJvZbi59K++FtOtMFl1tlM46Hyo/5lueg=";
+      url = "https://addons.mozilla.org/firefox/downloads/file/5115146/control_panel_for_twitter-4.25.1.xpi";
+      hash = "sha256-ivE4jODJ7fJ/rT0vrEgFkcAzifpwkAKacYtj7uFPXWw=";
     }
     {
       name = "sponsorblock-6.1.7";
