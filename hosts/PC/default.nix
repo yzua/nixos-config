@@ -17,6 +17,7 @@
     ../../modules/nixos/networking/mullvad-vpn.nix
     ../../modules/nixos/networking/netbird.nix
     ../../modules/nixos/networking/netbird-mullvad-private.nix
+    ../../modules/nixos/networking/resolved-private-domains.nix
     ../../modules/nixos/networking/tailscale.nix
     ../../modules/nixos/numtide-cache.nix
     ../../modules/nixos/yubikey.nix
