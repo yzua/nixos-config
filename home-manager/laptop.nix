@@ -16,6 +16,7 @@
     ./modules/desktop-apps/firefox.nix
     ./modules/desktop-apps/keepassxc.nix
     ./modules/desktop-apps/netbird.nix
+    ./modules/desktop-apps/pc-desktop.nix
     ./modules/desktop-apps/vesktop.nix
     ./modules/mime.nix
     ./modules/terminal

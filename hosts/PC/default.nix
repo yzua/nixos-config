@@ -14,6 +14,7 @@
     ../../modules/nixos/desktop/flatpak.nix
     ../../modules/nixos/gaming.nix
     ../../modules/nixos/desktop/niri.nix
+    ../../modules/nixos/desktop/sunshine.nix
     ../../modules/nixos/networking/mullvad-vpn.nix
     ../../modules/nixos/networking/netbird.nix
     ../../modules/nixos/networking/netbird-mullvad-private.nix

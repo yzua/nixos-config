@@ -106,6 +106,16 @@
           nvidiaOpen = false;
           nvidiaGsp = false;
         };
+        # LAN streaming endpoints; reserve these leases in the router if possible.
+        remoteDesktop = {
+          hostAddress = "192.168.0.173";
+          clientAddress = "192.168.0.230";
+          hostInterface = "eno1";
+          appName = "Desktop";
+          resolution = "2560x1080";
+          fps = 60;
+          bitrateKbps = 20000;
+        };
         # Search backend is independent of Pi's selected chat model/provider.
         pi.webSearch = {
           provider = "codex-lb";
