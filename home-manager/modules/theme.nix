@@ -37,11 +37,12 @@
         package = pkgs.noto-fonts-color-emoji;
         name = "Noto Color Emoji";
       };
+      # Enlarge text without resampling the native-resolution desktop.
       sizes = {
-        desktop = 12;
-        applications = 13;
-        terminal = 14;
-        popups = 12;
+        desktop = 13;
+        applications = 14;
+        terminal = 16;
+        popups = 13;
       };
     };
 
@@ -149,6 +150,8 @@
   dconf.settings."org/gnome/desktop/interface" = {
     cursor-theme = config.home.pointerCursor.name;
     cursor-size = config.home.pointerCursor.size;
+    # Keep text at its declared size instead of inheriting a fractional reduction.
+    text-scaling-factor = 1.0;
   };
 
   # GNOME only discovers a newly installed extension after the next login.
