@@ -22,6 +22,11 @@ in
 
   systemd.tmpfiles.rules = [ "d ${dropInDir} 0755 root root -" ];
 
+  # Enable DNS-over-TLS for the "#"-suffixed global servers below. A policy
+  # VPN blocks plaintext port 53 through its tunnel; opportunistic keeps the
+  # plaintext fallback for link servers without TLS.
+  services.resolved.settings.Resolve.DNSOverTLS = "opportunistic";
+
   sops.secrets.${secret} = {
     sopsFile = ../../../secrets/netbird-mullvad.yaml;
     key = "resolved_private_domains";
