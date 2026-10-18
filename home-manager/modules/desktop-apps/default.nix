@@ -14,6 +14,7 @@
   # These apps need no extra extensions.
   home.packages = [
     pkgs.google-chrome
+    pkgs.localsend
     pkgs.obs-studio
     pkgs.qbittorrent
     pkgs.sqlitebrowser
