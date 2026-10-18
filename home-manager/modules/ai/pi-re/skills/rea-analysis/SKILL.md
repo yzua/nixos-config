@@ -1,6 +1,6 @@
 ---
 name: rea-analysis
-description: Use pinned REA/Ghidra for native, Android, JavaScript, managed/package analysis, saved network captures, browser/Electron runtime evidence and reconstruction workflows.
+description: Use pinned REA/Ghidra for native, Android/Flutter, JavaScript, managed/package analysis, SQLite snapshots, saved HTTP/packet captures, browser/Electron runtime evidence and reconstruction workflows.
 ---
 
 # Managed REA integration
@@ -11,8 +11,8 @@ Discover `mcp__rea` tools through `searchTools()`/`describeTool()` before callin
 use its actual schemas, not guessed names. MCP retains one native session and
 Evidence ledger: open once, query narrowly, export privately, close when done.
 Children use **`pi-re rea` through Bash**; CLI is also the root's fallback.
-The launcher supplies pinned REA, Ghidra, JDK21, Android engines, mitmdump and
-Chrome. Nix owns dependencies; upstream skill setup/npx repair recipes are replaced
+The launcher supplies pinned REA, Ghidra, JDK21, Android engines, mitmdump,
+TShark/capinfos, GNU objdump and Chrome. Nix owns dependencies; upstream skill setup/npx repair recipes are replaced
 by this managed integration. No setup or client registration is needed.
 Read [intake](../re-intake/SKILL.md) for new scope and
 [the evidence policy](../re-intake/references/evidence.md) before releasing output.
@@ -28,15 +28,18 @@ Read [commands and limits](references/commands.md) before the first query.
    host, not in a sandbox.
 2. **Select the branch.** Consult `pi-re doctor --json` when installed facts are
    unknown; use the official skill for MCP target routing and summary-first views.
-   Saved HAR/mitmproxy or browser traffic: load
+   Saved HAR/mitmproxy/SAZ/qlog/packet captures or browser traffic: load
    [web-protocol](../web-protocol/SKILL.md) and its evidence/lifecycle guide. Native:
    load [native-analysis](../native-analysis/SKILL.md), then use REA with explicit
    `--provider ghidra`. Android: load
    [android-static](../android-static/SKILL.md); use REA for repeated class/method/
    reference navigation, direct JADX/apktool/SDK for resources, signatures, splits
    and smali corroboration. JavaScript/Electron: use static application analysis
-   without a native provider. Done when the selected interface and its limits
-   match the question.
+   without a native provider; select exact `--source-path` values to bound source
+   analysis without following imports. SQLite: select an offline snapshot and
+   explicit tables/columns; a live database/WAL copy is not an atomic snapshot.
+   Flutter/Dart, Go/Rust and Electron fuses: use the command guide's bounded static
+   branches. Done when the selected interface and its limits match the question.
 3. **Query narrowly.** Check installed subcommand help; save JSON privately with
    stderr and exit status separate. Each Bash call has fresh shell state: define
    variables inside that call. Run native queries sequentially and count every
@@ -81,7 +84,11 @@ upstream setup/update/uninstall and caller-selected transport flags remain exclu
 The managed MCP transport is root-only; CLI calls do not share its open target.
 For Android, prepare the owned rooted lab first, select its exact serial explicitly
 in every REA ADB request, and serialize device mutations. REA ADB does not replace
-our lab's ownership/root/CA/proxy/Frida guards. Browser/process/Electron captures
+our lab's ownership/root/CA/proxy/Frida guards. REA's optional Node Frida binding
+is not provisioned; use the existing managed Frida workflow. GDB/Rizin/Cutter
+routes can execute debugger commands or mutate attached state; they require the
+same explicit ownership/execution gate, not static-analysis permission.
+Browser/process/Electron captures
 require an authorized target, explicit scenario and finite budgets; executing an
 unknown host sample requires an approved whole-process boundary.
 

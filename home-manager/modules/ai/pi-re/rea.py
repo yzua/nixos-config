@@ -134,6 +134,32 @@ COMMANDS = frozenset(
         "start-adb-app",
         "start-adb-activity",
         "stop-adb-app",
+        "search-bytes",
+        "inspect-packet-fields",
+        "inspect-packet-capture",
+        "inspect-pcap-client",
+        "inspect-pcap-capture",
+        "inspect-signal-decoders",
+        "decode-signal-recording",
+        "compare-wasm-interfaces",
+        "inspect-wasm-artifact",
+        "inspect-sqlite-database",
+        "inspect-go-binary",
+        "inspect-rust-binary",
+        "identify-flutter-build",
+        "inspect-dart-aot",
+        "inspect-electron-fuses",
+        "project-harmony-application-graph",
+        "inspect-with-objdump",
+        "list-objdump-architectures",
+        "list-cutter-sessions",
+        "cutter-command",
+        "execute-rizin-command",
+        "debug-with-gdb",
+        "debug-with-rizin",
+        "list-frida-devices",
+        "list-frida-processes",
+        "instrument-with-frida",
     }
 )
 HELP = frozenset({"--help", "-h", "--version", "-V"})
@@ -144,6 +170,7 @@ ANALYSIS_SETTINGS = frozenset(
         "REA_GHIDRA_COMPILER_SPEC_ID",
         "REA_GHIDRA_SEED_FILE",
         "REA_GHIDRA_STARTUP_TIMEOUT_MS",
+        "REA_GHIDRA_DISABLED_ANALYZERS",
     }
 )
 

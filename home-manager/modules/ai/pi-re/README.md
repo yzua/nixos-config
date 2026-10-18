@@ -38,7 +38,7 @@ initialization preserves the RE copy rather than synchronizing it.
 
 The launcher retains Pi's default system prompt and explicitly loads the compact
 contract, ten reviewed adapter/domain skills and seven prompts. Roots additionally
-load the matching official REA skill (version 37) and all six upstream references. Ambient context, project trust,
+load the matching official REA skill (version 42) and all six upstream references. Ambient context, project trust,
 skills, extensions, themes and prompts are suppressed. Foreign session files and
 resource-control flags are rejected. The root profile explicitly loads only its
 reviewed RE and named research-worker extensions plus shared user-question,
@@ -70,7 +70,7 @@ privately for Z.ai Coding Plan GLM-5.3/high, with GLM-5.3-Flash/high for fresh
 model powers the separate four-slot named research pool. GPT/copied providers remain
 available. Credentials and model defaults remain independent writable state,
 never Nix secrets. The Coding Plan endpoint is `https://api.z.ai/api/coding/paas/v4`.
-REA 6.4.0 provides native, Android, JavaScript/Electron, portable managed/package,
+REA 6.5.0 provides native, Android, JavaScript/Electron, portable managed/package,
 network and runtime Evidence workflows through CLI and root-only native MCP.
 Optional engines and broader scanner/gateway packs remain unfinished.
 
@@ -171,14 +171,14 @@ pi-re rea inspect-android-method "$APK" "$CLASS" "$METHOD" --json
 pi-re rea analyze-javascript-application "$APP_TREE_OR_ASAR" --json
 ```
 
-REA 6.4.0, official Ghidra 12.1.4, full JDK21 and the headless Android engine
+REA 6.5.0, official Ghidra 12.1.4, full JDK21 and the headless Android engine
 0.7.1 are pinned/hash-verified through `packages/rea/`; no upstream setup,
 Hopper installation, npm bootstrap or coding-profile changes are needed.
 `pi-re doctor` reports installed static facts without starting Java;
 `pi-re rea doctor --provider ghidra` additionally probes Java/engine readiness.
 
 The root connects its own REA stdio MCP server using Pi's native support and
-codemode exposure. This exposes all 170 advertised tools, including persistent
+codemode exposure. This exposes all 207 advertised tools, including persistent
 native sessions, call graphs/batch queries, naming and retained Evidence/unknown
 ledgers. Search/describe tools on demand instead of putting every schema into each
 model request. The matching `reverse-engineer-anything` upstream skill is loaded
@@ -195,10 +195,11 @@ parent. Each native CLI call imports into a disposable Ghidra project and closes
 it; repeated calls can reimport. Evidence JSON/snapshots are saved only at
 caller-selected paths, not automatically released to the model.
 
-All 125 non-installer primary/alias CLI routes are enabled, including saved
+All 151 non-installer primary/alias CLI routes are enabled, including saved
 HAR/native mitmproxy inspection, browser/Electron/process scenarios, Android
 resource decoding, artifact extraction and reconstruction comparisons. Existing
-pinned mitmdump 12.2.3, Apktool, Chrome and NixOS resource-limit paths are supplied
+pinned mitmdump 12.2.3, Apktool, Chrome, GNU objdump, TShark/capinfos 4.6.9 and
+NixOS resource-limit paths are supplied
 explicitly. The ADB transport filters enumeration and binds every operation to
 the setup-selected running owned/rooted emulator while holding its lifecycle lock;
 it does not implicitly boot/root or change trust/proxy state. Prepare the owned
@@ -210,12 +211,24 @@ Runtime scenarios can execute code/send requests and are not sandboxes. Passive
 browser CDP observation requires an explicit dedicated debugging endpoint; a
 Chrome executable alone does not imply an already-running approved browser.
 
+New 6.5 static branches include SQLite snapshots (managed Node satisfies its
+24.15+/26+ requirement), Go/Rust build/dependency metadata, Flutter/Dart metadata,
+Electron fuses, Harmony package graphs and masked Ghidra byte search. JavaScript
+analysis accepts exact source selection; retained compact/page views preserve
+complete Evidence without repeating analysis. Saved SAZ/qlog and PCAP/PCAPNG
+inspection complement HAR/mitmproxy. These are bounded evidence workflows, not
+claims of complete source recovery or runtime equivalence.
+
 Some command routes remain capability-dependent: IDA/Hopper/JEB need licensed
 installations, firmware needs Binwalk/Unblob plus extractors, ELF layout/core
 needs the exact pwntools/pyelftools/Unicorn combination, JS source recovery needs
 Wakaru, and Apple/Windows runtime branches need their matching host. None is
-silently installed. The [command guide](skills/rea-analysis/references/commands.md)
-records these boundaries; exposed is not the same as qualified.
+silently installed. WABT 1.0.42 and sigrok-cli 0.7.2 are not wired because the
+selected Nixpkgs versions differ. REA's optional Node Frida binding is not built;
+continue using the existing managed Frida workflow. GDB/Rizin/Cutter are not
+provisioned here; their command routes require explicit execution/mutation scope.
+The [command guide](skills/rea-analysis/references/commands.md) records these
+boundaries and 6.5 schema changes; exposed is not the same as qualified.
 
 Read [REA commands/limits](skills/rea-analysis/references/commands.md) before
 queries. Pseudocode is reconstructed, static references are not runtime calls,
@@ -247,8 +260,9 @@ python3 -B tests/pi-re-rea-workflows.py --pi-re "$PI_RE_BIN" \
 ```
 
 Supply those absolute executable paths from the configured runtime. Omitting
-optional arguments skips their fixture branches. This checks all 170 advertised
-tools, CLI/MCP HAR inspection, native mitmproxy decoding, PTY capture, persistent
+optional arguments skips their fixture branches. This checks all 207 advertised
+tools, CLI/MCP HAR inspection, saved synthetic packet inspection/summaries,
+native mitmproxy decoding, PTY capture, persistent
 Ghidra open/query/close and a fresh owned Chrome click/network scenario. It never
 attaches to a personal browser, calls an external site, boots a device or uses a
 real model. A passing fixture does not qualify arbitrary targets or optional
@@ -256,7 +270,8 @@ engines; real-device REA acquisition remains untested.
 
 Owned-fixture backend coverage includes native function/string/xref/instruction/
 decompilation, missing-symbol/malformed-input failures, Android package/class/
-method/reference queries and a JavaScript/Electron IPC/import graph. Checks
+method/reference queries, a JavaScript/Electron IPC/import graph, SQLite selected
+rows and GNU objdump symbols. Checks
 preserve original hashes and verify no new Ghidra runtime directories remain.
 This establishes these fixture paths, not blanket support for arbitrary apps.
 The installed loader additionally executes the Pi Bash tool and pinned REA

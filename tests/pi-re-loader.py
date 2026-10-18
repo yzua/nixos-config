@@ -150,7 +150,7 @@ def main():
                 field = next(iter(properties))
                 script = (
                     'const ns = await describeNamespace("mcp__rea");'
-                    'if (!ns || ns.tools.length !== 170) throw new Error("REA tool inventory missing");'
+                    'if (!ns || ns.tools.length !== 207) throw new Error("REA tool inventory missing");'
                     "const r = await tools.mcp__rea__binary_session({});"
                     "if (r.isError) throw new Error(JSON.stringify(r));"
                     'text("REA_MCP_DISCOVERY_OK");'
@@ -503,7 +503,7 @@ def main():
             assert "ROOT_RESEARCH_FIRST_MARKER" in json.dumps(research_requests[1])
             assert "PRIVATE_HISTORY_CANARY" not in json.dumps(research_requests)
             if args.pi_re:
-                assert tool_responses and "6.4.0" in json.dumps(tool_responses), tool_responses
+                assert tool_responses and "6.5.0" in json.dumps(tool_responses), tool_responses
                 assert "reverse-engineer-anything" in body, "Official release skill missing"
                 assert "codemode" in tool_names, "MCP discovery tool missing"
                 assert "mcp__rea" in body, "Managed REA namespace missing"

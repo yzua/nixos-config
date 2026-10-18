@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import signal
+import sqlite3
 import subprocess
 import tempfile
 from pathlib import Path
@@ -89,7 +90,7 @@ def main():
         assert not doctor["profileInitialized"], (
             "Static queries must not initialize/read coding login"
         )
-        assert run("version", ["rea", "--version"], structured=False) == "6.4.0"
+        assert run("version", ["rea", "--version"], structured=False) == "6.5.0"
         health = run("ghidra-readiness", ["rea", "doctor", "--provider", "ghidra", "--json"])
         assert health["healthy"] and health["scope"]["mode"] == "explicit"
         # NixOS is outside upstream's whole-host distribution allowlist; scoped checks matter.
@@ -146,6 +147,34 @@ def main():
         assert graph["edges"]
         assert any(node["kind"] == "ipc-handler" for node in graph["nodes"])
         assert "rea:score" in json.dumps(graph)
+        selected = run(
+            "javascript-selected-source",
+            [
+                "rea",
+                "analyze-javascript-application",
+                ROOT / "tests/fixtures/pi-re-rea/javascript",
+                "--source-path",
+                "main.js",
+                "--json",
+            ],
+        )["normalized_result"]
+        assert selected["source_selection"]["requested_paths"] == ["main.js"]
+        assert selected["source_selection"]["unselected_files"] == 2
+        assert selected["statistics"]["parsed_javascript_files"] == 1
+        assert selected["graph"]["coverage"]["status"] == "partial"
+        sqlite = home / "owned.sqlite"
+        with sqlite3.connect(sqlite) as database:
+            database.execute("CREATE TABLE owned (id INTEGER PRIMARY KEY, marker TEXT)")
+            database.execute("INSERT INTO owned(marker) VALUES ('REA_SQLITE_MARKER')")
+        sqlite_hash = digest(sqlite)
+        inspected = run(
+            "sqlite", ["rea", "inspect-sqlite-database", sqlite, "--table", "owned", "--json"]
+        )
+        assert inspected["operation"] == "inspect_sqlite_database"
+        assert "REA_SQLITE_MARKER" in json.dumps(inspected)
+        assert digest(sqlite) == sqlite_hash
+        objdump = run("objdump", ["rea", "inspect-with-objdump", native, "symbols", "--json"])
+        assert "rea_leaf" in json.dumps(objdump)
         if apk:
             package = run("android-package", ["rea", "inspect-android-package", apk, "--json"])
             assert package["subject"]["digest"]["sha256"] == hashes[apk]

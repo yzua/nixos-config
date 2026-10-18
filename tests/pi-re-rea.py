@@ -108,6 +108,7 @@ class ReaTests(unittest.TestCase):
             "REA_GHIDRA_COMPILER_SPEC_ID": "default",
             "REA_GHIDRA_SEED_FILE": "/owned/seeds.tsv",
             "REA_GHIDRA_STARTUP_TIMEOUT_MS": "420000",
+            "REA_GHIDRA_DISABLED_ANALYZERS": "DWARF",
         }
         _, env = rea.command(
             self.config,
@@ -144,6 +145,12 @@ class ReaTests(unittest.TestCase):
             ["capture-process", "scenario.json", "--json"],
             ["capture-browser-scenario", "scenario.json", "--json"],
             ["inspect-analysis-view", "request.json", "--json"],
+            ["inspect-sqlite-database", "snapshot.sqlite", "--json"],
+            ["inspect-packet-capture", "owned.pcap", "--json"],
+            ["inspect-pcap-capture", "owned.pcap", "--json"],
+            ["inspect-rust-binary", "owned.elf", "--json"],
+            ["identify-flutter-build", "owned.apk", "--json"],
+            ["inspect-with-objdump", "owned.elf", "--json"],
         ):
             argv, _ = rea.command(self.config, self.locations, args, {})
             self.assertEqual(argv[1:], args)
@@ -191,13 +198,39 @@ class ReaTests(unittest.TestCase):
 
     def test_runtime_lock_preserves_release_pins_without_dev_dependencies(self):
         lock = json.loads((ROOT / "packages/rea/package-lock.json").read_text())
-        self.assertEqual(lock["version"], "6.4.0")
+        self.assertEqual(lock["version"], "6.5.0")
         self.assertNotIn("devDependencies", lock["packages"][""])
         self.assertFalse(any(item.get("dev") for item in lock["packages"].values()))
         for name, item in lock["packages"].items():
             if name:
                 self.assertTrue(item["resolved"].startswith("https://registry.npmjs.org/"))
                 self.assertTrue(item["integrity"].startswith("sha512-"))
+
+    def test_release_inventory_and_managed_packet_tools(self):
+        self.assertEqual(len(rea.COMMANDS), 151)
+        self.assertTrue(
+            {
+                "search-bytes",
+                "inspect-signal-decoders",
+                "decode-signal-recording",
+                "inspect-wasm-artifact",
+                "compare-wasm-interfaces",
+                "inspect-electron-fuses",
+                "project-harmony-application-graph",
+                "instrument-with-frida",
+            }
+            <= rea.COMMANDS
+        )
+        module = (CODE / "default.nix").read_text()
+        for setting in (
+            'REA_TSHARK_COMMAND = "${pkgs.wireshark-cli}/bin/tshark"',
+            'REA_CAPINFOS_COMMAND = "${pkgs.wireshark-cli}/bin/capinfos"',
+            'REA_TSHARK_PRLIMIT_COMMAND = "${pkgs.util-linux}/bin/prlimit"',
+            'REA_OBJDUMP_COMMAND = "${pkgs.binutils}/bin/objdump"',
+        ):
+            self.assertIn(setting, module)
+        package = (ROOT / "packages/rea/default.nix").read_text()
+        self.assertIn('npmFlags = [ "--ignore-scripts" ]', package)
 
     def test_adb_transport_selects_owned_root_and_sanitizes_enumeration(self):
         lab = MagicMock()

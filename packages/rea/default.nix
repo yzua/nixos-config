@@ -5,10 +5,10 @@ let
   lock = builtins.fromJSON (builtins.readFile ./package-lock.json);
   cli = pkgs.stdenvNoCC.mkDerivation {
     pname = "rea-agents";
-    version = "6.4.0";
+    version = "6.5.0";
     src = pkgs.fetchurl {
-      url = "https://registry.npmjs.org/rea-agents/-/rea-agents-6.4.0.tgz";
-      hash = "sha512-Vj1zWfSlna5bphGoaoI/TcVBuYvze9u+OyPC3Shz8YkBqaCTqB4COnnRoX7XDwMpwI24ZlFEel2yEj0k8LTWEQ==";
+      url = "https://registry.npmjs.org/rea-agents/-/rea-agents-6.5.0.tgz";
+      hash = "sha512-C6BG7LyrAdR74mSjertM6PrxJkcNZ2bfQNOJornPo9erDEp2tyPRVYPnV5Yodr+1RqewCQla68WulXlVnveD+A==";
     };
     npmDeps = pkgs.importNpmLock {
       package = lock.packages."";
@@ -21,6 +21,7 @@ let
       pkgs.autoPatchelfHook
     ];
     buildInputs = [ (pkgs.lib.getLib pkgs.stdenv.cc.cc) ];
+    # In particular, do not run optional Frida's downloader/native build.
     npmFlags = [ "--ignore-scripts" ];
     dontBuild = true;
     installPhase = ''
@@ -49,7 +50,7 @@ let
       mainProgram = "rea";
     };
   };
-  # REA 6.4.0 verifies this build and accepts the 12.1.x release line.
+  # REA 6.5.0 verifies this build and accepts the 12.1.x release line.
   ghidra = pkgs.ghidra-bin.overrideAttrs (old: {
     version = "12.1.4";
     versiondate = "20260921";

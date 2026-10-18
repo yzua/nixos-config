@@ -59,6 +59,10 @@ let
           REA_ADB_PATH = "${reaAdb}";
           REA_APKTOOL_COMMAND = "${pkgs.apktool}/bin/apktool";
           REA_MITMDUMP_COMMAND = "${pkgs.mitmproxy}/bin/mitmdump";
+          REA_TSHARK_COMMAND = "${pkgs.wireshark-cli}/bin/tshark";
+          REA_CAPINFOS_COMMAND = "${pkgs.wireshark-cli}/bin/capinfos";
+          REA_TSHARK_PRLIMIT_COMMAND = "${pkgs.util-linux}/bin/prlimit";
+          REA_OBJDUMP_COMMAND = "${pkgs.binutils}/bin/objdump";
           REA_BROWSER_EXECUTABLE = "${pkgs.google-chrome}/bin/google-chrome-stable";
           REA_EVM_PRLIMIT_COMMAND = "${pkgs.util-linux}/bin/prlimit";
           REA_FIRMWARE_PRLIMIT_COMMAND = "${pkgs.util-linux}/bin/prlimit";
@@ -106,10 +110,13 @@ let
           tools = {
             rea = "${reaTools.cli}/bin/rea";
             mitmdump = "${pkgs.mitmproxy}/bin/mitmdump";
+            tshark = "${pkgs.wireshark-cli}/bin/tshark";
+            capinfos = "${pkgs.wireshark-cli}/bin/capinfos";
             browser = "${pkgs.google-chrome}/bin/google-chrome-stable";
           };
           versions = {
             mitmproxy = pkgs.mitmproxy.version;
+            wireshark = pkgs.wireshark-cli.version;
             browser = pkgs.google-chrome.version;
           };
         }

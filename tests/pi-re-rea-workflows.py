@@ -9,11 +9,18 @@ import os
 import selectors
 import shutil
 import signal
+import struct
 import subprocess
 import tempfile
 import threading
 import time
 from pathlib import Path
+
+
+def evidence(result):
+    if "structuredContent" in result:
+        return result["structuredContent"]
+    return json.loads(next(item["text"] for item in result["content"] if item["type"] == "text"))
 
 
 class Mcp:
@@ -40,7 +47,7 @@ class Mcp:
                 "clientInfo": {"name": "owned-rea-fixtures", "version": "1"},
             },
         )
-        assert result["serverInfo"]["version"] == "6.4.0"
+        assert result["serverInfo"]["version"] == "6.5.0"
         self.send({"jsonrpc": "2.0", "method": "notifications/initialized"})
 
     def send(self, message):
@@ -178,7 +185,7 @@ def main():
         client = Mcp(launcher, env, directory)
         try:
             tools = client.request("tools/list", {})["tools"]
-            assert len(tools) == 170
+            assert len(tools) == 207
             inventory = {tool["name"] for tool in tools}
             assert {
                 "open_binary",
@@ -187,13 +194,87 @@ def main():
                 "set_address_name",
                 "inspect_web_network_capture",
                 "capture_browser_scenario",
+                "inspect_sqlite_database",
+                "inspect_packet_capture",
+                "inspect_go_binary",
+                "inspect_rust_binary",
+                "identify_flutter_build",
+                "inspect_dart_aot",
+                "inspect_electron_fuses",
             } <= inventory
-            checks.append("mcp-170-tools")
+            checks.append("mcp-207-tools")
             result = client.call(
                 "inspect_web_network_capture", {"capture_path": str(har), "format": "har"}
             )
             assert "REA_NETWORK_MARKER" in json.dumps(result)
             checks.append("mcp-offline-har")
+            summary = evidence(
+                client.call(
+                    "inspect_web_network_capture",
+                    {"capture_path": str(har), "format": "har", "detail": "summary"},
+                )
+            )
+            parent = summary["normalized_result"]["parent_evidence_id"]
+            page = evidence(
+                client.call(
+                    "inspect_analysis_view",
+                    {
+                        "source": {"kind": "retained-evidence", "evidence_id": parent},
+                        "view": {"kind": "capture", "detail": "complete", "offset": 0, "limit": 1},
+                    },
+                )
+            )
+            assert page["normalized_result"]["parent_evidence_id"] == parent
+            assert "REA_NETWORK_MARKER" in json.dumps(page)
+            assert len(json.dumps(page)) <= 128 * 1024
+            checks.append("mcp-retained-capture-summary-page")
+            malformed = directory / "malformed.sqlite"
+            malformed.write_bytes(b"owned malformed SQLite fixture")
+            result = client.request(
+                "tools/call",
+                {"name": "inspect_sqlite_database", "arguments": {"path": str(malformed)}},
+            )
+            assert result.get("isError"), result
+            checks.append("mcp-malformed-sqlite")
+            # One synthetic Ethernet/IPv4/UDP packet; never acquire live traffic.
+            packet = (
+                bytes.fromhex("0000000000010000000000020800")
+                + bytes.fromhex("450000200001000040117cc67f0000017f000002")
+                + struct.pack("!HHHH", 12345, 54321, 12, 0)
+                + b"REA!"
+            )
+            pcap = directory / "owned.pcap"
+            pcap.write_bytes(
+                struct.pack("<IHHIIII", 0xA1B2C3D4, 2, 4, 0, 0, 65535, 1)
+                + struct.pack("<IIII", 1, 0, len(packet), len(packet))
+                + packet
+            )
+            packet_hash = hashlib.sha256(pcap.read_bytes()).hexdigest()
+            result = client.call(
+                "inspect_packet_capture",
+                {"path": str(pcap), "fields": ["ip.src", "udp.dstport"], "match_limit": 1},
+            )
+            assert "54321" in json.dumps(result), result
+            client.call("inspect_pcap_client", {})
+            result = client.call("inspect_pcap_capture", {"path": str(pcap)})
+            assert "127.0.0.1" in json.dumps(result), result
+            assert hashlib.sha256(pcap.read_bytes()).hexdigest() == packet_hash
+            checks.append("mcp-offline-packet-and-pcap")
+            malformed = directory / "malformed.pcap"
+            malformed.write_bytes(b"owned malformed packet fixture")
+            result = client.request(
+                "tools/call",
+                {
+                    "name": "inspect_packet_capture",
+                    "arguments": {"path": str(malformed), "fields": ["ip.src"]},
+                },
+            )
+            assert result.get("isError"), result
+            failure = evidence(result)["error"]
+            assert failure["code"] == "execution_failure", failure
+            assert failure["details"]["provider_id"] == "tshark-capture", failure
+            assert "isn't a capture file" in failure["details"]["diagnostics"]["stderr"], failure
+            checks.append("mcp-malformed-packet")
             if args.python:
                 flow = directory / "owned.mitm"
                 source = (
@@ -234,6 +315,10 @@ def main():
                 client.call("open_binary", {"path": str(native), "provider_id": "ghidra"})
                 result = client.call("analyze_function", {"procedure": "rea_leaf"})
                 assert "PI_RE_REA_SENTINEL" in json.dumps(result)
+                graph = evidence(client.call("get_call_graph", {"address": "rea_leaf"}))[
+                    "normalized_result"
+                ]
+                assert "graph" in graph and "limitations" in graph
                 client.call("close_binary", {})
                 assert hashlib.sha256(native.read_bytes()).hexdigest() == digest
                 checks.append("mcp-persistent-ghidra-function-close")
