@@ -576,8 +576,12 @@ class PiRegressions(unittest.TestCase):
         )
         results = self.probes("model-guard")
         self.assertEqual(
-            set(results["refused"]), {"override", "profile", "unavailable", "cross-provider"}
+            set(results["refused"]),
+            {"override", "profile", "unavailable", "cross-provider", "scoped"},
         )
+        self.assertIn("not an available registered model", results["refused"]["scoped"])
+        self.assertIn("configured-provider/offline-shared", results["refused"]["scoped"])
+        self.assertIn("Available: configured-provider/offline-shared. Omit", results["refused"]["scoped"])
         self.assertIn("belongs to provider zai-like", results["refused"]["cross-provider"])
         self.assertIn("configured-provider", results["refused"]["cross-provider"])
         for label in ["override", "profile"]:
@@ -591,7 +595,9 @@ class PiRegressions(unittest.TestCase):
             self.assertIn("--model 'configured-provider/offline-shared'", launch["command"])
             self.assertEqual(launch["loadout"]["model"], "configured-provider/offline-shared")
         self.assertEqual(results["valid"][0]["name"], "guard", results)
-        inherited, emptyOverride, role, claude, thinkingCase = results["valid"][3:]
+        inherited, emptyOverride, role, claude, thinkingCase, scopedCase = results["valid"][3:]
+        self.assertEqual(scopedCase["label"], "scoped")
+        self.assertIn("--model 'configured-provider/offline-shared'", scopedCase["command"])
         self.assertNotIn("--model", inherited["command"])
         self.assertIsNone(inherited["loadout"]["model"])
         self.assertEqual(emptyOverride["label"], "empty-override")

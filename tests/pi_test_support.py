@@ -1,6 +1,8 @@
 """Lazy resources and caller isolation for ordinary offline Pi regressions."""
 
+import json
 import os
+import re
 import shutil
 from pathlib import Path
 
@@ -29,6 +31,40 @@ def pdf_fixture(padding=0):
     return result
 
 
+def _direct_pi_behind_wrapper(executable: Path) -> str | None:
+    """Resolve the pinned binary behind a managed resume-dispatch wrapper.
+
+    The compatibility `pi` command dispatches through launcher scripts that
+    normalize the environment for cross-profile safety. Direct-binary suites
+    simulate explicit-load profiles themselves, so they need the real binary.
+    """
+    try:
+        if executable.read_bytes()[:1] != b"#":
+            return None  # Already the direct binary.
+    except OSError:
+        return None
+    # The compatibility command may chain launcher scripts before the runtime
+    # description appears; follow that chain for a bounded number of hops.
+    scripts = [executable]
+    try:
+        scripts.append(Path(executable.resolve()))
+        for _hop in range(3):
+            text = "\n".join(path.read_text(errors="replace")[:4000] for path in scripts)
+            match = re.search(r"(\S+-pi-coding-runtime\.json)", text)
+            if match:
+                config = json.loads(Path(match.group(1)).read_text())
+                candidate = Path(config["pi"])
+                if candidate.is_file() and os.access(candidate, os.X_OK):
+                    return str(candidate)
+            launch = re.search(r"(\S+-pi-coding-launch)\b", text)
+            if not launch:
+                break
+            scripts.append(Path(launch.group(1)))
+    except (OSError, ValueError, KeyError):
+        pass
+    return None
+
+
 def require_pi() -> str:
     """Resolve the caller's Pi executable before changing fixture cwd or identity."""
     override = os.environ.get("PI_BIN")
@@ -42,7 +78,8 @@ def require_pi() -> str:
         raise SystemExit(
             "Pi is required for loader regressions; install the managed profile or set PI_BIN."
         )
-    return str(Path(executable).absolute())
+    resolved = Path(executable).absolute()
+    return _direct_pi_behind_wrapper(resolved) or str(resolved)
 
 
 def require_web_fetch_dependencies() -> Path:

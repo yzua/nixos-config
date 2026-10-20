@@ -106,6 +106,24 @@ function sessionProvider(ctx: unknown): string | null {
   return fromEnv && fromEnv.trim() ? fromEnv.trim() : null;
 }
 
+/**
+ * Intersect with the session's enabledModels scope when configured, so catalog
+ * entries the plan cannot use never surface to agents. An empty intersection
+ * never removes the whole catalog.
+ */
+function scopeToEnabled(
+  ctx: unknown,
+  pool: readonly { provider: string; id: string }[],
+): { provider: string; id: string }[] {
+  const scoped = (
+    ctx as { scopedModels?: { model: { provider: string; id: string } }[] } | undefined
+  )?.scopedModels;
+  if (!scoped?.length) return [...pool];
+  const allowed = new Set(scoped.map((entry) => `${entry.model.provider}/${entry.model.id}`));
+  const filtered = pool.filter((m) => allowed.has(`${m.provider}/${m.id}`));
+  return filtered.length ? filtered : [...pool];
+}
+
 /** Resolve the global agent config directory, respecting PI_CODING_AGENT_DIR. */
 function getAgentConfigDir(): string {
   return (
@@ -795,7 +813,7 @@ async function launchSubagent(
     const providerPool = provider ? available.filter((m) => m.provider === provider) : [];
     // Scope to the session's provider only when that provider has registered
     // models; an unknown/empty provider must not empty the whole catalog.
-    const pool = providerPool.length ? providerPool : available;
+    const pool = scopeToEnabled(ctx, providerPool.length ? providerPool : available);
     const qualified = pool.filter((m) => `${m.provider}/${m.id}` === requested);
     const matches = qualified.length ? qualified : pool.filter((m) => m.id === requested);
     if (matches.length === 0) {
@@ -1275,7 +1293,8 @@ export default function subagentsExtension(pi: ExtensionAPI) {
         const available = await ctx?.modelRegistry?.getAvailable();
         if (available?.length) {
           const provider = sessionProvider(ctx);
-          const pool = provider ? available.filter((m) => m.provider === provider) : available;
+          const providerPool = provider ? available.filter((m) => m.provider === provider) : [];
+          const pool = scopeToEnabled(ctx, providerPool.length ? providerPool : available);
           if (pool.length) {
             const ids = pool.map((m) => `${m.provider}/${m.id}`);
             modelsLine =

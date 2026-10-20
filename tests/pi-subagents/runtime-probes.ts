@@ -124,6 +124,22 @@ export default function (pi: ExtensionAPI) {
               if (previousProvider === undefined) delete process.env.PI_PROVIDER;
               else process.env.PI_PROVIDER = previousProvider;
             }
+            const scopedContext = { ...context };
+            (scopedContext as any).scopedModels = [
+              { model: { provider: "configured-provider", id: "offline-shared" } },
+            ];
+            const scopedRun = (tool: string, args: Record<string, unknown>) =>
+              tools.get(tool)!.execute("fixture", args, undefined, undefined, scopedContext);
+            try {
+              await scopedRun("subagent", {
+                agent: "fixture",
+                name: "guard",
+                task: "must not launch",
+                model: "zai-like/offline-other",
+              });
+            } catch (error) {
+              refused["scoped"] = String(error);
+            }
             results.refused = refused;
             results.panesBeforeValid = existsSync(join(root, "pane-count"))
               ? readFileSync(join(root, "pane-count"), "utf8")
@@ -155,12 +171,14 @@ export default function (pi: ExtensionAPI) {
               ["profile", undefined, "offline-shared", undefined],
               ["inherit", undefined, undefined, undefined],
               ["empty-override", "", undefined, undefined],
+              ["scoped", "offline-shared", undefined, undefined],
               ["role", "role-provider/offline-role", undefined, undefined],
               ["claude", "sonnet", "opus", "claude"],
               ["thinking", undefined, undefined, undefined],
             ]) {
               setProfile(profileModel, cli);
-              const response = await run("subagent", {
+              const invoke = label === "scoped" ? scopedRun : run;
+              const response = await invoke("subagent", {
                 agent: "fixture",
                 name: "guard",
                 task: "offline task",
