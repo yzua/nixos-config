@@ -110,7 +110,7 @@ function sessionProvider(ctx: unknown): string | null {
   const provider = (ctx as { model?: { provider?: string } } | undefined)?.model?.provider;
   if (provider) return provider;
   const fromEnv = process.env.PI_PROVIDER;
-  return fromEnv && fromEnv.trim() ? fromEnv.trim() : null;
+  return fromEnv?.trim() ? fromEnv.trim() : null;
 }
 
 /**

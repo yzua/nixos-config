@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Run OpenRGB with access to only the configured USB HID controllers.
 # The caller's normal uaccess ACLs still apply; never elevate privileges.
 
