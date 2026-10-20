@@ -29,7 +29,7 @@ from pi_test_support import (
 )
 
 REPO = Path(__file__).resolve().parents[1]
-EXTENSIONS = REPO / "home-manager/modules/ai/pi/extensions"
+EXTENSIONS = REPO / "home-manager/modules/ai/pi-base/extensions"
 TEXT_LIMIT = 5 * 1024 * 1024
 PDF_LIMIT = 20 * 1024 * 1024
 
@@ -454,7 +454,10 @@ export default function (pi) {
                     process.stderr.close()
 
     def test_safe_bash_executes_and_blocks_harmless_pattern_probes(self):
-        extension = EXTENSIONS / "interactive-subagents/pi-extension/subagents/tools/safe-bash.ts"
+        extension = (
+            REPO
+            / "home-manager/modules/ai/pi-base/extensions/interactive-subagents/pi-extension/subagents/tools/safe-bash.ts"
+        )
         result = self.call("safe_bash", {"command": "printf PI_SAFE_BASH_OK"}, extension)
         self.assertFalse(result["isError"], result)
         self.assertIn("PI_SAFE_BASH_OK", json.dumps(result["result"]))

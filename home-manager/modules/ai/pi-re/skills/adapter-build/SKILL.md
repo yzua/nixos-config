@@ -22,7 +22,7 @@ Load [intake](../re-intake/SKILL.md) for new/changed build or deployment scope.
 - Authorized local execution and finite build/test/time/storage budgets.
 - Separate live compatibility and deployment permissions if requested.
 
-A copied provider/login profile is not an application secret source. Keep target
+The shared base provider/login configuration is not an application secret source. Keep target
 and provider credentials out of fixtures/code/config/model-visible commands.
 Unknown executable samples/build hooks need an approved whole-process lab boundary.
 

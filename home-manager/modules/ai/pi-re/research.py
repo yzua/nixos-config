@@ -178,13 +178,14 @@ def run_turn(
     env = dict(os.environ if env is None else env)
     agent, expected_state = caller_paths(env)
     if (
-        state != expected_state
+        env.get("PI_PROFILE") != "pi-re"
+        or state != expected_state
         or env.get("PI_CODING_AGENT_DIR") != str(agent)
         or env.get("PI_RE_CHILD") == "1"
         or env.get("PI_RE_RESEARCH") == "1"
         or env.get("PI_RE_CONFIG") != str(config_path)
     ):
-        raise ValueError("Research delegation requires the root independent RE profile")
+        raise ValueError("Research delegation requires the reviewed root RE profile")
     if not NAME.fullmatch(name):
         raise ValueError("Use a lowercase research name of at most 48 letters, digits, _ or -")
     if not task.strip() or "\0" in task or len(task.encode()) > PROMPT_BYTES:

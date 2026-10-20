@@ -1,10 +1,87 @@
-# Pi configuration
+# Pi base and profiles
 
-Home Manager links the global instructions, prompts, agent profiles, four
-locally owned Amos-derived extensions, native web search, and opt-in network diagnostics. Settings, custom models, credentials, sessions, and
-Herdr's extension remain writable and separately owned. `extension-resources.nix`
-builds the immutable extension bundle shared with `pi-re`; each profile explicitly
-selects its own resources and resolves credentials from its own writable state.
+```text
+pi-base                 shared executable, preferences and immutable common resources
+├─ pi-coding (pi, p)     existing coding discovery and coding prompts
+├─ pi-re                reviewed RE loadout, owned lab and bounded workers
+└─ pi-home              personal instructions and on-demand Samsung TV controls
+```
+
+`pi-base` also opens a neutral explicit-load chat. The common extension catalog in
+`resources.nix` owns questions, web search, web/PDF fetching, interactive subagents,
+retry normalization, prompt snippets, network diagnostics and pinned Herdr integration.
+All root profiles inherit this catalog, not duplicated implementations. Base also
+provides the managed Chrome DevTools CLI and the shared `chrome-devtools-cli` skill.
+Explicit-load roots select its complete pinned directory (including references);
+coding keeps native discovery of the skills.sh-owned mutable copy. Loading the skill
+never starts Chrome. Browser tasks must use their own page IDs and close only owned
+pages; parallel general agents may share the CLI daemon. RE's additional browser
+ownership/scope rules still apply. Shared agent
+roles live in `agents/`; RE additionally keeps its two specialized delegation systems. Home Manager links the base extensions/instructions
+into the existing coding discovery directory; Herdr retains ownership of its writable
+coding reporter. Explicit-load roots use the pinned reporter directly.
+
+For new Home/Base/RE interactive workers, a saved child policy pins the native Pi,
+canonical configuration path, origin instructions/skills, explicit extension/tool
+loadout and `${XDG_STATE_HOME:-$HOME/.local/state}/<profile>/interactive-subagents/sessions`.
+Project agent overrides/context/extensions and cwd-local agent directories are not
+automatically imported. Named resumes replay that policy; workers with delegation
+grants pass it to nested workers. Historical coding loadouts keep native behavior.
+Worker sessions resume through `subagent_message`, not as unrestricted root chats.
+Domain policies support Pi roles; alternate Claude roles remain coding-only rather
+than bypassing origin instructions and loadout restrictions.
+
+## One live configuration, separate histories
+
+All profiles use the **same lexical `~/.pi/agent` directory** for native auth,
+models and settings, including saved model/thinking defaults and other global UI
+preferences. The existing `pi-config/initialized-v1.json` policy marker is retained;
+renaming the coding profile does not reapply defaults or move its sessions/sidecars.
+There are no credential copies or auth/settings file symlinks: Pi 1.1.0 locks lexical
+filenames, so separate aliases would not coordinate concurrent token refreshes.
+Native credential refresh and settings writes remain Pi-owned. New launches observe
+saved defaults; use native `/reload` or model selection for running sessions rather
+than expecting instant changes in every already-running model registry.
+
+Coding keeps native project trust/discovery and its existing session lookup.
+Other root histories are under `${XDG_STATE_HOME:-$HOME/.local/state}/<profile>/sessions`.
+`pi` and `pi-coding` preserve ordinary argv and dispatch explicit RE/Home/Base session
+paths back through the owning launcher, including Herdr cold restore. Bare IDs stay
+native coding lookups; runtime and research worker artifacts cannot become roots.
+Cross-profile launches clear inherited RE helper/session overrides. A deliberately
+supplied native coding `PI_CODING_AGENT_DIR` still works for custom role profiles and
+isolated fixtures; it opts out of the managed shared default. RE/Home/Base ignore
+that ambient override and use their canonical base path.
+
+Close legacy RE sessions before the first activation/`pi-re init`. Migration takes
+native file mutexes in both profiles and best-effort checks for old processes;
+it never kills them. After an abrupt migration exit, empty caller-owned native
+mutexes recover only after the native 30-second stale period and another writer
+check; foreign, nonempty or changed locks stay fail-closed. This is best-effort
+process detection, not guaranteed lifetime writer exclusion.
+
+Existing RE auth/models/settings are atomically archived, without overwriting,
+under `${XDG_DATA_HOME:-$HOME/.local/share}/pi-re/backups/shared-config-v1`.
+A one-time, restart-safe merge adds compatible missing provider definitions, model
+IDs and logins to the live base. Current Pi defaults, existing model IDs and logins
+win conflicts. Missing models merge only when provider routing definitions match;
+auth is not imported across conflicting endpoints. An existing login/default also
+protects implicit built-in routing from legacy endpoint overrides. Unrecognized or
+conflicting legacy values remain in the private archive for deliberate recovery;
+no settings preferences are imported. A separate RE migration marker records the
+backup path and merge policy. Reappearing legacy files block launch rather than silently selecting a stale
+login. No secrets enter Nix evaluation, the store or logs.
+
+RE and Home suppress ambient resource discovery despite sharing settings. RE's native
+MCP factory has an empty file-config loader and registers only its pinned session
+server; coding/project MCP files are not read or connected. Home/Base disable MCP.
+Specialized RE workers retain their restricted tool/model/loadout contracts. General
+interactive subagents are also available in RE and have broader role-dependent host
+access; do not confuse them with the four-tool research workers. Shared configuration
+is intentionally not a security boundary. See [RE](../pi-re/README.md) and
+[Home/TV](../pi-home/README.md) for domain-specific behavior.
+
+## Initial defaults and coding integrations
 
 The first activation backs up existing settings/models beneath
 `${XDG_STATE_HOME:-$HOME/.local/state}/pi-config/backups/`, selects GPT-6.1 Sol
@@ -87,12 +164,13 @@ No new credentials, packages, or mutable profile settings are needed.
 
 Web fetch extracts pages/PDFs locally. Failed extraction directs the agent to the existing
 Chrome DevTools CLI skill rather than automatically sending URLs to Jina.
-Pi has no MCP tools configured; the Chrome CLI retains its own daemon.
+Coding's initial settings disable native MCP; RE owns its separate session registration.
+The Chrome CLI retains its own daemon.
 
 Edit TypeScript directly in `extensions/`: `ask-user-question.ts`,
 `upstream-retry.ts`, `prompt-snippets/index.ts`, `web-fetch/index.ts`, `web-search/index.ts`, and
-`interactive-subagents/pi-extension/subagents/`. Agent profiles and prompts
-are alongside this README. Stage new files, run the checks and Home Manager
+`extensions/interactive-subagents/pi-extension/subagents/`.
+Shared agent roles are in `agents/`; coding prompts remain in `../pi-coding/prompts/`. Stage new files, run the checks and Home Manager
 preview, then `just home-switch` and `/reload` in Pi to load edits.
 
 The initial sources were copied from `amosblomqvist/pi-config` commit
@@ -101,7 +179,7 @@ The initial sources were copied from `amosblomqvist/pi-config` commit
 `c3e8b53c0754ae5ccc19fdab5a7481ec039bc2f7`. Source files, lockfiles, and the
 subagent license/tests are in this repository; builds use those local files.
 The extension's bundled `agents/` retains upstream fallback examples. This
-workstation's configured profiles in the adjacent `agents/` directory override
+caller's configured profiles in `agents/` override
 those examples; edit the configured profiles for local model/tool policy. An
 alternate Pi profile without those overrides can select the upstream fallbacks,
 whose model and tool requirements differ and must be reviewed before use.
@@ -164,7 +242,11 @@ outer tmux variables, atomic input, separate named tabs, ownership across server
 replacement, and pane-loss reporting. `python3 tests/pi-herdr-live.py` checks real
 tab naming, focus/geometry preservation and cleanup in its own temporary session.
 `python3 tests/pi-resume-dispatch.py` checks that Herdr's `pi --session` restore
-command routes RE root sessions through `pi-re`; ordinary coding Pi is unchanged.
+command routes RE/Home/Base root sessions to their owning launchers and rejects
+headless runtime/research artifacts; ordinary coding argv is unchanged.
+`python3 -B tests/pi-profiles.py` checks base inheritance, live shared native
+configuration and cross-profile environment handling. `python3 -B tests/pi-home-tv.py`
+uses fake transports only; it never connects to a TV.
 After activation, `python3 tests/pi-herdr-focus.py`
 uses a separate tmux server and named Herdr session to check real desktop attention
 alerts with focus forwarding disabled/enabled (requires a graphical session and strace).

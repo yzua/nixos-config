@@ -112,6 +112,25 @@ opt-in commands.
 `just test-preview-roots-gc` separately verifies preview retention by running GC
 only in a disposable local Nix store, never on the workstation store.
 
+## Pi profiles
+
+`pi` remains an alias for `pi-coding` (and `p` still adds project approval).
+[Pi base](home-manager/modules/ai/pi-base/README.md) owns common extensions and the
+one live login/model/global settings configuration at the existing `~/.pi/agent`.
+Web search, web/PDF fetching, interactive subagents and the Chrome DevTools CLI/skill
+are shared by all root profiles;
+RE additionally retains its specialized restricted workers.
+Coding retains native discovery/history; `pi-re` and `pi-home` use separate histories
+and explicit domain loadouts. Herdr's `pi --session` restore routes each root back
+to its owning profile and rejects headless worker artifacts.
+
+Close legacy RE sessions before the first Home Manager activation. Migration privately
+archives their original auth/models/settings and merges compatible RE-only
+providers, models and logins into the shared configuration. Current Pi defaults
+and conflicting values stay unchanged. No activation is needed just to evaluate or preview. [Pi Home](home-manager/modules/ai/pi-home/README.md)
+adds personal assistance and on-demand Samsung TV controls; it starts no TV connection
+or background service. Device actions require an explicit request.
+
 ## Layout
 
 - `flake.nix` and `flake.lock`: outputs and pinned dependencies.

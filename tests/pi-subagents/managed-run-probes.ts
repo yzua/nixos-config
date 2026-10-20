@@ -4,8 +4,8 @@ import { existsSync, mkdirSync, readFileSync, rmdirSync, unlinkSync, writeFileSy
 import { join } from "node:path";
 import subagents, {
   __test__,
-} from "../../home-manager/modules/ai/pi/extensions/interactive-subagents/pi-extension/subagents/index.ts";
-import { inspectSubagentWriterLease } from "../../home-manager/modules/ai/pi/extensions/interactive-subagents/pi-extension/subagents/session.ts";
+} from "../../home-manager/modules/ai/pi-base/extensions/interactive-subagents/pi-extension/subagents/index.ts";
+import { inspectSubagentWriterLease } from "../../home-manager/modules/ai/pi-base/extensions/interactive-subagents/pi-extension/subagents/session.ts";
 
 // Load through installed Pi and invoke its registered tools with fake tmux.
 // Cleanup fault coverage also injects a real filesystem failure at its adapter.

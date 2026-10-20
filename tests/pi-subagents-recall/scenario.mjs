@@ -6,7 +6,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { record } from "./mux.mjs";
 
 const root = process.env.PI_RECALL_ROOT;
-const source = new URL("../../home-manager/modules/ai/pi/extensions/interactive-subagents/pi-extension/subagents/index.ts", import.meta.url);
+const source = new URL("../../home-manager/modules/ai/pi-base/extensions/interactive-subagents/pi-extension/subagents/index.ts", import.meta.url);
 const file = (name) => join(root, name);
 const json = (name) => JSON.parse(readFileSync(file(name), "utf8"));
 const save = (name, value) => writeFileSync(file(name), JSON.stringify(value));

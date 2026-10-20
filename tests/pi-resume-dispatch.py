@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DISPATCH = ROOT / "home-manager/modules/ai/pi/resume-dispatch.py"
+DISPATCH = ROOT / "home-manager/modules/ai/pi-base/resume-dispatch.py"
 
 
 class ResumeRouting(unittest.TestCase):
@@ -20,7 +20,7 @@ class ResumeRouting(unittest.TestCase):
         self.root = Path(temporary.name)
         self.bin = self.root / "bin"
         self.bin.mkdir()
-        for name in ("real-pi", "pi-re"):
+        for name in ("real-pi", "pi-re", "pi-home", "pi-base"):
             executable = self.bin / name
             executable.write_text(
                 f"#!{sys.executable}\nimport json,sys\nprint(json.dumps([sys.argv[0],sys.argv[1:]]))\n"
@@ -112,6 +112,61 @@ class ResumeRouting(unittest.TestCase):
             self.assertNotEqual(process.returncode, 0)
             self.assertIn("not interactive root sessions", process.stderr)
             self.assertEqual(process.stdout, "")
+
+    def test_interactive_workers_require_saved_loadout_replay(self):
+        for profile in ("pi-base", "pi-home", "pi-re"):
+            artifact = self.state / profile / "interactive-subagents/sessions/cwd/worker.jsonl"
+            for selector in ("--session", "--fork"):
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        str(DISPATCH),
+                        str(self.bin / "real-pi"),
+                        "--",
+                        selector,
+                        str(artifact),
+                    ],
+                    env=self.env,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("saved loadout", result.stderr)
+                self.assertEqual(result.stdout, "")
+
+    def test_personal_and_base_sessions_route_to_their_owner(self):
+        for profile in ("pi-home", "pi-base"):
+            session = self.state / profile / "sessions/root.jsonl"
+            self.run_dispatch(["--session", str(session)], profile)
+            self.run_dispatch(
+                ["--approve", "--session", str(session)], profile, ["--session", str(session)]
+            )
+
+    def test_research_artifacts_and_their_aliases_are_not_root_sessions(self):
+        artifact = self.state / "pi-re/research/parents/root/jobs/worker/native.jsonl"
+        artifact.parent.mkdir(parents=True)
+        artifact.write_text("fixture")
+        alias = self.root / "research-alias.jsonl"
+        alias.symlink_to(artifact)
+        for file in (artifact, alias):
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(DISPATCH),
+                    str(self.bin / "real-pi"),
+                    "--",
+                    "--session",
+                    str(file),
+                ],
+                env=self.env,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("not interactive root sessions", result.stderr)
+            self.assertEqual(result.stdout, "")
 
     def test_default_state_location_comes_from_caller_home(self):
         del self.env["XDG_STATE_HOME"]

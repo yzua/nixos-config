@@ -1,8 +1,13 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { shellEscape } from "./tmux.ts";
 import { writeSubagentLoadout, type SubagentLoadout } from "./session.ts";
 import type { LaunchPlan, RunningSubagent } from "./managed-run.ts";
+import {
+  currentProfilePolicy,
+  COMMON_CHILD_TOOLS,
+  COMMON_EXTENSION_TOOLS,
+} from "./profile-policy.ts";
 
 export interface AgentDefaults {
   model?: string;
@@ -81,6 +86,11 @@ export class ChildLaunch {
 
   prepare(request: LaunchRequest, running: RunningSubagent): LaunchPlan {
     if (request.kind === "initial" && request.profile?.cli === "claude") {
+      if (currentProfilePolicy()) {
+        throw new Error(
+          "Explicit-load domain subagents require Pi; use pi-coding for Claude roles",
+        );
+      }
       return this.claude(request, running);
     }
     return this.pi(request, running);
@@ -122,7 +132,28 @@ export class ChildLaunch {
   private sandbox(parts: string[], loadout: SubagentLoadout, running: RunningSubagent): void {
     if (loadout.model) parts.push("--model", shellEscape(loadout.model));
     if (loadout.thinking) parts.push("--thinking", shellEscape(loadout.thinking));
-    if (loadout.identity) {
+    const policy = loadout.profilePolicy;
+    if (policy) {
+      parts.push(
+        "--no-context-files",
+        "--no-skills",
+        "--no-prompt-templates",
+        "--no-themes",
+        "--offline",
+        "--no-mcp",
+      );
+      const instructions = policy.instructions.map((file) => readFileSync(file, "utf8"));
+      if (loadout.identity && loadout.systemPromptMode !== "replace")
+        instructions.push(loadout.identity);
+      const file = writeArtifact(
+        join(running.parentArtifactDir, `context/${running.id}-profile.md`),
+        instructions.join("\n\n"),
+      );
+      parts.push("--append-system-prompt", shellEscape(file));
+      for (const skill of policy.skills) parts.push("--skill", shellEscape(skill));
+      for (const extension of policy.extensions) parts.push("-e", shellEscape(extension));
+    }
+    if (loadout.identity && (!policy || loadout.systemPromptMode === "replace")) {
       const flag =
         loadout.systemPromptMode === "replace" ? "--system-prompt" : "--append-system-prompt";
       const file = writeArtifact(
@@ -139,6 +170,7 @@ export class ChildLaunch {
       parts.push("--no-extensions", "--tools", shellEscape(loadout.toolAllowlist));
       const extensions = new Set<string>();
       for (const tool of loadout.toolAllowlist.split(",")) {
+        if (policy && COMMON_EXTENSION_TOOLS.has(tool)) continue;
         const file = this.toolExtensionPath(tool);
         if (file && existsSync(file)) extensions.add(file);
       }
@@ -150,12 +182,17 @@ export class ChildLaunch {
     const profile = request.kind === "initial" ? request.profile : null;
     const identity = profile?.body ?? null;
     const identityInSystemPrompt = profile?.systemPromptMode && identity;
+    const policy =
+      request.kind === "resume" ? request.loadout.profilePolicy : currentProfilePolicy();
     const loadout: SubagentLoadout =
       request.kind === "resume"
         ? request.loadout
         : {
             agent: running.agent ?? null,
-            toolAllowlist: toolAllowlist(profile?.tools, profile?.subagentAgents),
+            toolAllowlist:
+              toolAllowlist(profile?.tools, profile?.subagentAgents) ??
+              (policy ? COMMON_CHILD_TOOLS.join(",") : null),
+            ...(policy ? { profilePolicy: policy } : {}),
             model: request.model ?? profile?.model ?? null,
             thinking: profile?.thinking ?? null,
             systemPromptMode: profile?.systemPromptMode ?? null,
@@ -167,8 +204,8 @@ export class ChildLaunch {
           };
     if (request.kind === "initial") writeSubagentLoadout(running.sessionFile, loadout);
     const parts = [
-      "pi",
-      "--approve",
+      policy ? shellEscape(policy.pi) : "pi",
+      policy ? "--no-approve" : "--approve",
       "--session",
       shellEscape(running.sessionFile),
       "-e",

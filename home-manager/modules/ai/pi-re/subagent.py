@@ -49,7 +49,7 @@ def caller_paths(env):
     state = Path(env.get("XDG_STATE_HOME") or home / ".local/state")
     if not all(p.is_absolute() for p in (home, data, state)):
         raise ValueError("Caller RE paths must be absolute")
-    return data / "pi-re/agent", state / "pi-re"
+    return home / ".pi/agent", state / "pi-re"
 
 
 def no_symlinks(path):
@@ -359,7 +359,11 @@ def run_job(config_path, state_dir, cwd, task, *, deadline=DEADLINE_SECONDS, env
     if env.get("PI_RE_CHILD") == "1":
         raise ValueError("RE children cannot delegate")
     agent, expected_state = caller_paths(env)
-    if state_dir != expected_state or env.get("PI_CODING_AGENT_DIR") != str(agent):
+    if (
+        env.get("PI_PROFILE") != "pi-re"
+        or state_dir != expected_state
+        or env.get("PI_CODING_AGENT_DIR") != str(agent)
+    ):
         raise ValueError("Helper requires the caller's RE profile and exact RE state directory")
     if not cwd.is_absolute() or not cwd.is_dir():
         raise ValueError("cwd must be an existing absolute directory")

@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from pi_test_support import isolated_environment, require_pi
 
 ROOT = Path(__file__).resolve().parents[1]
-EXTENSION = ROOT / "home-manager/modules/ai/pi/extensions/upstream-retry.ts"
+EXTENSION = ROOT / "home-manager/modules/ai/pi-base/extensions/upstream-retry.ts"
 ERROR = "upstream_error: native upstream response body failed"
 NORMALIZED = ERROR + " (network error)"
 

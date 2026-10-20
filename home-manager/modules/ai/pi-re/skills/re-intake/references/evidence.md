@@ -18,8 +18,8 @@ results; never echo provider/login state or token contents.
 In host mode, unrestricted read/Bash access makes this a **behavioral policy**.
 Hard private-data exclusion needs a constrained reader/release boundary or
 human-reviewed offline sanitization exposing approved inputs only. No VM or
-profile separation alone proves no-exfiltration. A process can see credentials
-copied into its profile; record that exposure explicitly.
+profile separation alone proves no-exfiltration. Unrestricted host processes can
+see the shared base credentials; record that exposure explicitly.
 
 ## Minimum result
 

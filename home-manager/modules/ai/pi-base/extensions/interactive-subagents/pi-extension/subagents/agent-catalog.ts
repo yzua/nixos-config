@@ -14,7 +14,7 @@ export interface ListedAgentDefinition extends AgentDefinition {
 export interface AgentCatalogPaths {
   package: string;
   global: string;
-  project: string;
+  project: string | null;
 }
 
 function value(frontmatter: string, key: string): string | undefined {
@@ -95,6 +95,7 @@ export class AgentCatalog {
   loadProfile(name: string): AgentDefinition | null {
     const paths = this.paths();
     for (const dir of [paths.project, paths.global, paths.package]) {
+      if (!dir) continue;
       const path = join(dir, `${name}.md`);
       if (!existsSync(path)) continue;
       const parsed = parse(readFileSync(path, "utf8"), name);
@@ -108,7 +109,7 @@ export class AgentCatalog {
     const agents = new Map<string, ListedAgentDefinition>();
     for (const source of ["package", "global", "project"] as const) {
       const dir = paths[source];
-      if (!existsSync(dir)) continue;
+      if (!dir || !existsSync(dir)) continue;
       for (const file of readdirSync(dir).filter((entry) => entry.endsWith(".md"))) {
         const parsed = parse(readFileSync(join(dir, file), "utf8"), file.replace(/\.md$/, ""));
         if (parsed) agents.set(parsed.name, { ...parsed, source });

@@ -34,7 +34,12 @@ def paths(environment=None):
     state = Path(environment.get("XDG_STATE_HOME") or home / ".local/state") / "pi-re"
     if not data.is_absolute() or not state.is_absolute():
         raise ValueError("XDG RE paths must be absolute")
-    return {"agent": data / "agent", "state": state, "sessions": state / "sessions"}
+    return {
+        "agent": home / ".pi/agent",
+        "legacy_agent": data / "agent",
+        "state": state,
+        "sessions": state / "sessions",
+    }
 
 
 def child_sessions(locations, environment=None):
@@ -99,6 +104,7 @@ def checked_args(args, session_dir):
 
 def pi_arguments(config, locations, args):
     resources = Path(config["resources"])
+    tools = ["read", "bash", "edit", "write"]
     result = [
         config["pi"],
         "--no-approve",
@@ -120,15 +126,30 @@ def pi_arguments(config, locations, args):
         result.extend(("--skill", str(path)))
     result.extend(("--prompt-template", str(resources / "prompts")))
     if os.environ.get("PI_RE_CHILD") != "1":
+        for skill in config.get("commonSkills", []):
+            path = Path(skill)
+            if not path.is_absolute() or not (path / "SKILL.md").is_file():
+                raise ValueError("An immutable base skill is missing")
+            result.extend(("--skill", str(path)))
+        tools.extend(
+            (
+                "ask_user_question",
+                "web_search",
+                "web_fetch",
+                "re_subagent",
+                "research_subagent",
+                "research_subagent_message",
+                "subagent",
+                "subagent_message",
+                "subagents_list",
+            )
+        )
         # Explicit immutable root resources, never ambient coding extensions.
-        # Search resolves authentication from this RE profile. Children stay unchanged.
+        # Base owns the common catalog. Restricted workers retain their exact loadouts.
         for extension in (
             resources / "flash-subagent.ts",
             resources / "research-subagent.ts",
-            Path(config["herdrIntegration"]),
-            Path(config["questionExtension"]),
-            Path(config["webSearchExtension"]),
-            Path(config["webFetchExtension"]),
+            *(Path(path) for path in config["commonExtensions"]),
         ):
             if not extension.is_absolute() or not extension.is_file():
                 raise ValueError(f"Reviewed root extension is missing: {extension}")
@@ -145,15 +166,14 @@ def pi_arguments(config, locations, args):
         result.extend(
             (
                 "--extension",
-                "builtin:mcp",
-                "--extension",
                 "builtin:codemode",
                 "--extension",
                 str(extension),
-                "--tools",
-                "+codemode",
             )
         )
+        tools.append("codemode")
+    # Shared coding preferences cannot widen or remove the reviewed root/worker toolset.
+    result.extend(("--tools", ",".join(tools)))
     return result + checked_args(args, locations["sessions"])
 
 
@@ -161,7 +181,7 @@ def validate_rea_mcp(config, locations):
     """Preserve foreign configuration; only our session registration may connect."""
     if os.environ.get("PI_RE_CHILD") == "1" or not config.get("reaSkill"):
         return
-    path = locations["agent"] / "mcp.json"
+    path = locations["legacy_agent"] / "mcp.json"
     reject_symlinks(path)
     if path.exists():
         info = path.stat()
@@ -198,7 +218,7 @@ def doctor(config, locations, as_json):
     result = {
         "status": "ok",
         "executionMode": "host-not-sandbox",
-        "profileInitialized": (locations["state"] / "initialized-v1.json").is_file(),
+        "profileInitialized": (locations["state"] / "shared-config-v1.json").is_file(),
         "rootRequired": True,
         "runtimeQualification": "pending agent trials; android status is process-only",
         "capabilities": capabilities,
@@ -217,6 +237,7 @@ def main():
     os.umask(0o077)  # Native transcripts and new private research/browser artifacts.
     config = json.loads(Path(os.environ["PI_RE_CONFIG"]).read_text())
     locations = paths()
+    config["agentDir"] = str(Path(os.environ["HOME"]) / config["agentDir"])
     child_sessions(locations)
     args = sys.argv[1:]
     if args and args[0] in ("help", "--help", "-h"):
@@ -242,7 +263,7 @@ def main():
     if args and args[0] == "init":
         if len(args) != 1:
             raise ValueError("init takes no arguments")
-        initialize(locations["agent"], locations["state"], Path(config["sourceAgentDir"]))
+        initialize(locations["legacy_agent"], locations["state"], Path(config["agentDir"]))
         return
     if args and args[0] in ("rea", "rea-mcp"):
         from rea import command as rea_command
@@ -268,12 +289,27 @@ def main():
         )
     # Validate user flags and all resources before initializing or starting a provider.
     command = pi_arguments(config, locations, args)
+    if Path(config["agentDir"]) != locations["agent"]:
+        raise ValueError("The shared agent directory must match the caller's canonical Pi path")
     with contextlib.redirect_stdout(sys.stderr):
-        initialize(locations["agent"], locations["state"], Path(config["sourceAgentDir"]))
+        initialize(locations["legacy_agent"], locations["state"], locations["agent"])
     validate_rea_mcp(config, locations)
     locations["sessions"].mkdir(parents=True, exist_ok=True, mode=0o700)
     if locations["sessions"].is_symlink():
         raise ValueError("RE sessions must not be a symlink")
+    os.environ["PI_PROFILE"] = "pi-re"
+    os.environ["PI_BASE_CHILD_POLICY"] = json.dumps(
+        {
+            "profile": "pi-re",
+            "pi": config["pi"],
+            "agentDir": str(locations["agent"]),
+            "sessions": str(locations["state"] / "interactive-subagents/sessions"),
+            "instructions": [str(Path(config["resources"]) / "contract.md")],
+            "skills": config.get("commonSkills", [])
+            + [str(Path(config["resources"]) / "skills" / skill) for skill in SKILLS],
+            "extensions": config["commonExtensions"],
+        }
+    )
     os.environ["PI_CODING_AGENT_DIR"] = str(locations["agent"])
     os.environ["PI_CODING_AGENT_SESSION_DIR"] = str(locations["sessions"])
     os.environ["PI_OFFLINE"] = "1"

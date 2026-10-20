@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.dont_write_bytecode = True
 spec = importlib.util.spec_from_file_location(
-    "pi_initialize", ROOT / "home-manager/modules/ai/pi/initialize.py"
+    "pi_initialize", ROOT / "home-manager/modules/ai/pi-base/initialize.py"
 )
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)

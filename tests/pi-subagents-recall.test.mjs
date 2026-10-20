@@ -13,12 +13,12 @@ test("production catalog, status, launch and evidence interfaces (closed offline
   const root = mkdtempSync(join(tmpdir(), "pi-launch-offline-"));
   try {
     const env = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
-      !key.startsWith("HERDR_") && !key.startsWith("PI_SUBAGENT") && !["TMUX", "TMUX_PANE", "NODE_OPTIONS", "NODE_TEST_CONTEXT"].includes(key)));
+      !key.startsWith("HERDR_") && !key.startsWith("PI_SUBAGENT") && !["TMUX", "TMUX_PANE", "NODE_OPTIONS", "NODE_TEST_CONTEXT", "PI_PROFILE", "PI_BASE_CHILD_POLICY"].includes(key)));
     Object.assign(env, { HOME: root, PI_CODING_AGENT_DIR: join(root, "agent"), PI_RECALL_ROOT: root });
-    const suite = (name) => fileURLToPath(new URL(`../home-manager/modules/ai/pi/extensions/interactive-subagents/test/${name}.test.ts`, import.meta.url));
+    const suite = (name) => fileURLToPath(new URL(`../home-manager/modules/ai/pi-base/extensions/interactive-subagents/test/${name}.test.ts`, import.meta.url));
     const stdout = execFileSync(process.execPath, [
       "--no-warnings", "--experimental-transform-types", "--loader", fixture("loader.mjs"), "--test",
-      ...["agent-catalog", "catalog-tools", "run-status-monitor", "status-tools", "child-launch", "system-prompt-mode", "run-evidence"].map(suite),
+      ...["agent-catalog", "catalog-tools", "run-status-monitor", "status-tools", "child-launch", "profile-policy", "system-prompt-mode", "run-evidence"].map(suite),
     ], { env, cwd: root, encoding: "utf8", timeout: 10000 });
     assert.match(stdout, /\bfail 0\b/);
   } finally { rmSync(root, { recursive: true, force: true }); }
@@ -30,7 +30,7 @@ for (const backend of ["tmux", "herdr"]) {
       const root = mkdtempSync(join(tmpdir(), "pi-recall-offline-"));
       try {
         const env = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
-          !key.startsWith("HERDR_") && !key.startsWith("PI_SUBAGENT") && !["TMUX", "TMUX_PANE", "NODE_OPTIONS"].includes(key)));
+          !key.startsWith("HERDR_") && !key.startsWith("PI_SUBAGENT") && !["TMUX", "TMUX_PANE", "NODE_OPTIONS", "PI_PROFILE", "PI_BASE_CHILD_POLICY"].includes(key)));
         Object.assign(env, { HOME: root, PI_CODING_AGENT_DIR: join(root, "agent"), PI_RECALL_ROOT: root, PI_RECALL_BACKEND: backend, PI_SUBAGENT_SHELL_READY_DELAY_MS: "0" });
         const run = (mode) => {
           const stdout = execFileSync(process.execPath, ["--no-warnings", "--experimental-transform-types", "--loader", fixture("loader.mjs"), fixture("scenario.mjs"), mode], { env, cwd: root, encoding: "utf8", timeout: 10000 });

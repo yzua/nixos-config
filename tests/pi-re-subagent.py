@@ -117,6 +117,7 @@ class FlashTests(unittest.TestCase):
         )
         self.agent, self.state = helper.caller_paths(self.env)
         self.env.update(
+            PI_PROFILE="pi-re",
             PI_CODING_AGENT_DIR=str(self.agent),
             PI_RE_CONFIG=str(self.config),
             TEST_PROFILE="preserved",

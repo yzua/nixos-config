@@ -2,8 +2,8 @@
 import assert from "node:assert/strict";
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import reporter from "../../home-manager/modules/ai/pi/extensions/interactive-subagents/pi-extension/subagents/subagent-done.ts";
-export { terminalExit } from "../../home-manager/modules/ai/pi/extensions/interactive-subagents/pi-extension/subagents/run-evidence.ts";
+import reporter from "../../home-manager/modules/ai/pi-base/extensions/interactive-subagents/pi-extension/subagents/subagent-done.ts";
+export { terminalExit } from "../../home-manager/modules/ai/pi-base/extensions/interactive-subagents/pi-extension/subagents/run-evidence.ts";
 export async function surfaceExists(surface) {
   const state = read(`surface-${surface}.json`, null);
   return !!state && !state.closed;

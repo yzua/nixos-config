@@ -16,7 +16,7 @@ Bind approved fixture hashes, supported operations/state/error/streaming semanti
 observed versus inferred properties, owned project/runtime and finite build/test
 budgets. Write deterministic positive/negative/timeout cases and implement the
 smallest seam using provisioned dependencies. No bundled build/deploy script or
-new package installation is assumed. Keep copied provider/login data out of code,
+new package installation is assumed. Keep shared provider/login data out of code,
 fixtures/config and model-visible output; ordinary coding resources stay unchanged.
 
 Run bounded local tests and reviewed local Caddy adaptation/validation when used.

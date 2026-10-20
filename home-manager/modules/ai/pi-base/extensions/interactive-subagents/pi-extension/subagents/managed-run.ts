@@ -14,6 +14,7 @@ import { randomUUID } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import type { SubagentActivityState } from "./activity.ts";
 import { isHerdrSurface } from "./herdr.ts";
+import { currentProfilePolicy } from "./profile-policy.ts";
 import {
   countSessionEntryLines,
   findLastAssistantMessage,
@@ -578,7 +579,11 @@ export class ManagedRuns {
   private piCommand(running: RunningSubagent, plan: Extract<LaunchPlan, { kind: "pi" }>): string {
     const { loadout } = plan;
     const env: Record<string, string | undefined> = {
-      PI_CODING_AGENT_DIR: loadout.agentDir ?? process.env.PI_CODING_AGENT_DIR,
+      PI_CODING_AGENT_DIR:
+        loadout.profilePolicy?.agentDir ?? loadout.agentDir ?? process.env.PI_CODING_AGENT_DIR,
+      PI_PROFILE: loadout.profilePolicy?.profile ?? "pi-coding",
+      PI_BASE_CHILD_POLICY: loadout.profilePolicy ? JSON.stringify(loadout.profilePolicy) : "",
+      PI_CODING_AGENT_SESSION_DIR: loadout.profilePolicy?.sessions ?? "",
       PI_SUBAGENT_ALLOWED: loadout.spawnable?.length ? loadout.spawnable.join(",") : undefined,
       PI_SUBAGENT_AGENT: loadout.agent ?? undefined,
       PI_SUBAGENT_NAME: running.name,
@@ -594,7 +599,10 @@ export class ManagedRuns {
       .map(([key, value]) => `${key}=${shellEscape(value)}`)
       .join(" ");
     const cd = loadout.cwd ? `cd ${shellEscape(loadout.cwd)} && ` : "";
-    return `${cd}${prefix} ${plan.parts.join(" ")}`;
+    const clean = loadout.profilePolicy
+      ? "env -u PI_RE_CONFIG -u PI_RE_CHILD -u PI_RE_CHILD_SESSION_DIR -u PI_RE_RESEARCH -u PI_RE_RESEARCH_ROOT "
+      : "";
+    return `${cd}${clean}${prefix} ${plan.parts.join(" ")}`;
   }
 
   private release(running: RunningSubagent, lockHeld = false): boolean {
@@ -849,7 +857,10 @@ function copyClaudeSession(sentinelFile: string): string | null {
       process.env.PI_CODING_AGENT_DIR ??
       (process.env.HOME ? join(process.env.HOME, ".pi", "agent") : undefined);
     if (!agentDir) return null;
-    const sessionsDir = join(agentDir, "sessions", "claude-code");
+    const sessionsDir = join(
+      currentProfilePolicy()?.sessions ?? join(agentDir, "sessions"),
+      "claude-code",
+    );
     mkdirSync(sessionsDir, { recursive: true });
     const filename = transcriptPath.split("/").pop() ?? `claude-${Date.now()}.jsonl`;
     copyFileSync(transcriptPath, join(sessionsDir, filename));

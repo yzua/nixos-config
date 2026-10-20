@@ -15,6 +15,7 @@ import {
 } from "node:fs";
 import { randomBytes, randomUUID } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
+import { isProfilePolicy } from "./profile-policy.ts";
 
 export interface SessionEntry {
   type: string;
@@ -94,6 +95,8 @@ export function seedSubagentSessionFile(params: {
  * deleted.
  */
 export interface SubagentLoadout {
+  /** Explicit-load origin; absent in historical native coding loadouts. */
+  profilePolicy?: import("./profile-policy.ts").ProfilePolicy;
   /** Agent profile name (for PI_SUBAGENT_AGENT); null for agentless spawns. */
   agent: string | null;
   /** The `--tools` allowlist string, or null when the spawn was unrestricted. */
@@ -145,7 +148,8 @@ export function isSubagentLoadout(value: unknown): value is SubagentLoadout {
       v.systemPromptMode === "replace") &&
     (v.spawnable === null ||
       (Array.isArray(v.spawnable) && v.spawnable.every((a) => typeof a === "string"))) &&
-    typeof v.autoExit === "boolean"
+    typeof v.autoExit === "boolean" &&
+    (v.profilePolicy === undefined || isProfilePolicy(v.profilePolicy))
   );
 }
 

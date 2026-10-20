@@ -38,8 +38,8 @@ in
 {
   imports = [
     ./herdr.nix
-    ./chrome-devtools
-    ./pi
+    ./pi-coding
+    ./pi-home
     ./skills.nix
   ];
 

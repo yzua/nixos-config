@@ -42,12 +42,14 @@ export default function (pi: ExtensionAPI) {
     const configPath = process.env.PI_RE_CONFIG;
     const parent = ctx.sessionManager.getSessionFile();
     if (
+      !home ||
       !data ||
       !state ||
+      process.env.PI_PROFILE !== "pi-re" ||
       !configPath ||
       !parent ||
       ![data, state, configPath, parent].every(path.isAbsolute) ||
-      process.env.PI_CODING_AGENT_DIR !== path.join(data, "pi-re/agent")
+      process.env.PI_CODING_AGENT_DIR !== path.join(home, ".pi/agent")
     ) {
       throw new Error("Research delegation requires a persisted root RE session");
     }

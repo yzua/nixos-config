@@ -20,10 +20,10 @@ pkgs.buildNpmPackage {
     cp ${./extensions/network-diagnostics.ts} "$resources/network-diagnostics.ts"
     cp ${./extensions/upstream-retry.ts} "$resources/upstream-retry.ts"
     cp -r ${./extensions/prompt-snippets}/. "$resources/prompt-snippets/"
+    cp -r ${./extensions/interactive-subagents} "$resources/interactive-subagents"
     cp -r ${./extensions/web-search} "$resources/web-search"
     chmod u+w "$resources/web-search"
     cp ${searchConfig} "$resources/web-search/config.json"
-    cp -r ${./extensions/interactive-subagents} "$resources/interactive-subagents"
     runHook postInstall
   '';
 }

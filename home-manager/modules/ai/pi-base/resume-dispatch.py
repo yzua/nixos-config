@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Keep explicit RE root-session resumes in their reviewed profile, including Herdr restore."""
+"""Keep explicit root-session resumes in their owning profile, including Herdr restore."""
 
 import os
 import sys
@@ -85,11 +85,18 @@ def target(args, environment):
         # guarded RE launcher rather than accidentally opening them as coding Pi.
         return candidate.is_relative_to(directory) or canonical.is_relative_to(directory.resolve())
 
-    if beneath(re_state / "subagents"):
+    if beneath(re_state / "subagents") or beneath(re_state / "research"):
         raise ValueError(
-            "Headless RE Flash jobs are not interactive root sessions; use re_subagent for a new task"
+            "Headless RE worker artifacts are not interactive root sessions; use the owning delegation tool"
         )
-    return "pi-re" if beneath(re_state / "sessions") else "pi"
+    for profile in ("pi-re", "pi-home", "pi-base"):
+        if beneath(state / profile / "interactive-subagents"):
+            raise ValueError(
+                "Interactive worker sessions require subagent_message so their saved loadout is replayed"
+            )
+        if beneath(state / profile / "sessions"):
+            return profile
+    return "pi"
 
 
 def main():
@@ -97,12 +104,13 @@ def main():
     real_pi, separator, *args = sys.argv[1:]
     if separator != "--" or not Path(real_pi).is_absolute():
         raise ValueError("Expected an absolute real Pi executable and --")
-    if target(args, os.environ) == "pi-re":
+    profile = target(args, os.environ)
+    if profile != "pi":
         # `p` supplies --approve for coding projects. A resumed RE root must
         # keep its unconditional --no-approve policy, not fail on that alias.
         approval = {index for index in option_indices(args) if args[index] in {"--approve", "-a"}}
         routed = [arg for index, arg in enumerate(args) if index not in approval]
-        os.execvp("pi-re", ["pi-re", *routed])
+        os.execvp(profile, [profile, *routed])
     os.execv(real_pi, [real_pi, *args])
 
 

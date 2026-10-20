@@ -14,7 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MUX = (
     ROOT
-    / "home-manager/modules/ai/pi/extensions/interactive-subagents/pi-extension/subagents/tmux.ts"
+    / "home-manager/modules/ai/pi-base/extensions/interactive-subagents/pi-extension/subagents/tmux.ts"
 )
 
 

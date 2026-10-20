@@ -29,24 +29,31 @@ is an optional alternative **from the configuration checkout**. From elsewhere,
 use `nix run /path/to/config-checkout#pi-re -- ...`. These alternatives are not
 needed for the installed global command.
 
-Initialization copies selected provider/model
-settings, `models.json` and `auth.json` once into independent writable files under
-`${XDG_DATA_HOME:-$HOME/.local/share}/pi-re/agent`. Sessions and lab state live under
-`${XDG_STATE_HOME:-$HOME/.local/state}/pi-re`. No secrets enter the Nix store; copied
-OAuth refresh tokens can require a separate login after token rotation. Subsequent
-initialization preserves the RE copy rather than synchronizing it.
+All roots use the base's live `~/.pi/agent` login/models/settings at one lexical path,
+so native locks coordinate token refresh and saved defaults. Close old RE sessions
+before the first migration: legacy private files are atomically archived beneath
+`${XDG_DATA_HOME:-$HOME/.local/share}/pi-re/backups/shared-config-v1`. Compatible
+RE-only providers, models and logins are merged into the live base under native
+mutexes; current Pi defaults and conflicting values are preserved. Originals are
+never discarded. A provider-routing conflict needs deliberate review before an
+affected fixed-model worker can run. See the
+[base migration contract](../pi-base/README.md#one-live-configuration-separate-histories).
+Sessions and lab state remain under `${XDG_STATE_HOME:-$HOME/.local/state}/pi-re`.
+No credentials enter the Nix store; later login/default changes are shared.
 
 The launcher retains Pi's default system prompt and explicitly loads the compact
-contract, ten reviewed adapter/domain skills and seven prompts. Roots additionally
+contract, the shared Chrome DevTools skill, ten reviewed adapter/domain skills and
+seven prompts. Roots additionally
 load the matching official REA skill (version 42) and all six upstream references. Ambient context, project trust,
 skills, extensions, themes and prompts are suppressed. Foreign session files and
 resource-control flags are rejected. The root profile explicitly loads only its
-reviewed RE and named research-worker extensions plus shared user-question,
-web-search and page/PDF-fetch extensions, the pinned official Herdr reporter and
-native MCP/codemode built-ins. Runtime Flash children load no extensions;
+reviewed RE and named research-worker extensions plus the base's common catalog:
+questions, search/fetch, retry normalization, network diagnostics, prompt snippets
+and the pinned Herdr reporter. Root codemode uses the native built-in; native MCP
+is instantiated once through its public factory with an empty file-config loader. Runtime Flash children load no extensions;
 research workers load only their read-only source tools and web extensions.
 A reviewed extension registers only the pinned `rea` server for the current
-root session; no `mcp.json` is written. Startup rejects existing RE-profile MCP
+root session; no `mcp.json` is written. Startup rejects existing legacy RE-profile MCP
 server registrations (including a custom server named `rea`) intact rather than
 connecting/overwriting them. Coding/project MCP configuration is never imported. These root integrations are explicit immutable
 resources, not discovery of the coding profile's mutable extension directory.
@@ -56,20 +63,23 @@ inherited Herdr, tmux and outer-subagent identity.
 
 Herdr's cold restore reconstructs `pi --session PATH`. The managed `pi` dispatcher
 routes paths in the caller's `${XDG_STATE_HOME:-$HOME/.local/state}/pi-re/sessions`
-through `pi-re`, preserving the RE contract, resource whitelist and independent
-profile. Normal coding invocations pass unchanged to the same pinned Pi binary.
+through `pi-re`, preserving the RE contract, resource whitelist and separate
+history. Normal coding invocations pass unchanged to the same pinned Pi binary.
 For manual resume in either terminal, use `pi-re --continue`, `pi-re --resume`, or
-`pi-re --session PATH`. Flash job artifacts are not interactive root sessions and
+`pi-re --session PATH`. Runtime and research artifacts are not interactive root sessions and
 cannot be promoted through this dispatcher. Runtime RE delegation remains bounded and non-resumable. Named read-only
 research workers now support completed-turn follow-ups in their private native
-sessions; regular Pi's interactive live subagents remain a separate feature.
+sessions. Shared interactive live subagents are also enabled in RE; their broader
+role-dependent tools are distinct from the specialized bounded/read-only workers.
+New interactive workers retain RE origin instructions and isolated worker history,
+without automatically importing project resources or root MCP.
 
- Main sessions are configured
-privately for Z.ai Coding Plan GLM-5.3/high, with GLM-5.3-Flash/high for fresh
-180-second runtime child jobs (maximum two, 16 KiB summaries). The same Flash
-model powers the separate four-slot named research pool. GPT/copied providers remain
-available. Credentials and model defaults remain independent writable state,
-never Nix secrets. The Coding Plan endpoint is `https://api.z.ai/api/coding/paas/v4`.
+Main sessions inherit the shared model/provider/thinking defaults, or explicit
+`--model`/`--provider`/`--thinking` selections. Fresh 180-second runtime child jobs
+remain fixed at Z.ai GLM-5.3-Flash/high (maximum two, 16 KiB summaries). The same
+fixed Flash model powers the separate four-slot named research pool; shared default
+changes do not change worker models. The Coding Plan endpoint is
+`https://api.z.ai/api/coding/paas/v4`; credentials remain private runtime state.
 REA 6.5.0 provides native, Android, JavaScript/Electron, portable managed/package,
 network and runtime Evidence workflows through CLI and root-only native MCP.
 Optional engines and broader scanner/gateway packs remain unfinished.
@@ -87,10 +97,9 @@ Pi does not persist an empty chat until its first assistant turn.
 Root sessions expose `web_search` and `web_fetch` using the same immutable
 extension bundle as coding Pi, but never discover the coding extension directory.
 Search routing comes from `setup.pi.webSearch`, independently of the chat model;
-credentials resolve from the independent RE profile. A missing search model,
-credential or compatible backend fails explicitly, without a coding-login fallback.
-Existing RE credentials/models are not refreshed by activation; configure or log
-in to the search provider in that profile when needed.
+credentials resolve from the live shared base configuration. A missing search model,
+credential or compatible backend fails explicitly, without another-provider fallback.
+Login/model configuration changes apply to every profile with native refresh semantics.
 
 Search sends only the query, not conversation history. Keep private target data
 out of queries and URLs. Page/PDF/plain-text extraction runs locally and sends

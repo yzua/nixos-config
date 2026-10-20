@@ -13,7 +13,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 CODE = REPO / "home-manager/modules/ai/pi-re"
-PI_CODE = REPO / "home-manager/modules/ai/pi"
+PI_CODE = REPO / "home-manager/modules/ai/pi-base"
 
 
 def main():
@@ -38,7 +38,7 @@ def main():
         root = Path(temporary)
         (root / ".zshrc").write_text("# Private fixture, no setup wizard.\n")
         state = root / "state/pi-re"
-        agent = root / "data/pi-re/agent"
+        agent = root / ".pi/agent"
         state.mkdir(parents=True, mode=0o700)
         agent.mkdir(parents=True, mode=0o700)
 
@@ -46,9 +46,6 @@ def main():
             path.write_text(json.dumps(value))
             path.chmod(0o600)
 
-        private_json(
-            state / "initialized-v1.json", {"version": 1, "credentialMode": "independent-copy"}
-        )
         private_json(
             agent / "settings.json",
             {
@@ -110,9 +107,19 @@ export default function(pi) {{
                 "pi": str(pi),
                 "resources": str(CODE),
                 "python": os.sys.executable,
-                "sourceAgentDir": str(root / "unused-coding-source"),
-                "herdrIntegration": str(integration),
-                "questionExtension": str(question),
+                "agentDir": str(agent),
+                "commonExtensions": list(
+                    map(
+                        str,
+                        (
+                            integration,
+                            question,
+                            web_stub,
+                            PI_CODE
+                            / "extensions/interactive-subagents/pi-extension/subagents/index.ts",
+                        ),
+                    )
+                ),
                 "webSearchExtension": str(web_stub),
                 "webFetchExtension": str(web_stub),
                 "capabilities": [],
@@ -270,7 +277,8 @@ export default function(pi) {{
                 session.chmod(0o600)
             assert first["mode"] == "tui" and first["agentDir"] == str(agent), first
             assert {"ask_user_question", "re_subagent"} <= set(first["tools"]), first
-            assert not {"subagent", "subagent_message", "ask_question"} & set(first["tools"]), first
+            assert {"subagent", "subagent_message", "subagents_list"} <= set(first["tools"]), first
+            assert "ask_question" not in first["tools"], first
             assert not marker.exists(), "Coding-profile extension leaked into RE"
             call([*herdr, "session", "stop", name])
             launch_herdr(new=True)

@@ -162,6 +162,11 @@
           provider = "codex-lb";
           model = "gpt-6.1-sol";
         };
+        # Personal profile device facts; pairing credentials stay in private runtime state.
+        pi.home.samsung = {
+          host = "192.168.0.192";
+          apps.nuvio = "NuvioTV001.NuvioTV";
+        };
         # Read-only research workers; runtime RE jobs retain their separate limits.
         pi.research = {
           maxConcurrent = 4;
@@ -319,6 +324,11 @@
         };
       home = mkHome setup ./home-manager/home.nix;
       laptopHome = mkHome laptopSetup ./home-manager/laptop.nix;
+      piProfile =
+        name:
+        nixpkgs.lib.findFirst (
+          package: nixpkgs.lib.getName package == name
+        ) (throw "The selected Home Manager profile does not provide ${name}") home.config.home.packages;
     in
     {
       nixosConfigurations.${setup.hostName} = nixpkgs.lib.nixosSystem {
@@ -358,9 +368,10 @@
 
       packages.${system} = {
         open-design = openDesignPackage;
-        pi-re = nixpkgs.lib.findFirst (
-          package: nixpkgs.lib.getName package == "pi-re"
-        ) (throw "The selected Home Manager profile does not provide pi-re") home.config.home.packages;
+        pi-base = piProfile "pi-base";
+        pi-coding = piProfile "pi-coding";
+        pi-home = piProfile "pi-home";
+        pi-re = piProfile "pi-re";
         rea = reaTools.cli;
         rea-ghidra = reaTools.ghidra;
         # Tiny auditable ELF used only for static backend/agent qualification.

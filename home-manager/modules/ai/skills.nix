@@ -17,14 +17,7 @@ let
       subdir = "";
       skill = "*";
     }
-    {
-      owner = "ChromeDevTools";
-      repo = "chrome-devtools-mcp";
-      rev = "ae0aaef884c41445d83f86f099ef211f4584b791";
-      hash = "sha256-8lPhX9kG5iTiz1v9Ti8Hgs2oso/erkC7WlY3qk//mtg=";
-      subdir = "/skills/chrome-devtools-cli";
-      skill = "chrome-devtools-cli";
-    }
+    (import ./pi-base/chrome-skill.nix { inherit pkgs; }).source
     {
       owner = "iOfficeAI";
       repo = "OfficeCLI";

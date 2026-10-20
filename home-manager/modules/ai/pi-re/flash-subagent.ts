@@ -15,8 +15,11 @@ function stateDirectory(): string {
   const data = process.env.XDG_DATA_HOME || path.join(home, ".local/share");
   if (!path.isAbsolute(state) || !path.isAbsolute(data))
     throw new Error("Absolute RE XDG paths are required");
-  if (process.env.PI_CODING_AGENT_DIR !== path.join(data, "pi-re/agent")) {
-    throw new Error("re_subagent is restricted to the independent RE profile");
+  if (
+    process.env.PI_PROFILE !== "pi-re" ||
+    process.env.PI_CODING_AGENT_DIR !== path.join(home, ".pi/agent")
+  ) {
+    throw new Error("re_subagent is restricted to the reviewed RE profile");
   }
   return path.join(state, "pi-re");
 }

@@ -1,4 +1,4 @@
-# Provide a separate host-mode RE profile and rooted Android lab, leaving coding Pi unchanged.
+# Add reviewed RE resources and a rooted Android lab to the shared Pi base.
 {
   aiPackages,
   androidTools,
@@ -10,15 +10,20 @@
   ...
 }:
 let
+  base = import ../pi-base/resources.nix { inherit aiPackages pkgs setup; };
+  contract = pkgs.writeText "pi-re-contract.md" (
+    builtins.readFile base.instructions + "\n" + builtins.readFile ./contract.md
+  );
   resources = pkgs.runCommand "pi-re-resources" { } ''
     mkdir -p "$out/lib/pi-re"
     cp -r ${./.}/. "$out/lib/pi-re/"
+    chmod u+w "$out/lib/pi-re/contract.md"
+    cp ${contract} "$out/lib/pi-re/contract.md"
     cp -r ${../../../../tests/fixtures/pi-re-android} "$out/lib/pi-re/fixture"
     mkdir -p "$out/lib/pi-re/upstream"
     cp -r ${reaTools.cli}/lib/rea/skills/reverse-engineer-anything "$out/lib/pi-re/upstream/"
     cp ${reaTools.cli}/lib/rea/LICENSE "$out/lib/pi-re/upstream/LICENSE-REA"
   '';
-  extensionResources = import ../pi/extension-resources.nix { inherit pkgs setup; };
   # Reuse the already managed pinned CLI, not an ambient PATH installation.
   chromeDevtools = builtins.head (import ../chrome-devtools { inherit pkgs; }).home.packages;
   python = "${androidTools.python}/bin/python3";
@@ -29,21 +34,19 @@ let
     builtins.toJSON {
       inherit python;
       jdk = "${pkgs.jdk}";
-      pi = lib.getExe aiPackages.pi;
+      inherit (base) pi commonExtensions commonSkills;
       resources = "${resources}/lib/pi-re";
       reaSkill = "${resources}/lib/pi-re/upstream/reverse-engineer-anything";
       # Explicit, immutable root integrations; never load the coding profile's directory.
-      herdrIntegration = "${aiPackages.herdr}/share/herdr/integrations/pi/herdr-agent-state.ts";
-      questionExtension = "${../pi/extensions/ask-user-question.ts}";
-      webSearchExtension = "${extensionResources}/lib/pi-config/web-search/index.ts";
-      webFetchExtension = "${extensionResources}/lib/pi-config/web-fetch/index.ts";
+      webSearchExtension = "${base.directory}/web-search/index.ts";
+      webFetchExtension = "${base.directory}/web-fetch/index.ts";
       research = setup.pi.research;
       browser = {
         cli = "${chromeDevtools}/bin/chrome-devtools";
         executable = "${pkgs.google-chrome}/bin/google-chrome-stable";
         daemonScript = "${chromeDevtools}/lib/chrome-devtools-mcp/node_modules/chrome-devtools-mcp/build/src/daemon/daemon.js";
       };
-      sourceAgentDir = "${config.home.homeDirectory}/.pi/agent";
+      agentDir = ".pi/agent";
       android = setup.androidLab // {
         inherit (androidTools) sdkRoot;
         adb = "${androidTools.sdk}/bin/adb";
@@ -236,11 +239,12 @@ let
   '';
 in
 {
+  imports = [ ../pi-base ];
   home.packages = [ launcher ];
-  # Auth is copied only at runtime into private writable files, never into the store.
+  # Archive originals and merge compatible missing entries privately, outside the store.
   home.activation.initializePiRe = lib.hm.dag.entryAfter [ "initializePi" ] ''
     if [ -v DRY_RUN ]; then
-      echo "Would initialize independent writable RE profile from the coding login"
+      echo "Would migrate legacy RE copies to the shared live Pi login/settings"
     else
       ${python} ${resources}/lib/pi-re/initialize.py \
         --agent-dir ${lib.escapeShellArg "${config.xdg.dataHome}/pi-re/agent"} \

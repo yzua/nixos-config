@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Check independent RE initialization, controlled loading and secret-free doctor."""
+"""Check shared-config migration, controlled RE loading and secret-free doctor."""
 
 import contextlib
 import importlib.util
 import io
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -59,31 +60,253 @@ class ProfileTests(unittest.TestCase):
             initializer.initialize(self.agent, self.state, self.source)
         self.assertNotIn("CANARY-SECRET", output.getvalue())
 
-    def test_independent_copy_without_coding_resources(self):
+    def test_shared_configuration_is_not_copied_or_rewritten(self):
         self.initialize()
-        settings = json.loads((self.agent / "settings.json").read_text())
-        self.assertEqual(settings["defaultModel"], "working-model")
-        for key in ("skills", "sessionDir", "theme"):
-            self.assertNotIn(key, settings)
-        self.assertEqual(settings["extensions"], ["-builtin:mcp"])
-        self.assertEqual(
-            json.loads((self.agent / "auth.json").read_text()), self.source_values["auth.json"]
-        )
         self.assertEqual(self.before, {p.name: p.read_bytes() for p in self.source.iterdir()})
-        for name in self.source_values:
-            path = self.agent / name
-            self.assertFalse(path.is_symlink())
-            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+        self.assertFalse(any(self.agent.iterdir()))
+        marker = json.loads((self.state / "shared-config-v1.json").read_text())
+        self.assertEqual(marker["credentialMode"], "shared")
+        self.assertEqual(marker["agentDir"], str(self.source))
 
-    def test_reinitialization_preserves_changed_auth_and_settings(self):
+    def test_unrecognized_legacy_values_are_archived_once_without_merging(self):
+        self.agent.mkdir(parents=True)
+        for name in self.source_values:
+            (self.agent / name).write_text('{"legacy": true}')
         self.initialize()
+        archive = self.agent.parent / "backups/shared-config-v1"
+        before = {p.name: p.read_bytes() for p in archive.iterdir()}
+        self.assertEqual(set(before), set(self.source_values))
+        for path in archive.iterdir():
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+        (self.source / "auth.json").write_text('{"changed": true}')
+        (self.source / "settings.json").write_text('{"defaultModel": "other"}')
+        self.initialize()
+        self.assertEqual((self.source / "auth.json").read_text(), '{"changed": true}')
+        self.assertEqual((self.source / "settings.json").read_text(), '{"defaultModel": "other"}')
+        self.assertEqual(before, {p.name: p.read_bytes() for p in archive.iterdir()})
+        self.assertFalse(any(self.agent.iterdir()))
+
+    def test_missing_compatible_providers_models_and_logins_are_merged(self):
+        self.agent.mkdir(parents=True)
+        legacy = {
+            "settings.json": {
+                "defaultProvider": "rea-only",
+                "defaultModel": "not-the-current-default",
+            },
+            "models.json": {
+                "providers": {
+                    "fixture": {
+                        "baseUrl": "https://fixture.invalid",
+                        "models": [{"id": "extra-model"}],
+                    },
+                    "rea-only": {
+                        "baseUrl": "https://rea-only.invalid",
+                        "models": [{"id": "flash"}],
+                    },
+                }
+            },
+            "auth.json": {
+                "fixture": {"type": "api_key", "key": "DO-NOT-OVERWRITE-LIVE"},
+                "rea-only": {"type": "api_key", "key": "SYNTHETIC-RE-ONLY"},
+                "oauth-only": {
+                    "type": "oauth",
+                    "access": "SYNTHETIC-ACCESS",
+                    "refresh": "SYNTHETIC-REFRESH",
+                    "expires": 1,
+                },
+            },
+        }
+        for name, value in legacy.items():
+            (self.agent / name).write_text(json.dumps(value))
+        self.initialize()
+        self.assertEqual((self.source / "settings.json").read_bytes(), self.before["settings.json"])
+        models = json.loads((self.source / "models.json").read_text())["providers"]
+        self.assertEqual(models["fixture"]["models"], [{"id": "extra-model"}])
+        self.assertEqual(models["rea-only"], legacy["models.json"]["providers"]["rea-only"])
+        auth = json.loads((self.source / "auth.json").read_text())
+        self.assertEqual(auth["fixture"], self.source_values["auth.json"]["fixture"])
+        self.assertEqual(auth["rea-only"], legacy["auth.json"]["rea-only"])
+        self.assertEqual(auth["oauth-only"], legacy["auth.json"]["oauth-only"])
+        self.assertEqual((self.source / "auth.json").stat().st_mode & 0o777, 0o600)
+        for name, value in legacy.items():
+            self.assertEqual(
+                json.loads((self.agent.parent / "backups/shared-config-v1" / name).read_text()),
+                value,
+            )
+        after = {p.name: p.read_bytes() for p in self.source.iterdir()}
+        self.initialize()
+        self.assertEqual(after, {p.name: p.read_bytes() for p in self.source.iterdir()})
+
+    def test_merge_recovers_if_interrupted_between_model_and_auth_writes(self):
+        self.agent.mkdir(parents=True)
+        (self.agent / "models.json").write_text(
+            json.dumps({"providers": {"rea-only": {"baseUrl": "https://rea-only.invalid"}}})
+        )
+        (self.agent / "auth.json").write_text(
+            json.dumps({"rea-only": {"type": "api_key", "key": "SYNTHETIC-RE"}})
+        )
+        original = initializer.write_private
+
+        def interrupt(path, value):
+            if path == self.source / "auth.json":
+                raise OSError("fixture interruption")
+            original(path, value)
+
+        with (
+            patch.object(initializer, "write_private", side_effect=interrupt),
+            self.assertRaises(OSError),
+        ):
+            self.initialize()
+        self.assertIn(
+            "rea-only", json.loads((self.source / "models.json").read_text())["providers"]
+        )
+        self.assertNotIn("rea-only", json.loads((self.source / "auth.json").read_text()))
+        self.assertFalse((self.state / "shared-config-v1.json").exists())
+        self.initialize()
+        self.assertIn("rea-only", json.loads((self.source / "auth.json").read_text()))
+        self.assertEqual((self.source / "settings.json").read_bytes(), self.before["settings.json"])
+
+    def test_busy_shared_native_mutex_prevents_merge_without_removing_foreign_lock(self):
+        mutex = self.source / "auth.json.lock"
+        mutex.mkdir()
+        with self.assertRaisesRegex(ValueError, "busy"):
+            self.initialize()
+        self.assertTrue(mutex.is_dir())
+        self.assertEqual((self.source / "auth.json").read_bytes(), self.before["auth.json"])
+        self.assertFalse((self.state / "shared-config-v1.json").exists())
+        mutex.rmdir()
+        self.initialize()
+
+    def test_conflicting_endpoints_and_implicit_current_providers_keep_live_routing_and_auth(self):
+        models = {"providers": {"custom": {"baseUrl": "https://current.invalid"}}}
+        auth = {"implicit": {"type": "api_key", "key": "LIVE-IMPLICIT"}}
+        legacy_models = {
+            "providers": {
+                "custom": {"baseUrl": "https://old.invalid", "models": [{"id": "old"}]},
+                "implicit": {"baseUrl": "https://old.invalid"},
+                "selected": {"baseUrl": "https://old.invalid"},
+            }
+        }
+        legacy_auth = {
+            name: {"type": "api_key", "key": "DO-NOT-IMPORT"}
+            for name in ("custom", "implicit", "selected")
+        }
+        merged_models, merged_auth, _counts = initializer.compatible_additions(
+            models, auth, legacy_models, legacy_auth, "selected"
+        )
+        self.assertEqual(merged_models, models)
+        self.assertEqual(merged_auth, auth)
+        # An old built-in login must not be sent to a current custom endpoint either.
+        merged_models, merged_auth, _counts = initializer.compatible_additions(
+            models, auth, {}, legacy_auth, None
+        )
+        self.assertNotIn("custom", merged_auth)
+        self.assertEqual(merged_models, models)
+
+    def test_interrupted_archive_can_resume_without_losing_legacy_files(self):
+        self.agent.mkdir(parents=True)
+        for name in self.source_values:
+            (self.agent / name).write_text('{"legacy": true}')
+        original = os.rename
+
+        def interrupt(path, destination):
+            if path == self.agent / "models.json":
+                raise OSError("fixture interruption")
+            return original(path, destination)
+
+        with patch("os.rename", interrupt), self.assertRaises(OSError):
+            self.initialize()
+        self.assertFalse((self.state / "shared-config-v1.json").exists())
+        self.initialize()
+        self.assertFalse(any(self.agent.iterdir()))
+        self.assertEqual(len(list((self.agent.parent / "backups/shared-config-v1").iterdir())), 3)
+
+    def test_atomic_archive_preserves_updates_through_an_open_legacy_descriptor(self):
+        self.agent.mkdir(parents=True)
         auth = self.agent / "auth.json"
-        auth.write_text('{"changed": true}')
-        settings = self.agent / "settings.json"
-        settings.write_text('{"defaultModel": "other"}')
+        auth.write_text('{"old": true}')
+        with auth.open("r+") as writer:
+            self.initialize()
+            writer.seek(0)
+            writer.write('{"new": true}')
+            writer.truncate()
+            writer.flush()
+        archive = self.agent.parent / "backups/shared-config-v1/auth.json"
+        self.assertEqual(json.loads(archive.read_text()), {"new": True})
+        self.assertFalse(auth.exists())
+
+    def test_legacy_native_locks_and_live_session_guard_preserve_files(self):
+        self.agent.mkdir(parents=True)
+        auth = self.agent / "auth.json"
+        auth.write_text('{"legacy": true}')
+        mutex = self.agent / "auth.json.lock"
+        mutex.mkdir()
+        with self.assertRaisesRegex(ValueError, "busy"):
+            self.initialize()
+        self.assertTrue(mutex.is_dir())
+        self.assertTrue(auth.exists())
+        mutex.rmdir()
+        with patch.object(initializer, "legacy_process_running", return_value=True):
+            with self.assertRaisesRegex(ValueError, "Close all legacy"):
+                self.initialize()
+        self.assertTrue(auth.exists())
+        self.assertFalse(any(self.agent.glob("*.lock")))
+
+    def test_abrupt_exit_after_archive_rename_recovers_only_stale_native_mutexes(self):
+        self.agent.mkdir(parents=True)
+        originals = {}
+        for name in initializer.FILES:
+            originals[name] = b'{"legacy": true}'
+            (self.agent / name).write_bytes(originals[name])
+        script = f"""
+import importlib.util, os
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("migration", {str(CODE / "initialize.py")!r})
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+rename = os.rename
+def crash(source, destination):
+    rename(source, destination)
+    os._exit(77)
+os.rename = crash
+module.initialize(Path({str(self.agent)!r}), Path({str(self.state)!r}), Path({str(self.source)!r}))
+"""
+        result = subprocess.run(
+            [sys.executable, "-B", "-c", script], capture_output=True, timeout=10
+        )
+        self.assertEqual(result.returncode, 77, result.stderr)
+        self.assertEqual(len(list(self.agent.glob("*.lock"))), 3)
+        with self.assertRaisesRegex(ValueError, "busy"):
+            self.initialize()
+        for mutex in self.agent.glob("*.lock"):
+            stale = mutex.stat().st_mtime - 31
+            os.utime(mutex, (stale, stale))
         self.initialize()
-        self.assertEqual(auth.read_text(), '{"changed": true}')
-        self.assertEqual(settings.read_text(), '{"defaultModel": "other"}')
+        self.assertFalse(any(self.agent.iterdir()))
+        backup = self.agent.parent / "backups/shared-config-v1"
+        self.assertEqual({p.name: p.read_bytes() for p in backup.iterdir()}, originals)
+
+    def test_live_writer_and_nonempty_or_foreign_mutexes_are_never_removed(self):
+        self.agent.mkdir(parents=True)
+        mutex = self.agent / "settings.json.lock"
+        mutex.mkdir()
+        stale = mutex.stat().st_mtime - 31
+        os.utime(mutex, (stale, stale))
+        identity = initializer.mutex_identity(mutex)
+        with patch.object(initializer, "legacy_process_running", return_value=True):
+            with self.assertRaisesRegex(ValueError, "busy"):
+                self.initialize()
+        self.assertEqual(initializer.mutex_identity(mutex), identity)
+        (mutex / "foreign").write_text("preserve")
+        with self.assertRaisesRegex(ValueError, "unsafe or nonempty"):
+            self.initialize()
+        self.assertEqual((mutex / "foreign").read_text(), "preserve")
+        (mutex / "foreign").unlink()
+        mutex.rmdir()
+        mutex.symlink_to(self.source, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "unsafe or nonempty"):
+            self.initialize()
+        self.assertTrue(mutex.is_symlink())
 
     def test_same_profile_is_rejected(self):
         with self.assertRaises(ValueError):
@@ -156,10 +379,7 @@ class ProfileTests(unittest.TestCase):
         config = {
             "pi": "/fixture/bin/pi",
             "resources": str(resources),
-            "herdrIntegration": str(extensions[2]),
-            "questionExtension": str(extensions[3]),
-            "webSearchExtension": str(extensions[4]),
-            "webFetchExtension": str(extensions[5]),
+            "commonExtensions": list(map(str, extensions[2:])),
         }
         locations = {"sessions": self.state / "sessions"}
         with patch.dict(os.environ, {"PI_RE_CHILD": "0"}):
@@ -209,10 +429,7 @@ class ProfileTests(unittest.TestCase):
         config = {
             "pi": "/fixture/bin/pi",
             "resources": str(resources),
-            "herdrIntegration": str(reporter),
-            "questionExtension": str(question),
-            "webSearchExtension": str(search),
-            "webFetchExtension": str(fetch),
+            "commonExtensions": list(map(str, (reporter, question, search, fetch))),
         }
         locations = {"sessions": self.state / "sessions"}
         with patch.dict(os.environ, {"PI_RE_CHILD": "0"}):
@@ -222,7 +439,7 @@ class ProfileTests(unittest.TestCase):
 
     def test_managed_mcp_is_session_only_and_preserves_foreign_config(self):
         config = {"reaSkill": "/pinned/skill"}
-        locations = {"agent": self.agent}
+        locations = {"legacy_agent": self.agent}
         with patch.dict(os.environ, {"PI_RE_CHILD": "0"}):
             launcher.validate_rea_mcp(config, locations)
             self.assertFalse((self.agent / "mcp.json").exists())
@@ -286,7 +503,8 @@ class ProfileTests(unittest.TestCase):
 
     def test_paths_ignore_inherited_coding_profile(self):
         result = launcher.paths({"HOME": str(self.root), "PI_CODING_AGENT_DIR": "/coding"})
-        self.assertEqual(result["agent"], self.root / ".local/share/pi-re/agent")
+        self.assertEqual(result["agent"], self.root / ".pi/agent")
+        self.assertEqual(result["legacy_agent"], self.root / ".local/share/pi-re/agent")
         with self.assertRaises(ValueError):
             launcher.paths({"HOME": str(self.root), "XDG_STATE_HOME": "relative"})
 

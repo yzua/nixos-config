@@ -70,11 +70,12 @@ unknown sample only inside a separately approved whole-process lab boundary.
 Static parsers also process hostile data; use finite resource limits and avoid
 running extracted code or build hooks. If risk needs isolation absent here, block.
 
-The RE profile is separate and writable, with copied provider/login configuration.
-Keep ordinary coding settings/resources untouched. Never inspect credentials to
-prove separation; use path/ownership facts from approved metadata. Copying login
-state is not redaction and unrestricted children may read it. Confirm provider
-and approved-data policy before exposing target evidence to a model.
+The base login/models/global settings are live shared configuration; RE keeps
+separate sessions and reviewed loadouts. Preserve unrelated shared settings and
+coding resources. Use approved path/ownership metadata rather than inspecting
+credentials to prove separation. Unrestricted host children can read shared login
+state; sharing is not redaction or containment. Confirm provider and approved-data
+policy before exposing target evidence to a model.
 
 ## Ownership and recovery
 
