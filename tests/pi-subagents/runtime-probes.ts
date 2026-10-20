@@ -4,8 +4,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import subagents, {
   __test__,
-} from "../../home-manager/modules/ai/pi/extensions/interactive-subagents/pi-extension/subagents/index.ts";
-import { pollForExit } from "../../home-manager/modules/ai/pi/extensions/interactive-subagents/pi-extension/subagents/run-evidence.ts";
+} from "../../home-manager/modules/ai/pi-base/extensions/interactive-subagents/pi-extension/subagents/index.ts";
+import { pollForExit } from "../../home-manager/modules/ai/pi-base/extensions/interactive-subagents/pi-extension/subagents/run-evidence.ts";
 
 export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, realContext) => {
@@ -91,7 +91,6 @@ export default function (pi: ExtensionAPI) {
               ["override", "offline-missing", undefined],
               ["profile", undefined, "offline-missing"],
               ["unavailable", "unconfigured/offline-shared", undefined],
-              ["empty", "", "offline-shared"],
             ]) {
               setProfile(profileModel);
               try {
@@ -135,6 +134,7 @@ export default function (pi: ExtensionAPI) {
               ["unqualified", "offline-shared", undefined, undefined],
               ["profile", undefined, "offline-shared", undefined],
               ["inherit", undefined, undefined, undefined],
+              ["empty-override", "", undefined, undefined],
               ["role", "role-provider/offline-role", undefined, undefined],
               ["claude", "sonnet", "opus", "claude"],
             ]) {

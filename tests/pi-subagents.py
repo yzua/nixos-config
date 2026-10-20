@@ -18,7 +18,9 @@ from pi_test_support import isolated_environment, require_pi
 
 REPO = Path(__file__).resolve().parents[1]
 FIXTURES = REPO / "tests" / "pi-subagents"
-SOURCE = REPO / "home-manager/modules/ai/pi/extensions/interactive-subagents/pi-extension/subagents"
+SOURCE = (
+    REPO / "home-manager/modules/ai/pi-base/extensions/interactive-subagents/pi-extension/subagents"
+)
 
 FAKE_TMUX = """#!/usr/bin/env python3
 import json, os, shlex, signal, sys, time
@@ -566,7 +568,7 @@ class PiRegressions(unittest.TestCase):
             )
         )
         results = self.probes("model-guard")
-        self.assertEqual(set(results["refused"]), {"override", "profile", "unavailable", "empty"})
+        self.assertEqual(set(results["refused"]), {"override", "profile", "unavailable"})
         for label in ["override", "profile"]:
             self.assertIn("offline-missing", results["refused"][label])
             self.assertIn("available", results["refused"][label])
@@ -578,9 +580,12 @@ class PiRegressions(unittest.TestCase):
             self.assertIn("--model 'configured-provider/offline-shared'", launch["command"])
             self.assertEqual(launch["loadout"]["model"], "configured-provider/offline-shared")
         self.assertEqual(results["valid"][0]["name"], "guard", results)
-        inherited, role, claude = results["valid"][3:]
+        inherited, emptyOverride, role, claude = results["valid"][3:]
         self.assertNotIn("--model", inherited["command"])
         self.assertIsNone(inherited["loadout"]["model"])
+        self.assertEqual(emptyOverride["label"], "empty-override")
+        self.assertNotIn("--model", emptyOverride["command"])
+        self.assertIsNone(emptyOverride["loadout"]["model"])
         self.assertIn("--model 'role-provider/offline-role'", role["command"])
         self.assertEqual(role["loadout"]["model"], "role-provider/offline-role")
         self.assertEqual(role["loadout"]["agentDir"], str(self.root / "role/.pi/agent"))
