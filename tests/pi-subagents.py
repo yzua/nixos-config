@@ -595,7 +595,7 @@ class PiRegressions(unittest.TestCase):
             self.assertIn("--model 'configured-provider/offline-shared'", launch["command"])
             self.assertEqual(launch["loadout"]["model"], "configured-provider/offline-shared")
         self.assertEqual(results["valid"][0]["name"], "guard", results)
-        inherited, emptyOverride, role, claude, thinkingCase, scopedCase = results["valid"][3:]
+        inherited, emptyOverride, scopedCase, role, claude, thinkingCase = results["valid"][3:]
         self.assertEqual(scopedCase["label"], "scoped")
         self.assertIn("--model 'configured-provider/offline-shared'", scopedCase["command"])
         self.assertNotIn("--model", inherited["command"])
