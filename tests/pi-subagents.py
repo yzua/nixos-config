@@ -563,12 +563,23 @@ class PiRegressions(unittest.TestCase):
                             "baseUrl": "http://127.0.0.1:9",
                             "models": [model],
                         },
+                        # Authenticated second provider for cross-provider scoping.
+                        "zai-like": {
+                            "api": "openai-responses",
+                            "baseUrl": "http://127.0.0.1:9",
+                            "apiKey": "unused-offline-test-key",
+                            "models": [{"id": "offline-other", "name": "Offline other"}],
+                        },
                     }
                 }
             )
         )
         results = self.probes("model-guard")
-        self.assertEqual(set(results["refused"]), {"override", "profile", "unavailable"})
+        self.assertEqual(
+            set(results["refused"]), {"override", "profile", "unavailable", "cross-provider"}
+        )
+        self.assertIn("belongs to provider zai-like", results["refused"]["cross-provider"])
+        self.assertIn("configured-provider", results["refused"]["cross-provider"])
         for label in ["override", "profile"]:
             self.assertIn("offline-missing", results["refused"][label])
             self.assertIn("available", results["refused"][label])
@@ -580,12 +591,16 @@ class PiRegressions(unittest.TestCase):
             self.assertIn("--model 'configured-provider/offline-shared'", launch["command"])
             self.assertEqual(launch["loadout"]["model"], "configured-provider/offline-shared")
         self.assertEqual(results["valid"][0]["name"], "guard", results)
-        inherited, emptyOverride, role, claude = results["valid"][3:]
+        inherited, emptyOverride, role, claude, thinkingCase = results["valid"][3:]
         self.assertNotIn("--model", inherited["command"])
         self.assertIsNone(inherited["loadout"]["model"])
         self.assertEqual(emptyOverride["label"], "empty-override")
         self.assertNotIn("--model", emptyOverride["command"])
         self.assertIsNone(emptyOverride["loadout"]["model"])
+        self.assertEqual(thinkingCase["label"], "thinking")
+        self.assertIn("--thinking 'high'", thinkingCase["command"])
+        self.assertEqual(thinkingCase["loadout"]["thinking"], "high")
+        self.assertIsNone(thinkingCase["loadout"]["model"])
         self.assertIn("--model 'role-provider/offline-role'", role["command"])
         self.assertEqual(role["loadout"]["model"], "role-provider/offline-role")
         self.assertEqual(role["loadout"]["agentDir"], str(self.root / "role/.pi/agent"))

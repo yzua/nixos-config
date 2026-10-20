@@ -31,6 +31,7 @@ type LaunchRequest =
       kind: "initial";
       profile: AgentDefaults | null;
       model?: string;
+      thinking?: string;
       cwd: string | null;
       agentDir: string | null;
     }
@@ -194,7 +195,7 @@ export class ChildLaunch {
               (policy ? COMMON_CHILD_TOOLS.join(",") : null),
             ...(policy ? { profilePolicy: policy } : {}),
             model: request.model ?? profile?.model ?? null,
-            thinking: profile?.thinking ?? null,
+            thinking: request.thinking ?? profile?.thinking ?? null,
             systemPromptMode: profile?.systemPromptMode ?? null,
             identity: identityInSystemPrompt ? identity : null,
             spawnable: profile?.subagentAgents ?? null,

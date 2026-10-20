@@ -11,6 +11,8 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, realContext) => {
     const root = process.env.PI_TEST_ROOT!;
     const results: Record<string, unknown> = {};
+    // Probe processes must not inherit a random parent session's provider.
+    delete process.env.PI_PROVIDER;
     try {
       if (process.env.PI_TEST_SCENARIO === "panes") {
         for (const mode of [
@@ -105,6 +107,24 @@ export default function (pi: ExtensionAPI) {
               }
             }
             results.refused = refused;
+            const previousProvider = process.env.PI_PROVIDER;
+            process.env.PI_PROVIDER = "configured-provider";
+            try {
+              try {
+                await run("subagent", {
+                  agent: "fixture",
+                  name: "guard",
+                  task: "must not launch",
+                  model: "zai-like/offline-other",
+                });
+              } catch (error) {
+                refused["cross-provider"] = String(error);
+              }
+            } finally {
+              if (previousProvider === undefined) delete process.env.PI_PROVIDER;
+              else process.env.PI_PROVIDER = previousProvider;
+            }
+            results.refused = refused;
             results.panesBeforeValid = existsSync(join(root, "pane-count"))
               ? readFileSync(join(root, "pane-count"), "utf8")
               : "0";
@@ -137,6 +157,7 @@ export default function (pi: ExtensionAPI) {
               ["empty-override", "", undefined, undefined],
               ["role", "role-provider/offline-role", undefined, undefined],
               ["claude", "sonnet", "opus", "claude"],
+              ["thinking", undefined, undefined, undefined],
             ]) {
               setProfile(profileModel, cli);
               const response = await run("subagent", {
@@ -144,6 +165,7 @@ export default function (pi: ExtensionAPI) {
                 name: "guard",
                 task: "offline task",
                 model: override,
+                ...(label === "thinking" ? { thinking: "high" } : {}),
                 ...(label === "role" ? { cwd: roleCwd } : {}),
               });
               valid.push({

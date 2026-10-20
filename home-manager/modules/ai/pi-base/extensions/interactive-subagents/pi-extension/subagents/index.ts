@@ -92,6 +92,20 @@ const SubagentParams = Type.Object({
 /** Built-in tools pi provides natively — no extension needs to be loaded. */
 const BUILTIN_TOOLS = new Set(["read", "write", "edit", "bash", "grep", "find", "ls"]);
 
+/** Valid thinking-level overrides for the subagent tool. */
+const THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
+
+/**
+ * Provider of the current session, when known. Subagent model picks stay on it:
+ * a codex-lb session only resolves codex-lb models, a zai session zai models.
+ */
+function sessionProvider(ctx: unknown): string | null {
+  const provider = (ctx as { model?: { provider?: string } } | undefined)?.model?.provider;
+  if (provider) return provider;
+  const fromEnv = process.env.PI_PROVIDER;
+  return fromEnv && fromEnv.trim() ? fromEnv.trim() : null;
+}
+
 /** Resolve the global agent config directory, respecting PI_CODING_AGENT_DIR. */
 function getAgentConfigDir(): string {
   return (
@@ -755,6 +769,17 @@ async function launchSubagent(
   const explicitModel = (value: unknown): string | undefined =>
     typeof value === "string" && value.trim() ? value : undefined;
   let model = explicitModel(params.model) ?? explicitModel(agentDefs?.model);
+  const thinking = (() => {
+    const level = explicitModel(params.thinking)?.toLowerCase();
+    if (level === undefined) return undefined;
+    if (!THINKING_LEVELS.has(level)) {
+      throw new Error(
+        `Subagent thinking level ${JSON.stringify(params.thinking)} is invalid. ` +
+          `Use one of: ${[...THINKING_LEVELS].join(", ")}, or omit it to keep the default.`,
+      );
+    }
+    return level;
+  })();
   if (
     agentDefs?.cli !== "claude" &&
     model !== undefined &&
@@ -766,10 +791,27 @@ async function launchSubagent(
     // credentials and provider extensions: leave resolution to that child CLI.
     const requested = model.trim();
     const available = await ctx.modelRegistry.getAvailable();
-    const qualified = available.filter((m) => `${m.provider}/${m.id}` === requested);
-    const matches = qualified.length ? qualified : available.filter((m) => m.id === requested);
-    if (!requested || matches.length === 0) {
-      const catalog = available.map((m) => `${m.provider}/${m.id}`);
+    const provider = sessionProvider(ctx);
+    const providerPool = provider ? available.filter((m) => m.provider === provider) : [];
+    // Scope to the session's provider only when that provider has registered
+    // models; an unknown/empty provider must not empty the whole catalog.
+    const pool = providerPool.length ? providerPool : available;
+    const qualified = pool.filter((m) => `${m.provider}/${m.id}` === requested);
+    const matches = qualified.length ? qualified : pool.filter((m) => m.id === requested);
+    if (matches.length === 0) {
+      const elsewhere = available.filter(
+        (m) =>
+          m.provider !== provider && (`${m.provider}/${m.id}` === requested || m.id === requested),
+      );
+      if (provider && elsewhere.length) {
+        throw new Error(
+          `Subagent model ${JSON.stringify(model)} belongs to provider ${elsewhere[0].provider}, ` +
+            `but this session's provider is ${provider}; subagents stay on the session's provider. ` +
+            `Pick from: ${pool.map((m) => `${m.provider}/${m.id}`).join(", ")}. ` +
+            "Omit model to inherit the session default.",
+        );
+      }
+      const catalog = pool.map((m) => `${m.provider}/${m.id}`);
       const shown =
         catalog.slice(0, 12).join(", ") +
         (catalog.length > 12 ? `, … (+${catalog.length - 12} more)` : "");
@@ -847,6 +889,7 @@ async function launchSubagent(
           kind: "initial",
           profile: agentDefs,
           model,
+          thinking,
           cwd: effectiveCwd,
           agentDir:
             localAgentDir && existsSync(localAgentDir)
@@ -1231,10 +1274,15 @@ export default function subagentsExtension(pi: ExtensionAPI) {
       try {
         const available = await ctx?.modelRegistry?.getAvailable();
         if (available?.length) {
-          const ids = available.map((m) => `${m.provider}/${m.id}`);
-          modelsLine =
-            `Models usable as subagent model overrides: ${ids.join(", ")}. ` +
-            "Omit model to inherit the session default.";
+          const provider = sessionProvider(ctx);
+          const pool = provider ? available.filter((m) => m.provider === provider) : available;
+          if (pool.length) {
+            const ids = pool.map((m) => `${m.provider}/${m.id}`);
+            modelsLine =
+              `Models usable as subagent model overrides${provider ? ` (session provider ${provider})` : ""}: ` +
+              `${ids.join(", ")}. Subagents stay on the session's provider; ` +
+              "omit model to inherit the session default.";
+          }
         }
       } catch {
         // Listing is best-effort; spawn-time validation remains authoritative.
