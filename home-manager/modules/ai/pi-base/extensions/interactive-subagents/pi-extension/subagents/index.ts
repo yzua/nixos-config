@@ -81,6 +81,13 @@ const SubagentParams = Type.Object({
     }),
   ),
   model: Type.Optional(Type.String({ description: "Model override (overrides agent default)" })),
+  thinking: Type.Optional(
+    Type.String({
+      description:
+        "Thinking level override: off, minimal, low, medium, high, xhigh or max. " +
+        "Overrides the agent profile's thinking; omit to keep the default.",
+    }),
+  ),
   cwd: Type.Optional(
     Type.String({
       description:
