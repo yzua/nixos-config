@@ -100,6 +100,43 @@
           };
           editorSettings = { };
         };
+        peripherals = {
+          lighting = {
+            vendorId = "048d";
+            productId = "8297";
+          };
+          cooler = {
+            vendorId = "1b1c";
+            productId = "0c18";
+            openrgbName = "Corsair Hydro H100i Platinum";
+            # Two stock RGB fans, four LEDs each; excludes the 16 pump LEDs.
+            fanLedCount = 8;
+            pumpLedCount = 16;
+            # User-confirmed white balance; higher red/green restores yellow tint.
+            pumpColor = [
+              8
+              8
+              255
+            ];
+          };
+          gpu = {
+            pciVendor = "0x10de";
+            pciDevice = "0x1f07";
+            pciSubsystemVendor = "0x1462";
+            pciSubsystemDevice = "0x3733";
+            driver = "nvidia";
+            adapterNamePrefix = "NVIDIA i2c adapter 1 at ";
+            detectorName = "MSI RTX 2070 Gaming exact-ID validation";
+            brightness = 80;
+          };
+          ram = {
+            pciVendor = "0x8086";
+            pciDevice = "0xa323";
+            driver = "i801_smbus";
+            adapterNamePrefix = "SMBus I801 adapter at ";
+            moduleCount = 4;
+          };
+        };
         audio = {
           playbackDevice = "alsa_output.usb-HP__Inc_HyperX_Virtual_Surround_Sound_00000000-00.analog-stereo";
           playbackRoute = "Analog Output";

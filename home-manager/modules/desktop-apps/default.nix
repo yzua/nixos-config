@@ -8,6 +8,7 @@
     ./firefox.nix
     ./keepassxc.nix
     ./netbird.nix
+    ./peripherals.nix
     ./vesktop.nix
     ./yubikey.nix
   ];
