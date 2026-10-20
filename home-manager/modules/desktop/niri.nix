@@ -13,6 +13,16 @@ let
   colors = config.lib.stylix.colors.withHashtag;
   ghostty = lib.getExe pkgs.ghostty;
   noctalia = lib.getExe pkgs.noctalia;
+  noctaliaStartup = pkgs.writeShellApplication {
+    name = "noctalia-audio-startup";
+    runtimeInputs = [ (import ./audio-ready.nix { inherit pkgs; }) ];
+    text = ''
+      # Noctalia can otherwise miss the default output during early login.
+      # Keep the desktop available even when no sound device is connected.
+      wait-for-audio-output || echo "Starting Noctalia without a ready audio output" >&2
+      exec ${noctalia}
+    '';
+  };
   voiceAction = lib.getExe (import ../ai/voice/action.nix { inherit aiPackages pkgs; });
   primaryMonitor = lib.findFirst (monitor: monitor.primary) null setup.monitors;
 in
@@ -133,7 +143,7 @@ in
       open-focused false
     }
 
-    spawn-at-startup "${noctalia}"
+    spawn-at-startup "${lib.getExe noctaliaStartup}"
     spawn-at-startup "${ghostty}"
     ${lib.optionalString setup.desktop.fullAutostart ''
       spawn-at-startup "${lib.getExe config.programs.firefox.package}"

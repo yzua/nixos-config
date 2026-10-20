@@ -63,6 +63,9 @@ just home-preview   # build and review changes
 just home-switch    # apply the reviewed build, without sudo
 ```
 
+The desktop's [headset playback tuning](docs/audio.md) starts EasyEffects at login
+with a reversible EQ preset; microphone processing is unchanged.
+
 For system settings:
 
 ```sh

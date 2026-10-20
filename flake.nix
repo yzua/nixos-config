@@ -100,6 +100,10 @@
           };
           editorSettings = { };
         };
+        audio = {
+          playbackDevice = "alsa_output.usb-HP__Inc_HyperX_Virtual_Surround_Sound_00000000-00.analog-stereo";
+          playbackRoute = "Analog Output";
+        };
         graphics = {
           videoDrivers = [ "nvidia" ];
           # Test the proprietary kernel module without GSP after GPU hangs.

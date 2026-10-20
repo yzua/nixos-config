@@ -4,6 +4,7 @@
 
 {
   imports = [
+    ./easyeffects.nix
     ./firefox.nix
     ./keepassxc.nix
     ./netbird.nix
