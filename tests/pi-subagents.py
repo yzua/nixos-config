@@ -577,11 +577,11 @@ class PiRegressions(unittest.TestCase):
         results = self.probes("model-guard")
         self.assertEqual(
             set(results["refused"]),
-            {"override", "profile", "unavailable", "cross-provider", "scoped"},
+            {"override", "profile", "unavailable", "cross-provider", "scoped", "thinking-as-model"},
         )
         self.assertIn("not an available registered model", results["refused"]["scoped"])
         self.assertIn("configured-provider/offline-shared", results["refused"]["scoped"])
-        self.assertIn("Available: configured-provider/offline-shared. Omit", results["refused"]["scoped"])
+        self.assertIn("pass it as the thinking option", results["refused"]["thinking-as-model"])
         self.assertIn("belongs to provider zai-like", results["refused"]["cross-provider"])
         self.assertIn("configured-provider", results["refused"]["cross-provider"])
         for label in ["override", "profile"]:

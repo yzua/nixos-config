@@ -833,10 +833,13 @@ async function launchSubagent(
       const shown =
         catalog.slice(0, 12).join(", ") +
         (catalog.length > 12 ? `, … (+${catalog.length - 12} more)` : "");
+      const thinkingHint = THINKING_LEVELS.has(requested)
+        ? " It looks like a thinking level; pass it as the thinking option, not model."
+        : "";
       throw new Error(
         `Subagent model ${JSON.stringify(model)} is not an available registered model. ` +
           "Use an exact model ID with configured authentication, preferably provider/model. " +
-          `Available: ${shown}. Omit model to inherit the session default.`,
+          `Available: ${shown}. Omit model to inherit the session default.${thinkingHint}`,
       );
     }
     if (matches.length > 1) {

@@ -93,6 +93,7 @@ export default function (pi: ExtensionAPI) {
               ["override", "offline-missing", undefined],
               ["profile", undefined, "offline-missing"],
               ["unavailable", "unconfigured/offline-shared", undefined],
+              ["thinking-as-model", "high", undefined],
             ]) {
               setProfile(profileModel);
               try {
