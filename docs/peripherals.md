@@ -50,15 +50,31 @@ and after and remained unchanged. No cooling, clock or firmware commands were se
 - **Mouse:** pinned libratbag 0.18 includes original G903 and G903 HERO IDs;
   receiver ID alone does not distinguish them. Piper's actual detection still
   needs the active system service and an awake mouse.
-- **Keyboard:** VIA has a definition for `359b:0004`, but the inspected keyboard
-  exposes vendor HID collection `ff51:0058`, not VIA's `ff60:0061`. A matching
-  USB ID is not proof of compatible firmware. No VIA shortcut, keyboard HID
-  permission or firmware flashing was added. The vendor's documented RGB
-  shortcuts work without a configuration app: Fn+W/S brightness, Fn+R/F hue,
-  Fn+A animation, Fn+Z mono-colour. For static white, use Fn+Z then repeatedly
-  tap Fn+G to reduce saturation to zero; Fn+T increases saturation. No firmware
-  flash is needed for white. Do not hold Esc while plugging it in: that clears
-  EEPROM and enters the bootloader.
+- **Keyboard:** the user explicitly approved flashing VIA onto the CSTM80
+  `359b:0004` after bootloader identification and recovery-image research.
+  The original `ff51:0058` interface matches QMK XAP. The actual bootloader was
+  identified as Drop TinyUF2 `drop-1.0.1`, CSTM80, USB `359b:0003`. Its
+  `CURRENT.UF2` readback contained only zeros and is **not a backup**; a genuine
+  stock XAP application image was instead extracted from Drop's official
+  Configurator and preserved privately alongside the verified VIA image.
+  The one-time VIA application write reported an I/O error, followed by runtime
+  `359b:0004` with the **VIA `ff60:0061` collection**. The user confirmed ordinary
+  typing works. No bootloader update, explicit EEPROM-clear operation or
+  automatic flash retry occurred; stock restoration remains untested.
+  The active-seat permission rule selects only the verified VIA USB interface
+  number `01`, not the ordinary typing HID nodes. OpenRGB remains limited to
+  the cooler and motherboard. After activating the reviewed rule, reconnect
+  normally and open [VIA](https://usevia.app/) in Chrome/Chromium; authorize only
+  the CSTM80. The activated rule was checked live: only the VIA configuration
+  HID node was user-readable/writable; the other two keyboard HID nodes were not.
+  The user connected VIA and successfully restored accidentally remapped G/H
+  keys, confirming configuration communication. Final white-light appearance
+  and persistence were not independently verified.
+  **Avoid Fn+Space**: this VIA keymap maps it to EEPROM clear. Fn+Backspace enters
+  the bootloader. For static white, Fn+Z then repeated Fn+G saturation-down is
+  available; Fn+W/S controls brightness. Do not hold Esc while plugging it in.
+  See the [firmware investigation and flash record](research/drop-cstm80-via-firmware.md)
+  for provenance, hashes, recovery limitations and the actual result.
 - **Lighting:** pinned OpenRGB 1.0rc3 and liquidctl 1.16.0 match both USB RGB
   devices. OpenRGB's motherboard layout names do not exactly match the `-CF`
   DMI suffix, so a generic layout is possible. Case lights are controllable only

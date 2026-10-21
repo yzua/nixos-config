@@ -101,6 +101,12 @@
           editorSettings = { };
         };
         peripherals = {
+          keyboard = {
+            vendorId = "359b";
+            productId = "0004";
+            # Confirmed VIA raw HID collection after the approved application flash.
+            viaInterfaceNumber = "01";
+          };
           lighting = {
             vendorId = "048d";
             productId = "8297";

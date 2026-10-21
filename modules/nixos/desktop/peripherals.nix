@@ -114,7 +114,13 @@ in
           [
             setup.peripherals.cooler
             setup.peripherals.lighting
-          ];
+          ]
+        + ''
+          # USB identity is on the device parent; the interface number is an
+          # imported property from 60-persistent-input.rules. Do not combine
+          # ATTRS from different parents or grant the ordinary typing nodes.
+          SUBSYSTEM=="hidraw", KERNEL=="hidraw*", ENV{ID_VENDOR_ID}=="${setup.peripherals.keyboard.vendorId}", ENV{ID_MODEL_ID}=="${setup.peripherals.keyboard.productId}", ENV{ID_USB_INTERFACE_NUM}=="${setup.peripherals.keyboard.viaInterfaceNumber}", TAG+="uaccess"
+        '';
     })
   ];
 }

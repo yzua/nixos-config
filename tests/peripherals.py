@@ -57,9 +57,22 @@ for name, config in systems.items():
     assert "--cleanup" in config["ram"]["ExecStopPost"]
     path = Path(config["permissions"][0]) / "lib/udev/rules.d/70-desktop-peripherals.rules"
     assert path.exists(), "Build just preview before running this test"
-    rules = [line for line in path.read_text().splitlines() if line.strip()]
-    assert len(rules) == 2
-    for rule in rules:
+    rules = [
+        line
+        for line in path.read_text().splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    usb_rules = [rule for rule in rules if "ATTRS{" in rule]
+    keyboard_rules = [rule for rule in rules if "ENV{" in rule]
+    assert len(rules) == 3 and len(usb_rules) == 2 and len(keyboard_rules) == 1
+    assert re.fullmatch(
+        r'SUBSYSTEM=="hidraw", KERNEL=="hidraw\*", '
+        r'ENV\{ID_VENDOR_ID\}=="[0-9a-f]{4}", '
+        r'ENV\{ID_MODEL_ID\}=="[0-9a-f]{4}", '
+        r'ENV\{ID_USB_INTERFACE_NUM\}=="[0-9a-f]{2}", TAG\+="uaccess"',
+        keyboard_rules[0],
+    )
+    for rule in usb_rules:
         assert re.fullmatch(
             r'SUBSYSTEM=="hidraw", KERNEL=="hidraw\*", '
             r'ATTRS\{idVendor\}=="[0-9a-f]{4}", '
