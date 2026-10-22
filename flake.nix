@@ -162,6 +162,13 @@
           resolution = "2560x1080";
           fps = 60;
           bitrateKbps = 20000;
+          tv = {
+            clientAddress = pi.home.samsung.host;
+            appName = "TV Gaming (1440p)";
+            # This 16:9 mode is advertised by the primary monitor; restore its
+            # usual ultrawide mode when the TV application is quit in Moonlight.
+            mode = "2560x1440@59.951";
+          };
         };
         # Search backend is independent of Pi's selected chat model/provider.
         pi.webSearch = {

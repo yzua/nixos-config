@@ -60,9 +60,16 @@ if host is not None:
     assert settings["upnp"] == "disabled"
     assert settings["address_family"] == "ipv4"
     assert settings["lan_encryption_mode"] == settings["wan_encryption_mode"] == 2
-    assert settings["controller"] == "disabled"
-    assert len(sunshine["applications"]["apps"]) == 1
-    assert set(sunshine["applications"]["apps"][0]) == {"name"}
+    assert settings["controller"] == "enabled"
+    assert settings["gamepad"] == "x360"
+    apps = sunshine["applications"]["apps"]
+    assert len(apps) == 2
+    assert set(apps[0]) == {"name"}
+    assert set(apps[1]) == {"name", "prep-cmd", "detached"}
+    assert len(apps[1]["prep-cmd"]) == 1
+    assert set(apps[1]["prep-cmd"][0]) == {"do", "undo"}
+    assert len(apps[1]["detached"]) == 1
+    assert apps[1]["detached"][0].endswith("/bin/steam -bigpicture")
     assert host["service"]["serviceConfig"]["UMask"] == "0077"
     assert host["service"]["unitConfig"]["ConditionUser"]
     firewall = host["firewall"]
@@ -82,14 +89,59 @@ if host is not None:
         for line in firewall["extraCommands"].splitlines()
         if "-j nixos-fw-accept" in line or "-j ACCEPT" in line
     ]
-    assert len(streaming_rules) == 2
+    clients = {remote["clientAddress"], remote["tv"]["clientAddress"]}
+    assert len(clients) == 2
+    assert apps[0]["name"] == remote["appName"]
+    assert apps[1]["name"] == remote["tv"]["appName"]
+    monitors = evaluate(system_ref + "._module.specialArgs.setup.monitors", "x: x")
+    primary = next(monitor for monitor in monitors if monitor["primary"])
+    for action, mode in [("do", remote["tv"]["mode"]), ("undo", primary["mode"])]:
+        # Sunshine uses Boost.Process, not a shell: POSIX single quotes are not
+        # understood. Only pass a bare script path; shell quoting belongs inside.
+        command = apps[1]["prep-cmd"][0][action]
+        assert re.fullmatch(r"/nix/store/[a-z0-9]+-sunshine-tv-mode-[^\s/]+", command), (
+            "Sunshine prep commands must be bare wrapper paths, not shell-quoted argv"
+        )
+        context = evaluate(
+            system_ref + ".config.services.sunshine.applications.apps",
+            f'apps: builtins.getContext ((builtins.head ((builtins.elemAt apps 1).prep-cmd))."{action}")',
+        )
+        derivations = json.loads(
+            subprocess.check_output(["nix", "derivation", "show", *context], text=True)
+        )
+        # Nix 2.34+ wraps the derivation map in a versioned object.
+        derivations = derivations.get("derivations", derivations)
+        assert len(derivations) == 1
+        script = next(iter(derivations.values()))["env"]["text"]
+        lines = [line for line in script.splitlines() if line and not line.startswith("#!")]
+        assert len(lines) == 1
+        argv = shlex.split(lines[0])
+        assert argv[0] == "exec" and argv[1].endswith("/bin/niri")
+        assert argv[2:] == ["msg", "output", primary["match"], "mode", mode]
+    assert len(streaming_rules) == 2 * len(clients)
+    expected = {
+        (client + "/32", protocol, ports)
+        for client in clients
+        for protocol, ports in [
+            ("tcp", "47984,47989,48010"),
+            ("udp", "47998:48000"),
+        ]
+    }
+    actual = set()
     for rule in streaming_rules:
         assert rule[:3] == ["iptables", "-A", "nixos-fw"]
         assert rule[rule.index("-i") + 1] == remote["hostInterface"]
-        assert rule[rule.index("-s") + 1] == remote["clientAddress"] + "/32"
+        actual.add(
+            (
+                rule[rule.index("-s") + 1],
+                rule[rule.index("-p") + 1],
+                rule[rule.index("--dports") + 1],
+            )
+        )
         assert rule[rule.index("-d") + 1] == remote["hostAddress"]
         assert rule[rule.index("--dports") + 1] in {"47984,47989,48010", "47998:48000"}
         assert rule[-2:] == ["-j", "nixos-fw-accept"]
+    assert actual == expected
     print(f"{system_name}: restricted encrypted Sunshine LAN policy checks passed.")
 
 client = evaluate(

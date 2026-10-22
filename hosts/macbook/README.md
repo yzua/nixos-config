@@ -102,8 +102,10 @@ keyboard/mouse control. The ultrawide display is letterboxed; host display modes
 were not changed. Monitor-off, locking, and suspend/resume streaming remain
 separate tests.
 
-Streaming is restricted to the configured laptop LAN address and requires
-mandatory encryption and authenticated pairing. UPnP and Sunshine service
+Streaming is restricted to the configured laptop and TV LAN addresses and requires
+mandatory encryption and authenticated pairing. The laptop's **Desktop** entry
+still leaves host display modes unchanged; the separate [TV Gaming entry](../../docs/game-streaming.md)
+temporarily selects a 16:9 mode. UPnP and Sunshine service
 publishing are disabled; the administration interface permits only local access.
 Open `https://localhost:47990` on the host to revoke a paired client. The generated
 admin login is private at `~/.local/state/sunshine/private/admin.json` on the host;
@@ -111,7 +113,7 @@ it and the pairing keys remain outside Git and the Nix store. Reserve the LAN
 addresses in the router, or update `setup.remoteDesktop` if DHCP changes them.
 The host's Sunshine service starts with its graphical session; log in there,
 then open **PC Desktop** on the laptop. Use **Ctrl + Alt + Shift + Q** to disconnect
-without closing the PC's apps. Host monitor modes are not changed.
+without closing the PC's apps. Host monitor modes are not changed by this entry.
 
 ## Remaining checks and decisions
 

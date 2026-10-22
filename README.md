@@ -71,6 +71,8 @@ automatic white-light restoration, and cooler telemetry without fan/pump-speed c
 Proton-CachyOS selection and the existing GameMode/MangoHud launch options.
 [Enter The Wired](docs/enter-the-wired.md) covers the pinned ACCELA/SLSsteam
 packages, writable settings, Steam compatibility checks, and removal.
+[TV game streaming](docs/game-streaming.md) covers Moonlight, DualSense input, and
+the reversible 16:9 Steam Big Picture entry.
 
 For system settings:
 
