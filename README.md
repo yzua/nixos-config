@@ -73,6 +73,9 @@ Proton-CachyOS selection and the existing GameMode/MangoHud launch options.
 packages, writable settings, Steam compatibility checks, and removal.
 [TV game streaming](docs/game-streaming.md) covers Moonlight, DualSense input, and
 the reversible 16:9 Steam Big Picture entry.
+[Room Cam](docs/room-camera.md) provides on-demand full-resolution viewing,
+local person alerts, and a hand-landmark/gesture data playground, without
+recording or remote access.
 
 For system settings:
 

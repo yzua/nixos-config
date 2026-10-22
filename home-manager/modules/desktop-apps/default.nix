@@ -9,6 +9,7 @@
     ./keepassxc.nix
     ./netbird.nix
     ./peripherals.nix
+    ./room-camera.nix
     ./vesktop.nix
     ./yubikey.nix
   ];

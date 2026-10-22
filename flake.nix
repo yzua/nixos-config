@@ -384,6 +384,7 @@
         accela = pkgs.callPackage ./packages/accela { };
         slssteam = pkgs.callPackage ./packages/slssteam { };
         open-design = openDesignPackage;
+        room-cam = import ./packages/room-camera { inherit pkgs; };
         pi-base = piProfile "pi-base";
         pi-coding = piProfile "pi-coding";
         pi-home = piProfile "pi-home";
