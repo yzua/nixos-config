@@ -270,6 +270,7 @@
             builtins.elem name [
               "google-chrome"
               "vscode"
+              "accela"
               "androidsdk"
               "platform-tools"
               "build-tools"
@@ -373,6 +374,8 @@
       formatter.${system} = formatter;
 
       packages.${system} = {
+        accela = pkgs.callPackage ./packages/accela { };
+        slssteam = pkgs.callPackage ./packages/slssteam { };
         open-design = openDesignPackage;
         pi-base = piProfile "pi-base";
         pi-coding = piProfile "pi-coding";

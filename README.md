@@ -69,6 +69,8 @@ with a reversible EQ preset; microphone processing is unchanged.
 automatic white-light restoration, and cooler telemetry without fan/pump-speed changes.
 [Steam and custom Proton runners](docs/steam.md) covers per-game GE-Proton and
 Proton-CachyOS selection and the existing GameMode/MangoHud launch options.
+[Enter The Wired](docs/enter-the-wired.md) covers the pinned ACCELA/SLSsteam
+packages, writable settings, Steam compatibility checks, and removal.
 
 For system settings:
 
