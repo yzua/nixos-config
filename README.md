@@ -67,6 +67,8 @@ The desktop's [headset playback tuning](docs/audio.md) starts EasyEffects at log
 with a reversible EQ preset; microphone processing is unchanged.
 [Peripheral controls](docs/peripherals.md) cover mouse settings, scoped RGB tools,
 automatic white-light restoration, and cooler telemetry without fan/pump-speed changes.
+[Steam and custom Proton runners](docs/steam.md) covers per-game GE-Proton and
+Proton-CachyOS selection and the existing GameMode/MangoHud launch options.
 
 For system settings:
 
