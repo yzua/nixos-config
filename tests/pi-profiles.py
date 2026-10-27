@@ -121,6 +121,7 @@ class NativeBase(unittest.TestCase):
             for file in (
                 "ask-user-question.ts",
                 "network-diagnostics.ts",
+                "codex-lb-session.ts",
                 "upstream-retry.ts",
                 "prompt-snippets/index.ts",
                 "web-search/index.ts",

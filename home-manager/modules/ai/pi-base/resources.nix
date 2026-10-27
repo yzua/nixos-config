@@ -10,6 +10,7 @@ let
   extensionNames = [
     "ask-user-question.ts"
     "network-diagnostics.ts"
+    "codex-lb-session.ts"
     "upstream-retry.ts"
     "prompt-snippets"
     "web-fetch"

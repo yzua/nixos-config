@@ -148,6 +148,46 @@ test("control tools accompany restrictions, while spawning requires an explicit 
   assert.equal(initial({ systemPromptMode: "replace" }).loadout.identity, null);
 });
 
+test("restricted coding launches and resumes retain only the bundle's transport shim", (t) => {
+  const { dir, running } = fixture(t);
+  const bundle = join(dir, "bundle");
+  const subagents = join(bundle, "interactive-subagents/pi-extension/subagents");
+  mkdirSync(subagents, { recursive: true });
+  const transport = join(bundle, "codex-lb-session.ts");
+  writeFileSync(transport, "// transport only");
+  const ambient = join(bundle, "unrelated.ts");
+  writeFileSync(ambient, "// must not be discovered");
+  const child = new ChildLaunch(subagents, () => undefined);
+  const initial = child.prepare(
+    {
+      kind: "initial",
+      profile: { tools: "read", model: "codex-lb/fixture" },
+      cwd: dir,
+      agentDir: join(dir, "alternate-agent"),
+    },
+    running,
+  );
+  assert.equal(initial.kind, "pi");
+  if (initial.kind !== "pi") throw new Error("Expected Pi plan");
+  const resume = child.prepare({ kind: "resume", loadout: initial.loadout }, running);
+  assert.equal(resume.kind, "pi");
+  if (resume.kind !== "pi") throw new Error("Expected Pi plan");
+  for (const plan of [initial, resume]) {
+    assert.ok(plan.parts.includes("--no-extensions"));
+    assert.equal(plan.loadout.toolAllowlist, "read,ask_question");
+    assert.equal(plan.parts.filter((arg) => arg === `'${transport}'`).length, 1);
+    assert.ok(!plan.parts.includes(`'${ambient}'`));
+    assert.equal(plan.loadout.agentDir, join(dir, "alternate-agent"));
+  }
+  const unrestricted = child.prepare(
+    { kind: "initial", profile: null, cwd: dir, agentDir: null },
+    running,
+  );
+  assert.equal(unrestricted.kind, "pi");
+  if (unrestricted.kind !== "pi") throw new Error("Expected Pi plan");
+  assert.ok(!unrestricted.parts.includes(`'${transport}'`), "native discovery stays native");
+});
+
 test("Claude keeps direct task, inline append identity, plugin, cwd and sentinel without Pi sandbox artifacts", (t) => {
   const { dir, child, running } = fixture(t);
   const plugin = join(dir, "plugin");

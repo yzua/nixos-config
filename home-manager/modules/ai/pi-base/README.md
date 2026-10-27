@@ -117,6 +117,25 @@ including this workstation's Gruvbox Dark Soft colors. A saved `dark` selection
 uses Pi's own palette. Theme choices stay in writable `~/.pi/agent/settings.json`;
 `/reload` applies settings changes to a running Pi session.
 
+`codex-lb-session.ts` adds the hyphenated `session-id` affinity header to the
+`codex-lb` provider's generic Responses requests. It uses each request's session
+identity (including nested requests), preserves explicit header overrides, and
+leaves the original `session_id`, cache key, model metadata, endpoint and auth
+unchanged. It delegates to Pi's built-in Responses adapter, rather than replacing
+streaming or history handling. Other providers/APIs are unaffected. A controlled
+12-request investigation on 2026-10-27 found that the production request path
+lost `session_id`: underscore-only arms had no cache reads, while `session-id`
+arms reached roughly 93% on follow-ups. The exact stripping hop was not isolated;
+this is an end-to-end compatibility workaround, not a guaranteed cache-hit rate.
+Restricted coding subagents use `--no-extensions`, so `ChildLaunch` explicitly
+loads this transport-only extension from its own shared bundle on both launch
+and resume; it does not add tools or enable general extension discovery.
+Explicit-load profiles continue replaying their pinned extension policy.
+After Home Manager activation, `/reload` loads the updated launcher into existing
+parent sessions. Already-running children must finish/restart to load new code;
+resuming a completed coding child through the updated launcher loads the shim.
+Verify normal traffic before attributing a long-session improvement to this change.
+
 `upstream-retry.ts` normalizes only the exact assistant error
 `upstream_error: native upstream response body failed` by appending `(network error)`.
 This lets Pi's built-in retry policy handle it: by default, three retries after
@@ -168,7 +187,7 @@ Coding's initial settings disable native MCP; RE owns its separate session regis
 The Chrome CLI retains its own daemon.
 
 Edit TypeScript directly in `extensions/`: `ask-user-question.ts`,
-`upstream-retry.ts`, `prompt-snippets/index.ts`, `web-fetch/index.ts`, `web-search/index.ts`, and
+`codex-lb-session.ts`, `upstream-retry.ts`, `prompt-snippets/index.ts`, `web-fetch/index.ts`, `web-search/index.ts`, and
 `extensions/interactive-subagents/pi-extension/subagents/`.
 Shared agent roles are in `agents/`; coding prompts remain in `../pi-coding/prompts/`. Stage new files, run the checks and Home Manager
 preview, then `just home-switch` and `/reload` in Pi to load edits.
@@ -262,5 +281,10 @@ sanitized errors, cancellation and timeouts.
 recovery without extra user messages, retry caps/backoff, disabled retries,
 auth/quota exclusions, and cancellation through Pi's real loader with an offline
 provider. These tests make no paid model calls. Set `PI_BIN` to test another Pi binary.
+`python3 -B tests/pi-codex-cache.py` checks the session-header workaround through
+Pi's real loader and a loopback Responses server, including distinct nested
+request identities, unrelated providers, explicit overrides, disabled caching,
+configured model/auth preservation, and real restricted child launch/resume
+commands without widening tools. It makes no paid model calls.
 Run `just check` and `just home-preview` before activation. Smoke-test browser
 use and real tmux subagent completion/follow-up with the installed Pi.

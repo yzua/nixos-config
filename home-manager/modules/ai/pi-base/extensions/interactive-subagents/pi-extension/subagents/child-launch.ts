@@ -170,6 +170,14 @@ export class ChildLaunch {
     if (loadout.toolAllowlist) {
       parts.push("--no-extensions", "--tools", shellEscape(loadout.toolAllowlist));
       const extensions = new Set<string>();
+      if (!policy) {
+        // Restricted coding children disable discovery, so a provider-only
+        // extension cannot be recovered through toolExtensionPath. Load the
+        // transport shim from this same bundle without granting another tool.
+        // Explicit-load profiles already replay their pinned extension policy.
+        const transport = join(this.subagentsDir, "../../../codex-lb-session.ts");
+        if (existsSync(transport)) extensions.add(transport);
+      }
       for (const tool of loadout.toolAllowlist.split(",")) {
         if (policy && COMMON_EXTENSION_TOOLS.has(tool)) continue;
         const file = this.toolExtensionPath(tool);

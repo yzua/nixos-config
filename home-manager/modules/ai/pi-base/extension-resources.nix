@@ -18,6 +18,7 @@ pkgs.buildNpmPackage {
     cp index.ts package.json "$resources/web-fetch/"
     cp ${./extensions/ask-user-question.ts} "$resources/ask-user-question.ts"
     cp ${./extensions/network-diagnostics.ts} "$resources/network-diagnostics.ts"
+    cp ${./extensions/codex-lb-session.ts} "$resources/codex-lb-session.ts"
     cp ${./extensions/upstream-retry.ts} "$resources/upstream-retry.ts"
     cp -r ${./extensions/prompt-snippets}/. "$resources/prompt-snippets/"
     cp -r ${./extensions/interactive-subagents} "$resources/interactive-subagents"

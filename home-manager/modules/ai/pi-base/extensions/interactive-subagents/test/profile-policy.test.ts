@@ -44,7 +44,7 @@ for (const profile of ["pi-base", "pi-home", "pi-re"] as const) {
       sessions: join(root, profile, "interactive-subagents/sessions"),
       instructions: [instructions],
       skills: [join(root, "skill")],
-      extensions: [join(root, "common.ts")],
+      extensions: [join(root, "common.ts"), join(root, "pinned-codex-lb-session.ts")],
     };
     process.env.PI_PROFILE = profile;
     process.env.PI_BASE_CHILD_POLICY = JSON.stringify(policy);
@@ -102,12 +102,17 @@ for (const profile of ["pi-base", "pi-home", "pi-re"] as const) {
       ...policy,
       profile: "pi-base",
       sessions: join(root, "different"),
+      extensions: [join(root, "replacement-transport.ts")],
     });
     const resumed = child.prepare({ kind: "resume", loadout: plan.loadout }, running);
     assert.equal(resumed.kind, "pi");
     if (resumed.kind !== "pi") throw new Error("Expected resume plan");
     assert.deepEqual(resumed.loadout.profilePolicy, policy);
     assert.deepEqual(resumed.loadout.toolAllowlist, plan.loadout.toolAllowlist);
+    for (const prepared of [plan, resumed]) {
+      assert.ok(prepared.parts.includes(`'${join(root, "pinned-codex-lb-session.ts")}'`));
+      assert.ok(!prepared.parts.includes(`'${join(root, "replacement-transport.ts")}'`));
+    }
     assert.equal(
       isSubagentLoadout({ ...plan.loadout, profilePolicy: { ...policy, pi: "relative" } }),
       false,
