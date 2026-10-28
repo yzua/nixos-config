@@ -85,6 +85,31 @@ class SkillsTests(unittest.TestCase):
         self.assertEqual((self.bundle / "source-0/SKILL.md").read_bytes(), before)
         self.assertEqual((self.source / "SKILL.md").read_bytes(), before)
 
+    def test_local_audit_skill_preserves_resources_and_provenance(self):
+        source = ROOT / "home-manager/modules/ai/skills/skill-audit"
+        before = {
+            str(path.relative_to(source)): path.read_bytes()
+            for path in source.rglob("*")
+            if path.is_file()
+        }
+        self.manifest.write_text(
+            json.dumps(
+                [
+                    {
+                        "path": str(source),
+                        "skill": "skill-audit",
+                        "url": "repo:home-manager/modules/ai/skills/skill-audit",
+                    }
+                ]
+            )
+        )
+        self.prepare()
+        manifest = json.loads((self.bundle / "manifest.json").read_text())
+        self.assertEqual(manifest[0]["url"], "repo:home-manager/modules/ai/skills/skill-audit")
+        for relative, content in before.items():
+            self.assertEqual((self.bundle / "source-0" / relative).read_bytes(), content)
+            self.assertEqual((source / relative).read_bytes(), content)
+
     def test_invalid_later_source_fails_before_preparation(self):
         sources = json.loads(self.manifest.read_text())
         sources.append({"path": str(self.root / "missing"), "skill": "*", "url": "fixture"})
@@ -183,6 +208,12 @@ class SkillsTests(unittest.TestCase):
         self.assertIsNotNone(
             cli, "Managed skills CLI is required for the offline local-source test"
         )
+        audit_source = ROOT / "home-manager/modules/ai/skills/skill-audit"
+        sources = json.loads(self.manifest.read_text())
+        sources.append(
+            {"path": str(audit_source), "skill": "skill-audit", "url": "repo:skill-audit"}
+        )
+        self.manifest.write_text(json.dumps(sources))
         self.prepare()
         (self.bundle / "source-0/SKILL.md").chmod(0o444)
         unrelated = self.home / ".agents/skills/unrelated/SKILL.md"
@@ -221,6 +252,27 @@ class SkillsTests(unittest.TestCase):
         self.assertTrue(claude.is_symlink())
         self.assertEqual(claude.resolve(), installed.parent)
         self.assertEqual(unrelated.read_text(), "User-owned instructions.")
+        audit_script = self.home / ".agents/skills/skill-audit/scripts/inventory.py"
+        self.assertEqual(
+            audit_script.read_bytes(),
+            (audit_source / "scripts/inventory.py").read_bytes(),
+        )
+        self.assertTrue(audit_script.stat().st_mode & stat.S_IWUSR)
+        inventory = subprocess.run(
+            [
+                sys.executable,
+                "-B",
+                str(audit_script),
+                str(self.home / ".agents/skills"),
+                str(self.home / ".claude/skills"),
+            ],
+            env=dict(self.environment, **environment),
+            text=True,
+            capture_output=True,
+            timeout=10,
+        )
+        self.assertEqual(inventory.returncode, 0, inventory.stderr)
+        self.assertEqual(json.loads(inventory.stdout)["duplicate_names"], {})
 
 
 if __name__ == "__main__":

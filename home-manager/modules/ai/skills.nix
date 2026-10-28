@@ -27,6 +27,14 @@ let
       skill = "karpathy-guidelines";
     }
     {
+      owner = "unclebob";
+      repo = "ub-mode";
+      rev = "57a8bdd28e45ed41900ace0bafa2ff76dd9ed70f";
+      hash = "sha256-9NhuidH8rNH8euqBrZwMNwapKmKYYpsKO4hP8XK0JG0=";
+      subdir = "";
+      skill = "ub-mode";
+    }
+    {
       owner = "iOfficeAI";
       repo = "OfficeCLI";
       rev = "ffa8a0afbe2e9686abd636368e3da38c50f22131";
@@ -67,6 +75,11 @@ let
           path = ./skills/app-design;
           url = "repo:home-manager/modules/ai/skills/app-design";
           skill = "app-design";
+        }
+        {
+          path = ./skills/skill-audit;
+          url = "repo:home-manager/modules/ai/skills/skill-audit";
+          skill = "skill-audit";
         }
       ]
     )

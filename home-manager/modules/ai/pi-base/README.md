@@ -109,7 +109,11 @@ caller's settings. Explicit models for shared-config Pi subagents must match an
 exact authenticated model ID; ambiguous IDs require `provider/model`. A different
 role-specific `.pi/agent` directory retains child CLI resolution (including fuzzy
 matching/fallback), so prefer qualified `provider/model` values there. Claude
-profiles retain their own model aliases. `/plan`, `/review`, and `/handoff` are reusable prompts.
+profiles retain their own model aliases. `/plan`, `/review`, `/verify`, and `/handoff` are reusable coding prompts.
+`/verify` runs appropriate checks and reports acceptance-criterion evidence without
+editing source. Working preferences require a reuse check before new helpers,
+dependencies, or integrations, and concise evidence reports for implementation work.
+These are agent workflows, not deterministic completion gates.
 Alt+S or `/snippets` toggles Verify and Delegate exploration for one message.
 
 Select `system` under Theme in `/settings` to inherit the terminal palette,

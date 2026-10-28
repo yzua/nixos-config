@@ -12,6 +12,12 @@ for all discovered agents. Invoke it by name when writing, reviewing, or refacto
 code. Pi's global instructions also include a concise adaptation, so its core coding
 discipline applies without loading the skill.
 
+The pinned `ub-mode` skill installs the unchanged upstream engineering workflow.
+Invoke it explicitly with `/ub-mode` or ask the agent to use `ub-mode`. Its
+`crapper`, `dryer`, and `mutator` companion tools are not installed by this module.
+The upstream commit/push guidance remains subject to repository policy and user
+authorization; installing the skill does not authorize Git operations.
+
 The pinned `impeccable` skill uses the released `.agents` distribution for shared
 installation, including its command references and supporting resources.
 `impeccable-skill.nix` pins the official static Linux engine and replaces the launcher
@@ -27,6 +33,15 @@ The local [app-design skill](skills/app-design/SKILL.md) connects product contex
 layout exploration, implementation, and browser critique for web apps and
 dashboards. Invoke it by name, for example: “Use app-design to improve this
 dashboard.” It uses relevant installed skills and the app's existing tooling.
+
+The local [skill-audit skill](skills/skill-audit/SKILL.md) inventories skill roots
+read-only, deduplicates installer symlinks, and guides review of overlap, stale
+references, and broken resources. Invoke it by name, for example: “Use skill-audit
+to review our installed skills.” Its default inventory covers shared, Pi, Claude,
+and Codex global/current-project roots; custom roots can be passed explicitly.
+It reports recommendations without changing installed skills or installer locks.
+The routing-field summary is best-effort, not full YAML or host-discovery validation.
+Run `python3 -B tests/skill-audit.py` for offline inventory regressions.
 
 Installed skills remain writable and owned by skills.sh, not Home Manager.
 Before installation, the complete prepared bundle is staged into temporary
