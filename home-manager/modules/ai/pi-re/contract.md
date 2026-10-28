@@ -119,7 +119,7 @@ ownership, recovery and capability interpretation, and
   target, query narrowly, export private Evidence, then close it. No shared
   engine writers. Each root owns a separate server; children retain CLI-only
   analysis. Upstream skill npx/setup repair recipes are replaced by Nix.
-- `pi-re rea <command> [args]`: REA 6.5.0 CLI, full JDK21 and Android query engine,
+- `pi-re rea <command> [args]`: REA 6.8.0 CLI, full JDK21 and Android query engine,
   plus pinned Apktool/mitmdump/Chrome. Use Bash and actual subcommand help.
   All release non-installer CLI routes are exposed; engine/platform prerequisites
   still apply. Native queries select `--provider ghidra`; CLI engine sessions are

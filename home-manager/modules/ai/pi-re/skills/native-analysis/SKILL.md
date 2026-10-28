@@ -6,7 +6,8 @@ description: Inspect ELF, PE, Mach-O or Android native libraries through pinned 
 # Native analysis
 
 Deliver selected native observations with binary/build/address identity and
-analysis limits. Prefer the provisioned `pi-re rea` CLI; load
+analysis limits. For repeated root queries, use persistent MCP sessions; use
+`pi-re rea` for single-shot queries, fallback and children. Load
 [rea-analysis](../rea-analysis/SKILL.md) and its command guide before querying.
 This is static parsing, not sample execution or fuzzing. Read [intake](../re-intake/SKILL.md) for new/changed scope.
 
@@ -41,9 +42,12 @@ sandbox/VM. Static parsing must not invoke extracted code, loaders or build hook
    strings. Save bulk engine output privately and emit approved selected evidence.
    Check parser/schema/exit diagnostics, unsupported formats and truncated data.
    Done when the initial question has a qualified location or explicit limitation.
-4. **Deepen only if needed.** Use `pi-re rea function` or `instructions` with
-   explicit `--provider ghidra` on a finite budget. REA owns its temporary project
-   and bridge. For an unsupported query, review bounded task-specific export code
+4. **Deepen only if needed.** Roots open one owned Ghidra target through MCP,
+   query retained summaries and request complete dossiers only when needed.
+   Single-shot/fallback/child queries use `pi-re rea function` or `instructions`
+   with explicit `--provider ghidra`. Keep slow imports at the root: runtime
+   workers have a 180-second whole-job limit, including cleanup. For an unsupported
+   query, review bounded task-specific export code
    against the installed Ghidra APIs and use a separate single-writer project.
    Done when selected function evidence and analysis completeness are recorded.
 5. **Corroborate.** Relate imports/strings/xrefs/decompiled semantics to bytes and

@@ -1,10 +1,12 @@
 # Pinned REA commands
 
 The Nix runtime records exact dependency versions. `pi-re rea --version` and
-subcommand `--help` are interface authority. This profile pins REA **6.5.0**, its
+subcommand `--help` are interface authority. This profile pins REA **6.8.0**, its
 verified **Ghidra 12.1.4** (upstream accepts 12.1.x), **64-bit full JDK 21**, and
 **jadx-headless-mcp 0.7.1**. Linux native support here is x86_64.
 The maintained CLI entry point is `pi-re rea`; it is also available to children.
+The REA-local official Node 24.22.1 runtime satisfies its engine and SQLite limits
+requirements without changing other applications' Node runtimes.
 
 ## Native binaries / Android `.so`
 
@@ -41,7 +43,13 @@ owner-only evidence. Do not assume a snapshot caches the whole imported program
 or every operation. Root MCP sessions avoid repeated imports and expose native
 navigation, naming, batch decompilation, call graphs and unknown/evidence ledgers
 that have no dedicated CLI counterpart. Children use disposable CLI sessions.
-Never let another writer reuse the root's project. In 6.5, call-graph Evidence
+MCP `analyze_function` defaults to a retained summary in 6.8: use its
+`normalized_result.parent_evidence_id` for pages, or `detail: "complete"` for an
+inline dossier. CLI `function` keeps its complete default; a summary requires an
+explicit private `--evidence_output`. `decompile-all` supports resumable directory
+exports; `match-native-functions` compares supplied procedure Evidence, not raw
+binaries. Read help/schemas before choosing identities and output paths.
+Never let another writer reuse the root's project. Call-graph Evidence
 uses `normalized_result.graph` plus `normalized_result.limitations`; nullable
 attachment/segment/source facts remain unknown. Discover the server catalog with
 `tools/list`, not the removed `binary_session.server_identity.catalog.tools`.
@@ -49,7 +57,8 @@ attachment/segment/source facts remain unknown. Discover the server catalog with
 Ghidra import controls are explicitly preserved from the caller's environment:
 `REA_GHIDRA_LANGUAGE_ID`, `REA_GHIDRA_COMPILER_SPEC_ID`,
 `REA_GHIDRA_SEED_FILE`, `REA_GHIDRA_STARTUP_TIMEOUT_MS` and
-`REA_GHIDRA_DISABLED_ANALYZERS`. Upstream validates language/compiler combinations,
+`REA_GHIDRA_DISABLED_ANALYZERS` and `REA_GHIDRA_DECOMPILE_TIMEOUT_SECONDS`.
+Upstream validates language/compiler combinations,
 seed-file identity/format, timeout bounds and analyzer names. Disabled analyzers
 change coverage and are recorded in the analysis profile. Set them before starting a root session or for one CLI invocation; restart
 the root server before changing its import profile. Seeds are caller assertions,
@@ -107,6 +116,14 @@ changes coverage; summary delivery only changes the view of retained Evidence.
 
 ## Other offline artifacts
 
+6.8 adds `inspect-native-exports`, PE imports/certificates/load configuration,
+ELF notes/kernel modules, byte entropy, IL2CPP, CPython pyc, Erlang BEAM,
+GGUF/safetensors and GPU code-object metadata. Existing artifact inspection and
+extraction support Godot PCK, PyInstaller and Node SEA. These bounded readers do
+not execute targets or establish complete recovery, signature trust or runtime
+registration. `inspect-desktop-application` inventories supported installation
+layouts. Discover exact inputs/coverage in installed help or MCP schemas.
+
 - `inspect-sqlite-database "$DATABASE" --table "$TABLE" --column "$COLUMN" --json`
   reads selected ordinary-table rows; omit `--table` for schema inventory only.
   Use a consistent offline database/WAL snapshot; copying a live pair is not proof
@@ -125,10 +142,10 @@ changes coverage; summary delivery only changes the view of retained Evidence.
 
 ## Network, browser and process evidence
 
-The wrapper now exposes all 151 non-installer primary/alias CLI routes, including
+The wrapper now exposes all 173 non-installer primary/alias CLI routes, including
 capability-dependent operations. Command availability is not engine qualification.
 The root's matching official skill exposes all advertised MCP tools through
-`codemode`, avoiding 207 schemas in every model request. Discover narrowly:
+`codemode`, avoiding 229 schemas in every model request. Discover narrowly:
 
 ```javascript
 return await searchTools("inspect web network capture", { namespace: "mcp__rea", limit: 3 });
@@ -176,11 +193,49 @@ bounded matching pages; `inspect-packet-fields` discovers installed definitions.
 4.6.6. Both packet adapters use pinned `prlimit`; no live packet capture, hardware
 acquisition or extra capture privileges are configured. Keep packet payloads private.
 
+`inspect-apk-signature` reads signing declarations without establishing trust;
+resource decoding supports repeatable `--locales` for multiple tables. Structured
+manifest components and static-final DEX values retain coverage/unknown facts.
+`REA_JADX_OPERATION_TIMEOUT_MS` is preserved for a bounded operation deadline;
+it does not change the bridge startup handshake.
+
 REA ADB requests must select the configured emulator serial. The pinned ADB
 transport filters enumeration, rejects other serials and verifies the existing
 owned/rooted lab while holding its lifecycle lock; it does not boot/root the
 emulator or alter CA/proxy state. Prepare it with `pi-re lab start` first. Reuse
 our device/Frida/traffic interfaces for coordinated runtime work.
+
+## Capture-derived environments and recovery
+
+`environment-build`, `environment-export`, `environment-serve` and
+`environment-compare` are exposed. Read the bundled upstream environment guide
+before use: builds accept supported HAR/capture Evidence, exports can contain
+response bodies, and serving opens an owned listener. Derived-state reads and
+recording-supported writes are not a complete application clone. Scope the private
+inputs, output disclosure, endpoint and cleanup; use `--replay-only` for stateless
+replay. Root MCP exposes environment bundle export through its actual schema.
+
+MCP `inspect_analysis_settings` / `update_analysis_settings` expose bounded
+runtime deadlines, admission sizes and worker heaps. Changes affect new work,
+survive target close/open and disappear when REA restarts. Explicit call arguments
+win; these settings do not raise host or client transport limits. The launcher
+also preserves `REA_MCP_INPUT_SCHEMA_PROFILE` (`compact` default or `full`) and
+`REA_REFERENCE_SECRET_PATTERNS_JSON` (reference-source path exclusions). Engine,
+plugin and transport paths remain managed; other ambient `REA_*` settings are
+stripped. Raising transport response ceilings needs a separate client review.
+
+6.6–6.8 changed Evidence coverage and nullable facts; regenerate old snapshots
+rather than assuming saved-file migration. ADB version codes are decimal strings.
+JSONL output is collection rows followed by a `$rea: "jsonl/v1"` metadata record;
+use JSON for whole documents. Reconstruction proofs need implementation/revision
+bindings and individual claim outcomes. Preserve unknowns in browser timestamps,
+accessibility values and native bindings. Historical browser storage comparisons
+need fresh captures on both sides. The official skill/schema is authority.
+
+Process captures in this release can retain sensitive terminal echoes despite
+sensitive input markers. Avoid real secrets in recordings; the upstream echo
+redaction fix is not in published 6.8. R8 mapping/JNI linking and additional
+firmware readers on upstream main are likewise not part of this pin.
 
 ## Optional engine boundaries
 
@@ -190,6 +245,8 @@ metadata and EVM parsing need no commercial
 engine. EVM's resource limiter is pinned for NixOS rather than `/usr/bin/prlimit`.
 Some routes remain unavailable until a separate reviewed prerequisite change:
 
+- Kuna needs a separately reviewed caller installation/provider selection.
+  Optional NativeAOT Ghidra plugins are not provisioned.
 - IDA, Hopper and JEB require proprietary installations/licenses; JEB also needs
   a caller-started local MCP server. Default native provider is pinned Ghidra.
 - ELF layout/core diagnostics need pwntools 4.15.0, pyelftools 0.33 and Unicorn
@@ -209,7 +266,7 @@ Some routes remain unavailable until a separate reviewed prerequisite change:
   are not certified on Linux. Opening their portable metadata is separate.
 
 The wrapper strips ambient `REA_*` engine/transport configuration and supplies
-reviewed absolute paths, preserving only the explicit Ghidra import controls above. Arbitrary provider installation, engine downloads and upstream `npx/setup`
+reviewed absolute paths, preserving only the explicit analysis/schema/exclusion controls above. Arbitrary provider installation, engine downloads and upstream `npx/setup`
 recovery instructions are replaced by a focused Nix configuration update.
 
 ## Provenance and maintenance
@@ -222,9 +279,9 @@ configuration checkout, which is not a runtime prerequisite. Use installed help
 rather than expecting checkout documentation in an investigation folder.
 
 Primary references:
-[REA release](https://github.com/morluto/rea/tree/rea-agents-6.5.0),
-[Ghidra policy](https://github.com/morluto/rea/blob/rea-agents-6.5.0/src/ghidra/GhidraInstallationPolicy.ts),
-[Android provider](https://github.com/morluto/rea/blob/rea-agents-6.5.0/docs/android-analysis.md),
-[JavaScript workflows](https://github.com/morluto/rea/blob/rea-agents-6.5.0/docs/javascript-application-workflows.md),
-[CLI/MCP inventory](https://github.com/morluto/rea/blob/rea-agents-6.5.0/src/cliCommandNames.ts),
-[Packet capture guide](https://github.com/morluto/rea/blob/rea-agents-6.5.0/docs/packet-captures.md).
+[REA release](https://github.com/morluto/rea/tree/rea-agents-6.8.0),
+[Ghidra policy](https://github.com/morluto/rea/blob/rea-agents-6.8.0/src/ghidra/GhidraInstallationPolicy.ts),
+[Android provider](https://github.com/morluto/rea/blob/rea-agents-6.8.0/docs/android-analysis.md),
+[JavaScript workflows](https://github.com/morluto/rea/blob/rea-agents-6.8.0/docs/javascript-application-workflows.md),
+[CLI/MCP inventory](https://github.com/morluto/rea/blob/rea-agents-6.8.0/src/cliCommandNames.ts),
+[Packet capture guide](https://github.com/morluto/rea/blob/rea-agents-6.8.0/docs/packet-captures.md).
