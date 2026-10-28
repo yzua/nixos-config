@@ -7,6 +7,11 @@ validation, the UI/UX search-path repair, and local installation. Activation run
 only after `linkGeneration`; it does not clone repositories or repair live skill
 files.
 
+The pinned `karpathy-guidelines` skill provides the full upstream coding guidelines
+for all discovered agents. Invoke it by name when writing, reviewing, or refactoring
+code. Pi's global instructions also include a concise adaptation, so its core coding
+discipline applies without loading the skill.
+
 The local [app-design skill](skills/app-design/SKILL.md) connects product context,
 layout exploration, implementation, and browser critique for web apps and
 dashboards. Invoke it by name, for example: “Use app-design to improve this

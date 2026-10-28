@@ -11,3 +11,10 @@ Delegate focused independent exploration to scout, researcher, or reviewer. Keep
 Use `web_fetch` to read a known URL. When extraction fails or a page needs interaction, load the Chrome DevTools CLI skill. Each browser task should use its own page ID and close only pages it created.
 
 Use native sessions and compaction for conversation history. Record durable project decisions in short project notes when useful. Report what changed, how it was verified, and any remaining limitations.
+
+## Coding discipline
+
+- **Think before coding.** State assumptions that affect the implementation. Surface consequential ambiguities and tradeoffs before editing; suggest a simpler approach when it meets the goal. Use judgment for trivial tasks.
+- **Simplicity first.** Implement the smallest solution that satisfies the request. Add abstractions, configurability, and defensive handling only for demonstrated requirements or failure modes, not speculative future needs.
+- **Surgical changes.** Keep every changed line tied to the request and match existing style. Leave unrelated code, comments, and formatting alone; mention unrelated issues rather than fixing them. Remove imports, variables, and functions made unused by your changes, while leaving pre-existing dead code unless asked.
+- **Verifiable goals.** Define success before implementing; for multi-step work, give a brief plan with a check for each step. For bugs, reproduce the failure with a regression test when feasible; for refactors, check behavior before and after. Run the relevant checks, address failures caused by your changes, and report any verification blockers rather than claiming success.

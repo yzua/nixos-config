@@ -19,6 +19,14 @@ let
     }
     (import ./pi-base/chrome-skill.nix { inherit pkgs; }).source
     {
+      owner = "multica-ai";
+      repo = "andrej-karpathy-skills";
+      rev = "2c606141936f1eeef17fa3043a72095b4765b9c2";
+      hash = "sha256-4z/wRdYH7UXRzF8RJU0sw8xbpx0BW/7CBv5sVEC2knY=";
+      subdir = "/skills/karpathy-guidelines";
+      skill = "karpathy-guidelines";
+    }
+    {
       owner = "iOfficeAI";
       repo = "OfficeCLI";
       rev = "ffa8a0afbe2e9686abd636368e3da38c50f22131";
