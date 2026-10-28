@@ -135,6 +135,9 @@ opt-in commands.
 `just test-preview-roots-gc` separately verifies preview retention by running GC
 only in a disposable local Nix store, never on the workstation store.
 
+[Agent Reach](docs/agent-reach.md) adds a pinned CLI for public and browser-backed
+platform searches, with explicit login handling for X and Reddit.
+
 ## Pi profiles
 
 `pi` remains an alias for `pi-coding` (and `p` still adds project approval).

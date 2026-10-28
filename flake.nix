@@ -381,6 +381,8 @@
       formatter.${system} = formatter;
 
       packages.${system} = {
+        agent-reach = pkgs.callPackage ./packages/agent-reach { };
+        opencli = pkgs.callPackage ./packages/agent-reach/opencli.nix { };
         accela = pkgs.callPackage ./packages/accela { };
         slssteam = pkgs.callPackage ./packages/slssteam { };
         open-design = openDesignPackage;

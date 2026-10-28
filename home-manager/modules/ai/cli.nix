@@ -37,6 +37,7 @@ let
 in
 {
   imports = [
+    ./agent-reach.nix
     ./herdr.nix
     ./our-free-model.nix
     ./pi-coding
