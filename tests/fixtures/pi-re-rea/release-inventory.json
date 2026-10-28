@@ -1,0 +1,10 @@
+{
+  "version": "6.8.0",
+  "revision": "160d821ac9a0310afcb8d1fc427862dd6508add5",
+  "skill_version": 49,
+  "cli_count": 173,
+  "cli_names_sha256": "9a1a49fd71c027e430c2efe4c3f5756922352656ab53637bd5d77e81fc55286b",
+  "mcp_count": 229,
+  "mcp_names_sha256": "4122c53800c3d72abba18356bcf6cd76c64d7acb8fa93478318dffc26f22db36",
+  "digest_format": "SHA-256 of sorted unique names, each followed by LF"
+}
