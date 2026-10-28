@@ -277,6 +277,9 @@ in {
   httpsSecret = {
     inherit (config.sops.secrets.netbird-mullvad-private-https-endpoint) key mode path restartUnits;
   };
+  routedSecret = {
+    inherit (config.sops.secrets.netbird-mullvad-routed-https-endpoint) key mode path restartUnits;
+  };
 }
 """,
             {},
@@ -298,6 +301,15 @@ in {
         self.assertIn(result["httpsSecret"]["path"], service["ExecStart"])
         self.assertEqual(result["httpsSecret"]["key"], "private_https_ipv4")
         self.assertEqual(result["httpsSecret"]["mode"], "0400")
+        self.assertEqual(result["routedSecret"]["key"], "routed_https_ipv4")
+        self.assertEqual(result["routedSecret"]["mode"], "0400")
+        self.assertEqual(
+            result["routedSecret"]["restartUnits"], ["netbird-mullvad-private.service"]
+        )
+        start = shlex.split(service["ExecStart"])
+        stop = shlex.split(service["ExecStop"])
+        self.assertEqual(start[-2:], ["--routed-https-secret", result["routedSecret"]["path"]])
+        self.assertEqual(stop[-2:], start[-2:])
         self.assertEqual(shlex.split(service["ExecStart"])[2], "apply")
         self.assertEqual(shlex.split(service["ExecStop"])[2], "revoke")
         self.assertEqual(service["RuntimeDirectoryMode"], "0700")

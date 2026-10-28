@@ -1,4 +1,4 @@
-# Permit SOPS-selected private DNS/HTTPS through NetBird without bypassing Mullvad globally.
+# Permit SOPS-selected DNS/HTTPS through NetBird without bypassing Mullvad globally.
 
 {
   config,
@@ -13,6 +13,7 @@ let
   unit = "netbird-mullvad-private";
   secret = "netbird-mullvad-private-endpoint";
   httpsSecret = "netbird-mullvad-private-https-endpoint";
+  routedSecret = "netbird-mullvad-routed-https-endpoint";
   stateDirectory = "/run/${unit}";
   command =
     action:
@@ -25,6 +26,8 @@ let
       stateDirectory
       "${pkgs.nftables}/bin/nft"
       config.sops.secrets.${httpsSecret}.path
+      "--routed-https-secret"
+      config.sops.secrets.${routedSecret}.path
     ];
 in
 {
@@ -40,6 +43,12 @@ in
   ];
 
   sops.secrets = lib.mkIf enabled {
+    ${routedSecret} = {
+      sopsFile = ../../../secrets/netbird-mullvad.yaml;
+      key = "routed_https_ipv4";
+      mode = "0400";
+      restartUnits = [ "${unit}.service" ];
+    };
     ${httpsSecret} = {
       sopsFile = ../../../secrets/netbird-mullvad.yaml;
       key = "private_https_ipv4";
