@@ -12,6 +12,17 @@ for all discovered agents. Invoke it by name when writing, reviewing, or refacto
 code. Pi's global instructions also include a concise adaptation, so its core coding
 discipline applies without loading the skill.
 
+The pinned `impeccable` skill uses the released `.agents` distribution for shared
+installation, including its command references and supporting resources.
+`impeccable-skill.nix` pins the official static Linux engine and replaces the launcher
+to use that immutable Nix path, resolve resources from the installed skill directory,
+and disable optional telemetry. It performs no runtime engine downloads and installs
+no provider hooks. Shared workflow references delegate to generic subagents using
+bundled role briefs rather than requiring provider-specific agent registrations.
+Invoke it by name, for example: “Use impeccable to audit this interface.”
+Browser-backed commands still need a locally available browser. Update
+its skill and engine pins through Nix rather than the upstream self-updater.
+
 The local [app-design skill](skills/app-design/SKILL.md) connects product context,
 layout exploration, implementation, and browser critique for web apps and
 dashboards. Invoke it by name, for example: “Use app-design to improve this

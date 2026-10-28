@@ -62,6 +62,7 @@ let
         repairUiSearch = source.repairUiSearch or false;
       }) skillSources)
       ++ [
+        (import ./impeccable-skill.nix { inherit pkgs; })
         {
           path = ./skills/app-design;
           url = "repo:home-manager/modules/ai/skills/app-design";
