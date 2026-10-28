@@ -50,7 +50,8 @@ subagent({ agent: "worker", name: "dark-mode", task: "Implement the dark mode to
 | `agent` | string | required | Which agent to spawn (must be known and permitted) |
 | `task` | string | required | Task prompt |
 | `name` | string | agent name | Display name for the pane and widget. Must be unique — duplicates are auto-suffixed (`scout`, `scout-2`, …) |
-| `model` | string | agent's model | Override the model for this spawn |
+| `model` | string | agent's model | Exact available model override, subject to shared-config provider/scope restrictions |
+| `thinking` | string | agent's thinking | Override reasoning independently: off, minimal, low, medium, high, xhigh, max |
 | `cwd` | string | agent's `cwd` | Working directory (see [Role folders](#role-folders)) |
 
 ### Messaging
@@ -109,9 +110,9 @@ You are a specialized agent that does X...
 | `name` | string | Agent name (used in `agent: "my-agent"`) |
 | `description` | string | Shown in `subagents_list` |
 | `model` | string | Default model |
-| `thinking` | string | `minimal`, `low`, `medium`, or `high` |
-| `tools` | string | Strict tool allowlist. Built-ins: `read`, `write`, `edit`, `bash`, `grep`, `find`, `ls`. Extension-backed: `web_search`, `web_fetch`, `safe_bash`, `video_extract`, `youtube_search`, `google_image_search`. Only the extensions backing the listed tools are loaded into the child |
-| `subagent_agents` | string | Comma-separated agent names this agent may spawn. **Presence of this field grants the spawning toolset** (`subagent`, `subagent_message`, `subagents_list`) and restricts spawn targets to the list. Omit it and the agent cannot spawn at all |
+| `thinking` | string | `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`; native Pi clamps unsupported levels |
+| `tools` | string | Pi tool allowlist, augmented by control/delegation tools as described below. Built-ins: `read`, `write`, `edit`, `bash`, `grep`, `find`, `ls`. Extension-backed tools require a registered backing extension, for example `web_search`, `web_fetch`, `safe_bash` |
+| `subagent_agents` | string | Comma-separated permitted spawn targets. A nonempty list grants `subagent`, `subagent_message`, and `subagents_list`. For restricted Pi roles, omission grants no delegation tools; it does not restrict native unrestricted or Claude launches |
 | `skills` | string | Comma-separated skill names to auto-load |
 | `session-mode` | string | `standalone` (default), `lineage-only`, or `fork` — see below |
 | `system-prompt` | string | `append` or `replace`: pass the body as the child's `--append-system-prompt` / `--system-prompt`. Omit and the body is prepended to the task prompt instead |
@@ -129,7 +130,7 @@ You are a specialized agent that does X...
 
 ### auto-exit
 
-With `auto-exit: true`, the session shuts down when the agent's turn ends — the agent just writes its final message and stops (there is no "done" tool). The last assistant message becomes the summary returned to the parent. Recommended for all autonomous agents.
+With `auto-exit: true`, the session shuts down at `agent_settled`, after automatic retries and queued continuations, unless a question or child remains pending. The agent writes its final message and stops (there is no "done" tool). The last assistant message becomes the summary returned to the parent. Recommended for all autonomous agents.
 
 Notes:
 
@@ -142,15 +143,28 @@ Controls whether `stalled`/`recovered` status transitions send a steer message t
 
 ## Tool access control
 
-Access is **whitelist-only**. Every sub-agent process is launched with `--no-extensions` (extension discovery disabled) and `--tools <allowlist>`; only the extensions backing the listed tools are loaded back in explicitly. There is no default toolset and no deny-list — an agent gets exactly what its frontmatter lists. The restriction survives resume via the loadout snapshot.
+Pi roles with an explicit tool list receive `--no-extensions` and `--tools`,
+including the `ask_question` control tool and any explicit delegation grant.
+Restricted coding children also load the transport shim; explicit-load domain
+children replay their pinned extension policy. Omitting both tools and delegation
+grants preserves native unrestricted coding behavior, while domain children receive
+the common default loadout. Saved Pi restrictions survive resume. These are not
+OS sandboxes. Claude roles use a separate launcher without Pi tool restrictions;
+explicit-load domain profiles reject Claude roles.
 
-Spawns must name a known agent at **every** depth. A top-level session may spawn anything discoverable; a sub-agent may only spawn the agents in its `subagent_agents` list (enforced via `PI_SUBAGENT_ALLOWED`). There is no agentless spawn route, so a child can never escalate to a full-toolset profile by omitting its agent.
+Spawns must name a known agent at every depth. Restricted Pi children with a
+`subagent_agents` grant may spawn only its pinned targets, enforced through
+`PI_SUBAGENT_ALLOWED`. There is no agentless spawn route.
 
 Extensions can register additional tools for sub-agents at runtime via `registerToolExtension(name, path)` on the `__pi_interactive_subagents` process global.
 
 ## Role folders
 
-`cwd` starts a sub-agent in a directory with its own config, so role-specific setups (CLAUDE.md, skills, extensions) apply:
+`cwd` changes the child's working directory. Coding roles can use local context,
+skills and an existing role-specific `.pi/agent`, but explicit tool restrictions
+still disable general extension discovery. Base/Home/RE workers retain their
+pinned origin instructions, skills, configuration and extension policy instead of
+importing cwd-local resources:
 
 ```text
 project/

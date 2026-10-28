@@ -107,8 +107,8 @@ ownership, recovery and capability interpretation, and
   Record helper/IME changes; no physical device assumption.
 - `pi-re frida setup|status|stop` and
   `pi-re frida run --package <running package ID> [--script JS]`: matched pinned
-  Android x86_64 server. Run is attach-only, bounded to 30 seconds, with default
-  messages/native RPC probe; bare scripts have no implicit Java bridge or later
+  Android x86_64 server. Run is attach-only; its probe subprocess has a 30-second
+  timeout after root/server checks, with default messages/native RPC probe; bare scripts have no implicit Java bridge or later
   UI observation window. For Java hooks use the installed pinned Frida CLI or
   explicitly load its bundled Java bridge through Python; no npm/pip bootstrap.
   Read [Frida guide](skills/android-runtime/references/frida.md). Frida status

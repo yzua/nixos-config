@@ -210,9 +210,9 @@ Web-fetch dependencies use the
 upstream npm lockfile with lifecycle scripts disabled. Pi provides extension
 API and TypeBox imports, including legacy aliases.
 
-The subagent source passes `--thinking` independently of `--model`, so a
-profile can inherit the configured model while selecting its own reasoning
-level. This applies to both initial launches and resumed follow-ups.
+The subagent source passes `--thinking` independently of `--model`. Initial
+launches can use the configured default model while selecting their own reasoning
+level. Resumed follow-ups replay the saved model and thinking level independently.
 
 `agent-catalog.ts` owns profile parsing, package/global/project precedence, and
 pinned spawn permissions. Discovery uses declared names; direct loading uses
@@ -249,8 +249,9 @@ Children publish terminal errors and shut down at `agent_settled`, after Pi's
 retries and queued continuations finish. Pending questions and nested children
 keep the session open. A missing pane gets a two-second grace period for its
 final sidecar, then reports failure; healthy panes have no job timeout.
-Spawns and resumed follow-ups use `--approve`, matching `p`'s automatic project
-trust. Explicit and default names get suffixes when needed, preserving finished
+Coding Pi spawns and resumed follow-ups use `--approve`, matching `p`'s automatic
+project trust. Base/Home/RE interactive workers use `--no-approve` and replay their
+explicit origin loadout. Explicit and default names get suffixes when needed, preserving finished
 children's handles for later follow-ups.
 
 Use `nix develop`, then `just fmt-check` and `just lint-ts` when editing the

@@ -10,7 +10,9 @@ This worker has no shell, editing, runtime instrumentation, browser interaction,
 MCP or delegation tools. It reviews sources; it does not execute samples, test
 vulnerabilities, probe targets or modify applications. The tool allowlist is not
 OS containment. Provider authentication comes from the live shared Pi base;
-this worker's tools cannot inspect private configuration files.
+source tools reject known private configuration/key names and paths outside the
+pinned source root, but are not a complete secret detector. Source-root approval
+belongs to the parent before delegation; keep this review within that pinned root.
 
 Follow-ups resume this native conversation with the same source root and tool
 loadout. Work within the finite turn budget; report partial progress rather than

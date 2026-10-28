@@ -19,8 +19,10 @@ Rooted lab status precedes the server path. No caller serial/device override.
 - `stop`: stops only the owned matching server; does not promise to delete all
   guest server/log files, mappings or other persistent state. Record residuals.
 - `run`: resolves the application package ID, not its display label, and attaches
-  to its **already running process**. It does not spawn or launch an app. Outer run deadline is **30 seconds**; outputs include private
-  artifacts, messages and default native RPC probe results. The default probe
+  to its **already running process**. It does not spawn or launch an app. The
+  attach/probe subprocess has a **30-second timeout**; root and server-identity
+  checks occur beforehand, so this is not an aggregate command deadline.
+  Outputs include private artifacts, messages and default native RPC probe results. The default probe
   reports PID/arch and up to three module name/size entries, not Java hooks.
 
 Use the [contract](../../../contract.md#interfaces) and shared policy for

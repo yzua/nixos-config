@@ -75,8 +75,8 @@ pi-re frida run --package "$RUNNING_PROCESS"
 
 Status is process-only/root-uninspected; root is a separate verified mutation.
 Frida setup must already have provisioned the matched pinned Android x86_64 server.
-Run attaches only to an existing process, bounded to 30 seconds, returning messages
-and default native RPC evidence. It never spawns or provides default Java hooks.
+Run attaches only to an existing process; its probe subprocess has a 30-second
+timeout after root/server checks and returns messages and default native RPC evidence. It never spawns or provides default Java hooks.
 Frida status is a live guest/root-verification operation, unlike Android status.
 
 Use the guide's direct CLI/Python APIs for bounded in-scope hooks. Bare wrapper

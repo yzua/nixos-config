@@ -20,10 +20,21 @@ Explicit selectors override detection for cross-host builds. If several outputs
 exist and no local name matches, the scripts refuse to guess:
 
 ```sh
-nix eval --json .#nixosConfigurations --apply builtins.attrNames
-nix eval --json .#homeConfigurations --apply builtins.attrNames
+nix eval --json --no-write-lock-file .#nixosConfigurations --apply builtins.attrNames
+nix eval --json --no-write-lock-file .#homeConfigurations --apply builtins.attrNames
 export NIXOS_CONFIG='<selected-system-output>'
 export HOME_CONFIG='<selected-home-output>'
+```
+
+Selectors choose a configuration, not a remote activation target. Home Manager
+preview, status, and switch require the selected username and home directory to
+match the caller. Both current Home outputs share that owner, so selecting the
+other host's Home output can apply its preferences **locally**. For a build-only
+check of another owner's Home output, bypass the local-state workflow:
+
+```sh
+nix build --no-link --no-write-lock-file \
+  ".#homeConfigurations.\"${HOME_CONFIG}\".activationPackage"
 ```
 
 The desktop and MacBook share tools, account preferences, and dependency pins.
@@ -35,11 +46,13 @@ OpenDesign, and unrelated desktop AI applications. Mullvad, NetBird, and Tailsca
 have separate device enrollment. The normal desktop apps and VPN UIs start with
 Niri; the emulator remains on-demand. See [MacBook hardware and readiness notes](hosts/macbook/README.md)
 for camera/video support, resource limits, VPN prerequisites, and remaining checks.
-The laptop hostname/output is `laptop`, with Home Manager output `yz@laptop`;
-the desktop remains `PC` / `yz@PC`. Laptop remote administration uses key-only
-OpenSSH; authorized keys remain user-owned in `~/.ssh/authorized_keys`.
+Output names derive from `setup` and `laptopSetup` in `flake.nix`; list them with
+the commands above rather than assuming account or host names. Laptop remote
+administration uses key-only OpenSSH; authorized keys remain user-owned in
+`~/.ssh/authorized_keys`.
 
-Credentials stay outside this repository and the Nix store. Transfer only selected
+Plaintext credentials and private decryption keys stay outside Git and the Nix
+store; SOPS-encrypted secret files may be committed. Transfer only selected
 mutable auth/config files over verified SSH with private file permissions;
 Git signing keys, GitHub CLI authentication, and API logins are separate.
 Copying GitHub CLI's configuration alone does not migrate a keyring-backed token.
@@ -110,9 +123,10 @@ or activating.
 Run `just test` for the explicit offline regression suites, including generation
 workflows, voice actions, Pi extensions/subagents, and the RE profile/lab mocks.
 These tests use isolated fixtures without activation or paid model calls.
+The default `nix develop` shell alone does not supply all test prerequisites.
 Generated-config tests require managed Niri and tmux; local-source skill tests
-require the managed skills CLI. The loader tests require managed Pi, Bun, and
-installed web-fetch dependencies;
+require the managed skills CLI. Pi suites also require Node.js, Herdr, Bun,
+managed Pi, and installed web-fetch dependencies;
 `PI_BIN` and `PI_WEB_FETCH_DIR` can select alternate installations. Ordinary Pi
 suites share lazy resource checks and inherited-session isolation in
 `tests/pi_test_support.py`; direct runs use the same checks as the aggregate
@@ -142,6 +156,8 @@ or background service. Device actions require an explicit request.
 
 ## Layout
 
+- `docs/`: local operating guides and historical research. Research is not a
+  current package or readiness inventory; most notes are intentionally Git-ignored.
 - `flake.nix` and `flake.lock`: outputs and pinned dependencies.
 - `hosts/`: hardware and host settings. `modules/nixos/` holds reusable system
   settings, grouped into `desktop/` infrastructure and `networking/` VPN/Tor
@@ -151,6 +167,8 @@ or background service. Device actions require an explicit request.
 - `home-manager/`: user apps and preferences. Under `modules/`, `desktop/`
   groups GNOME, Niri, and Noctalia settings; `desktop-apps/` owns applications;
   `terminal/` groups CLI tools, terminal/shell settings, tmux, and Git.
+  The desktop entry point is `home-manager/home.nix`; the laptop has its own
+  import list in `home-manager/laptop.nix`.
   [Shared skills ownership](home-manager/modules/ai/skills.md) explains pinned
   preparation, mutable installed copies, and installation limitations.
 - `justfile`: command menu and checks; `scripts/generation.sh`: build/review policy,

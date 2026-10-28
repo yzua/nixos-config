@@ -18,8 +18,9 @@ Frida as one unit. Use it for any capture, guest-CA or lab-Frida work.
 
 Their state lifetimes differ, and that asymmetry is a real hazard: the guest
 **proxy setting is persistent** across VM reboots, while the **guest CA overlay
-is per-boot** and capture/Frida are host processes that leak if a session dies
-abruptly. A stale lease followed by a plain `android start` can therefore boot
+is per-boot**. Capture runs on the host and may survive an abruptly ended session.
+The Frida server runs inside Android and may survive the agent session while that
+guest remains running, but not a guest shutdown or reboot. A stale lease followed by a plain `android start` can therefore boot
 with the old proxy still set, an orphaned mitmdump still listening, and no CA
 overlay — every guest HTTPS is then intercepted by a proxy the fresh boot does
 not trust (`SSLHandshakeException: Trust anchor for certification path not
@@ -29,11 +30,14 @@ found` app-wide, which apps may remap to misleading errors such as a
 ```bash
 pi-re lab status --json                     # staleLease / unexpected proxyPort
 pgrep -af mitmdump                          # orphaned capture listener?
-adb shell settings get global http_proxy    # non-empty with no lab running
-adb logcat -d | grep "Trust anchor"         # system-wide TLS failures
+# SERIAL is the selected owned serial from pi-re android status --json.
+# These live diagnostics require that owned emulator to be running.
+adb -s "$SERIAL" shell settings get global http_proxy
+adb -s "$SERIAL" logcat -d | grep "Trust anchor"
 ```
 
-If any check fails, recover with `pi-re lab stop --json` (never manual kills
+Keep logs private and apply a finite diagnostic deadline. Unrelated attached
+devices are not fallback targets. If leftover state is found, recover with `pi-re lab stop --json` (never manual kills
 or `adb kill-server`), then start only what is actually needed.
 
 ### Coordinated lifecycle

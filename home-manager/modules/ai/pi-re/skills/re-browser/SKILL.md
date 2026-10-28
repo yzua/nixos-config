@@ -80,13 +80,16 @@ Missing/uncertain daemon separation means blocked, not ambient `list_pages`.
 
 ## Smallest useful example
 
-After the dedicated-instance gate, on an approved owned mock:
+After the dedicated-instance gate, on an approved owned mock, set `RE_SESSION_ID`
+to the validated hexadecimal/hyphen session ID of the already-provisioned owned
+daemon. Use that explicit selector on every call; this example does not provision
+an interactive instance.
 
 ```bash
-chrome-devtools new_page "$MOCK_URL" --output-format=json
-chrome-devtools list_network_requests "$PAGE_ID" \
+chrome-devtools --sessionId "$RE_SESSION_ID" new_page "$MOCK_URL" --output-format=json
+chrome-devtools --sessionId "$RE_SESSION_ID" list_network_requests "$PAGE_ID" \
   --pageSize 25 --pageIdx 0 --output-format=json
-chrome-devtools close_page "$PAGE_ID"
+chrome-devtools --sessionId "$RE_SESSION_ID" close_page "$PAGE_ID"
 ```
 
 `PAGE_ID` comes from the new-page result, never an assumed index or foreign page.

@@ -44,8 +44,9 @@ Actions require both a saved pairing and `--execute`. This flag records CLI inte
 it is not an OS permission boundary. The assistant's skill requires a current user
 request. Pairing may show an Allow prompt; the user approves it directly. Existing
 `${XDG_STATE_HOME:-$HOME/.local/state}/samsung-tv-remote/token` is reused, stays private,
-and is never copied into configuration/store/logs. Only one invocation holds the
-control lock; a 25-second whole-operation deadline also bounds continuous startup
+and is never copied into configuration/store/logs. Pairing and mutating invocations
+share the control lock; identity and volume reads do not acquire it. A 25-second
+whole-operation deadline also bounds continuous startup
 events and metadata reads. WebSocket/HTTP redirects are refused; every invocation
 closes its socket and performs no automatic retry. Device exceptions are sanitized because upstream URLs/events may contain tokens.
 

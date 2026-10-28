@@ -77,7 +77,7 @@ without automatically importing project resources or root MCP.
 Main sessions inherit the shared model/provider/thinking defaults, or explicit
 `--model`/`--provider`/`--thinking` selections. Fresh 180-second runtime child jobs
 remain fixed at Z.ai GLM-5.3-Flash/high (maximum two, 16 KiB summaries). The same
-fixed Flash model powers the separate four-slot named research pool; shared default
+fixed Flash model powers the separately configured named research pool (up to four slots); shared default
 changes do not change worker models. The Coding Plan endpoint is
 `https://api.z.ai/api/coding/paas/v4`; credentials remain private runtime state.
 REA 6.5.0 provides native, Android, JavaScript/Electron, portable managed/package,
@@ -120,10 +120,11 @@ existing response limits and regressions in `tests/pi-extensions.py` and
 
 Root sessions expose `research_subagent` and `research_subagent_message` for
 public-documentation and source review. Give each worker a lowercase name and
-specific approved source directory. There are **four concurrent research slots**
-across the caller's RE profile, separate from the two existing runtime RE slots.
-`setup.pi.research` sets concurrency (1–4), default turn duration (600 seconds)
-and maximum duration (1800 seconds). The per-call `timeout_seconds` can choose
+specific approved source directory. There are **up to four concurrent research slots**
+across the caller's RE profile, separate from the two runtime RE slots.
+`setup.pi.research` selects concurrency (desktop 4, laptop 2), default turn duration
+(currently 600 seconds) and per-turn maximum duration (currently 1800 seconds;
+configurable up to 3600). The per-call `timeout_seconds` can choose
 another finite duration within that ceiling. Nesting stays disabled.
 
 A call runs until its turn completes, then returns a bounded summary. Follow-ups
@@ -347,8 +348,9 @@ batch/replay, emulator shutdown or caller transport overrides. First snapshot ma
 install the pinned bundled helper on this approved lab; record its changes. IME
 activation is separate; `--no-test-ime` avoids it during basic qualification.
 
-Frida core/server are matched at 17.5.1. `run` is attach-only, has a 30-second parent
-deadline, and demonstrates native messages/RPC by default. `--script` accepts task
+Frida core/server are matched at 17.5.1. `run` is attach-only, has a 30-second
+probe-subprocess timeout, and demonstrates native messages/RPC by default.
+Root/server checks occur beforehand; this is not an aggregate command deadline. `--script` accepts task
 JavaScript; it does not implicitly provide Java or retain later-action hooks.
 The official pinned frida-tools package contains its Java bridge; the supported
 CLI and owned-fixture check explicitly use it without npm/pip downloads. Frida

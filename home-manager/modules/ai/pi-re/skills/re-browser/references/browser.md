@@ -49,17 +49,19 @@ telemetry repair is performed by this guide.
 
 ## Minimal selected-page queries
 
-On an existing verified dedicated instance, all content already approved:
+On an existing verified dedicated instance, all content already approved, set
+`RE_SESSION_ID` to its validated hexadecimal/hyphen daemon session ID. Use the
+same selector on every call; these queries do not provision an interactive instance.
 
 ```bash
-chrome-devtools new_page "$MOCK_URL" --output-format=json
+chrome-devtools --sessionId "$RE_SESSION_ID" new_page "$MOCK_URL" --output-format=json
 # PAGE_ID is the returned owned page ID; never substitute another page.
-chrome-devtools take_snapshot "$PAGE_ID" --output-format=json
-chrome-devtools list_network_requests "$PAGE_ID" \
+chrome-devtools --sessionId "$RE_SESSION_ID" take_snapshot "$PAGE_ID" --output-format=json
+chrome-devtools --sessionId "$RE_SESSION_ID" list_network_requests "$PAGE_ID" \
   --pageSize 25 --pageIdx 0 --output-format=json
-chrome-devtools get_network_request "$PAGE_ID" --reqid "$REQUEST_ID" \
+chrome-devtools --sessionId "$RE_SESSION_ID" get_network_request "$PAGE_ID" --reqid "$REQUEST_ID" \
   --responseFilePath "$PRIVATE_BODY" --output-format=json
-chrome-devtools close_page "$PAGE_ID"
+chrome-devtools --sessionId "$RE_SESSION_ID" close_page "$PAGE_ID"
 ```
 
 Expected: owned page identity, snapshot UIDs, bounded network summary page and
