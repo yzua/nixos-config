@@ -101,7 +101,7 @@ export interface SubagentLoadout {
   agent: string | null;
   /** The `--tools` allowlist string, or null when the spawn was unrestricted. */
   toolAllowlist: string | null;
-  /** Model id (without thinking suffix), or null to use the session default. */
+  /** Qualified model pinned at spawn; null only in historical/unknown-parent loadouts. */
   model: string | null;
   /** Thinking level appended to the model as `model:level`, or null. */
   thinking: string | null;

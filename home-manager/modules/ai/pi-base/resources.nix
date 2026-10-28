@@ -12,6 +12,7 @@ let
     "network-diagnostics.ts"
     "codex-lb-session.ts"
     "upstream-retry.ts"
+    "our-free-model.ts"
     "prompt-snippets"
     "web-fetch"
     "web-search"

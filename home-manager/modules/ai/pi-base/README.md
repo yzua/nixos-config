@@ -81,6 +81,43 @@ access; do not confuse them with the four-tool research workers. Shared configur
 is intentionally not a security boundary. See [RE](../pi-re/README.md) and
 [Home/TV](../pi-home/README.md) for domain-specific behavior.
 
+## Local free-model proxy
+
+`../our-free-model.nix` pins `Ebony-Vinyl/dsh-our-free-model` at
+`e27b0e8d75abaf71ecc53c6c6fef176c78570790` and runs its standalone service as
+`our-free-model.service`. No npm install, model download, or provider account is
+needed. The service binds loopback and disables its LAN relay. Its filesystem
+sandbox hides ordinary home directories and exposes its private state directory
+(`${XDG_STATE_HOME:-$HOME/.local/state}/our-free-model`) for persistent writes;
+system files and the Nix store remain readable, and temporary storage is private.
+This does not isolate its outbound network: upstream also
+initializes other account-channel catalogs, but no existing accounts are imported.
+Managed distribution disables self-updates; update the source pin deliberately.
+
+`extensions/our-free-model.ts` registers **opencode** (eight free chat models) and
+**kilo-free** (Auto Free, Reflection Beam, Nemotron 3.5 Super VL) for every profile.
+It replaces OpenCode's built-in paid catalog; Jev is excluded because it is a
+classifier, not a chat model. The local key comes from `our-free-model-key` at
+request time and never enters Nix, Git, or the provider definitions. Existing
+logins and default models are unchanged. Reload Pi after activation.
+
+The first-run service settings disable tool-output compression, synthetic local
+answers, and default fallback chains, so the proxy does not silently alter Pi's
+tool results or answer locally. Later edits in the proxy's settings persist. The
+service may choose another port if 18900 is occupied; reload Pi to read its actual
+saved port. Visit the loopback URL printed by `systemctl --user status
+our-free-model` only on this computer; startup logs contain a temporary management
+login link and should not be shared. Stop with `systemctl --user stop
+our-free-model`. The service restarts on login; no remote server or public port is
+configured.
+
+Free pools can log prompts or use them for training; do not send sensitive data.
+Catalog presence is not proof of access: the initial OpenCode tests returned 429,
+while the three Kilo models returned real responses. Run
+`python3 -B tests/pi-our-free-model.py` for offline native-provider registration,
+paid-catalog replacement, endpoint, preserved-config checks, and restricted child
+launch/resume through a local streaming fixture.
+
 ## Initial defaults and coding integrations
 
 The first activation backs up existing settings/models beneath
@@ -104,12 +141,32 @@ requested; new clients use the configured focus forwarding automatically.
 
 `/thinking` changes the main level; Ctrl+S saves a new
 default. Scout starts at medium; researcher, worker, and reviewer at high.
-Profiles use the configured default model and resolve the provider from the
-caller's settings. Explicit models for shared-config Pi subagents must match an
-exact authenticated model ID; ambiguous IDs require `provider/model`. A different
-role-specific `.pi/agent` directory retains child CLI resolution (including fuzzy
-matching/fallback), so prefer qualified `provider/model` values there. Claude
-profiles retain their own model aliases. `/plan`, `/review`, `/verify`, and `/handoff` are reusable coding prompts.
+Root profiles use the saved default model. Pi subagents instead pin the parent's
+**current** model when no tool override or role model is specified; changing the
+parent with `/model` does not change the saved global default. Overrides and role
+models must match an authenticated exact ID within the parent's provider family:
+
+- `codex-lb` parents can use only `codex-lb` models.
+- `zai` (GLM) parents can use only `zai` models.
+- `opencode` and `kilo-free` parents can use either free provider.
+- Other providers stay within their own provider.
+
+Use `provider/model` when ambiguous. A nonempty model scope further narrows
+explicit choices when it intersects the family catalog; default inheritance keeps
+the actual parent model. An empty family never falls back to another provider.
+These launch checks also apply to role-specific agent directories and block
+Claude CLI roles that cannot honor the Pi provider family. With no known parent
+provider, historical role-directory/Claude resolution remains unchanged. Pass
+reasoning overrides through `thinking`, not `model`.
+
+Saved child models remain pinned on resume. Switching the parent to another
+family blocks steering/resuming out-of-family children; spawn a fresh child
+instead. Historical children without a qualified pinned model also require a
+fresh launch. Restricted free-pool children explicitly load `our-free-model.ts`
+on both launch and resume without adding tools or enabling extension discovery.
+This is dispatch policy, not OS isolation or a credential-access boundary.
+
+`/plan`, `/review`, `/verify`, and `/handoff` are reusable coding prompts.
 `/verify` runs appropriate checks and reports acceptance-criterion evidence without
 editing source. Working preferences require a reuse check before new helpers,
 dependencies, or integrations, and concise evidence reports for implementation work.
@@ -211,7 +268,7 @@ upstream npm lockfile with lifecycle scripts disabled. Pi provides extension
 API and TypeBox imports, including legacy aliases.
 
 The subagent source passes `--thinking` independently of `--model`. Initial
-launches can use the configured default model while selecting their own reasoning
+launches can inherit the parent's live model while selecting their own reasoning
 level. Resumed follow-ups replay the saved model and thinking level independently.
 
 `agent-catalog.ts` owns profile parsing, package/global/project precedence, and
@@ -256,7 +313,8 @@ children's handles for later follow-ups.
 
 Use `nix develop`, then `just fmt-check` and `just lint-ts` when editing the
 extensions. `python3 tests/pi-config.py` and `python3 tests/pi-subagents.py`
-check writable-config migration and child reliability through the installed Pi
+check writable-config migration, provider-family selection/inheritance, pre-pane
+refusals, steering/resume fences, and child reliability through the installed Pi
 loader, with isolated settings, a mock provider, and fake tmux.
 `node --test tests/pi-subagents-recall.test.mjs` exercises the production catalog,
 status monitor, launch, and evidence interfaces offline, plus steering,

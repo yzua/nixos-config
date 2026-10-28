@@ -80,7 +80,182 @@ export default function (pi: ExtensionAPI) {
         const run = (tool: string, args: Record<string, unknown>) =>
           tools.get(tool)!.execute("fixture", args, undefined, undefined, context);
         try {
-          if (process.env.PI_TEST_SCENARIO === "model-guard") {
+          if (process.env.PI_TEST_SCENARIO === "provider-families") {
+            writeFileSync(join(root, "tmux-mode"), "healthy");
+            const models = [
+              { provider: "codex-lb", id: "gpt-fixture" },
+              { provider: "codex-lb", id: "gpt-other" },
+              { provider: "zai", id: "glm-fixture" },
+              { provider: "opencode", id: "free-fixture" },
+              { provider: "kilo-free", id: "kilo-auto/free" },
+            ];
+            const parent = {
+              ...context,
+              model: models[0],
+              modelRegistry: { getAvailable: async () => models },
+            };
+            const invoke = (tool: string, args: Record<string, unknown>) =>
+              tools.get(tool)!.execute("fixture", args, undefined, undefined, parent);
+            const panes = () =>
+              existsSync(join(root, "pane-count"))
+                ? readFileSync(join(root, "pane-count"), "utf8")
+                : "0";
+            const profile = join(process.env.PI_CODING_AGENT_DIR!, "agents", "fixture.md");
+            const setProfile = (extra = "") =>
+              writeFileSync(
+                profile,
+                `---\nname: fixture\ntools: read\nauto-exit: true\n${extra}---\nOffline role.\n`,
+              );
+            const rejected: Record<string, string> = {};
+            async function refuse(label: string, model?: string, cwd?: string) {
+              const before = panes();
+              try {
+                const response = await invoke("subagent", {
+                  agent: "fixture",
+                  name: label,
+                  task: "refuse",
+                  model,
+                  cwd,
+                });
+                rejected[label] = response.details?.error ?? "UNEXPECTED_LAUNCH";
+              } catch (error) {
+                rejected[label] = String(error);
+              }
+              if (panes() !== before) throw new Error(`${label} created a pane`);
+            }
+            setProfile();
+            for (const active of models.filter((m) => m.id !== "gpt-other")) {
+              parent.model = active;
+              for (const target of models.filter((m) => m.provider !== active.provider)) {
+                const free = ["opencode", "kilo-free"];
+                if (free.includes(active.provider) && free.includes(target.provider)) continue;
+                await refuse(
+                  `${active.provider}-to-${target.provider}-${target.id.replaceAll("/", "-")}`,
+                  `${target.provider}/${target.id}`,
+                );
+              }
+            }
+            parent.model = models[4];
+            setProfile("model: codex-lb/gpt-fixture\n");
+            await refuse("profile-bypass");
+            setProfile("cli: claude\nmodel: sonnet\n");
+            await refuse("claude-bypass");
+            setProfile();
+            const role = join(root, "role");
+            mkdirSync(join(role, ".pi/agent"), { recursive: true });
+            await refuse("role-bypass", "codex-lb/gpt-fixture", role);
+            parent.model = { provider: "empty-provider", id: "missing" };
+            await refuse("empty-family", "codex-lb/gpt-fixture");
+            results.rejected = rejected;
+            results.panesBeforeValid = panes();
+            const valid = [];
+            for (const active of models.filter((m) => m.id !== "gpt-other")) {
+              parent.model = active;
+              const response = await invoke("subagent", {
+                agent: "fixture",
+                name: `${active.provider}-inherit`,
+                task: "inherit",
+              });
+              valid.push({
+                parent: active,
+                details: response.details,
+                command: readFileSync(response.details.launchScriptFile, "utf8"),
+                loadout: JSON.parse(
+                  readFileSync(`${response.details.sessionFile}.loadout.json`, "utf8"),
+                ),
+              });
+            }
+            results.inherited = valid;
+            const picked = [];
+            for (const [active, target] of [
+              [models[0], models[1]],
+              [models[3], models[4]],
+              [models[4], models[3]],
+            ]) {
+              parent.model = active!;
+              const response = await invoke("subagent", {
+                agent: "fixture",
+                name: "allowed-choice",
+                task: "pick",
+                model: `${target!.provider}/${target!.id}`,
+              });
+              picked.push(
+                JSON.parse(readFileSync(`${response.details.sessionFile}.loadout.json`, "utf8"))
+                  .model,
+              );
+            }
+            results.picked = picked;
+            parent.model = models[4];
+            const listed = await invoke("subagents_list", {});
+            results.listed = listed.content.map((c: any) => c.text).join("\n");
+            const first = valid[0]!.details;
+            const before = panes();
+            results.steerRefused = (
+              await invoke("subagent_message", {
+                name: first.name,
+                message: "must not steer codex from kilo",
+              })
+            ).details;
+            if (panes() !== before) throw new Error("Rejected steer created a pane");
+            const registryPath = join(
+              root,
+              "artifacts",
+              "fixture-parent",
+              "subagent-registry.json",
+            );
+            const registry = readFileSync(registryPath, "utf8");
+            writeFileSync(registryPath, "{}");
+            results.steerWithoutRegistryRefused = (
+              await invoke("subagent_message", {
+                name: first.name,
+                message: "missing registry must not bypass the family",
+              })
+            ).details;
+            writeFileSync(registryPath, registry);
+            for (const running of __test__.runningSubagents.values()) {
+              execFileSync("tmux", ["writer-lease", running.sessionFile]);
+              running.abortController?.abort();
+            }
+            const deadline = Date.now() + 4000;
+            while (__test__.runningSubagents.size && Date.now() < deadline)
+              await new Promise((resolve) => setTimeout(resolve, 10));
+            if (__test__.runningSubagents.size) throw new Error("Cancelled runs did not settle");
+            writeFileSync(
+              first.sessionFile,
+              `${JSON.stringify({ type: "session", id: "fixture-child", version: 3, cwd: root })}\n`,
+            );
+            results.resumeRefused = (
+              await invoke("subagent_message", {
+                name: first.name,
+                message: "must not resume codex from kilo",
+              })
+            ).details;
+            if (panes() !== before) throw new Error("Rejected resume created a pane");
+            parent.model = models[0];
+            results.resume = (
+              await invoke("subagent_message", { name: first.name, message: "same family" })
+            ).details;
+            const resumed = [...__test__.runningSubagents.values()].find(
+              (r) => r.name === first.name,
+            )!;
+            results.resumeCommand = readFileSync(resumed.launchScriptFile!, "utf8");
+            parent.model = models[4];
+            const legacy = valid[1]!.details;
+            const legacyPath = `${legacy.sessionFile}.loadout.json`;
+            const snapshot = JSON.parse(readFileSync(legacyPath, "utf8"));
+            snapshot.model = null;
+            writeFileSync(legacyPath, JSON.stringify(snapshot));
+            writeFileSync(
+              legacy.sessionFile,
+              `${JSON.stringify({ type: "session", id: "legacy-child", version: 3, cwd: root })}\n`,
+            );
+            results.legacyRefused = (
+              await invoke("subagent_message", {
+                name: legacy.name,
+                message: "legacy must not default",
+              })
+            ).details;
+          } else if (process.env.PI_TEST_SCENARIO === "model-guard") {
             writeFileSync(join(root, "tmux-mode"), "healthy");
             const profile = join(process.env.PI_CODING_AGENT_DIR!, "agents", "fixture.md");
             const setProfile = (model?: string, cli?: string) =>

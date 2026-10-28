@@ -20,6 +20,7 @@ pkgs.buildNpmPackage {
     cp ${./extensions/network-diagnostics.ts} "$resources/network-diagnostics.ts"
     cp ${./extensions/codex-lb-session.ts} "$resources/codex-lb-session.ts"
     cp ${./extensions/upstream-retry.ts} "$resources/upstream-retry.ts"
+    cp ${./extensions/our-free-model.ts} "$resources/our-free-model.ts"
     cp -r ${./extensions/prompt-snippets}/. "$resources/prompt-snippets/"
     cp -r ${./extensions/interactive-subagents} "$resources/interactive-subagents"
     cp -r ${./extensions/web-search} "$resources/web-search"

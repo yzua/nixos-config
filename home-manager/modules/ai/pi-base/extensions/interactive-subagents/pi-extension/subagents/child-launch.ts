@@ -154,6 +154,17 @@ export class ChildLaunch {
       for (const skill of policy.skills) parts.push("--skill", shellEscape(skill));
       for (const extension of policy.extensions) parts.push("-e", shellEscape(extension));
     }
+    if (
+      (loadout.toolAllowlist || policy) &&
+      (loadout.model?.startsWith("opencode/") || loadout.model?.startsWith("kilo-free/"))
+    ) {
+      // Provider registration is not a tool grant. Restricted coding children
+      // disable discovery; older explicit-load snapshots may also lack it.
+      const provider = join(this.subagentsDir, "../../../our-free-model.ts");
+      if (!existsSync(provider))
+        throw new Error("The free-model provider extension is missing; refusing a fallback model.");
+      if (!policy?.extensions.includes(provider)) parts.push("-e", shellEscape(provider));
+    }
     if (loadout.identity && (!policy || loadout.systemPromptMode === "replace")) {
       const flag =
         loadout.systemPromptMode === "replace" ? "--system-prompt" : "--append-system-prompt";

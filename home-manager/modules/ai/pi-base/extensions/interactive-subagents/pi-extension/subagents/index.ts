@@ -80,7 +80,12 @@ const SubagentParams = Type.Object({
         "Has no effect on which agent runs — use `agent` for that.",
     }),
   ),
-  model: Type.Optional(Type.String({ description: "Model override (overrides agent default)" })),
+  model: Type.Optional(
+    Type.String({
+      description:
+        "Model override within the parent's provider family (overrides agent default). Omit to inherit the parent's current model when the profile has none.",
+    }),
+  ),
   thinking: Type.Optional(
     Type.String({
       description:
@@ -102,15 +107,47 @@ const BUILTIN_TOOLS = new Set(["read", "write", "edit", "bash", "grep", "find", 
 /** Valid thinking-level overrides for the subagent tool. */
 const THINKING_LEVELS = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
 
-/**
- * Provider of the current session, when known. Subagent model picks stay on it:
- * a codex-lb session only resolves codex-lb models, a zai session zai models.
- */
+/** Provider of the current session; the live selection wins over inherited env. */
 function sessionProvider(ctx: unknown): string | null {
   const provider = (ctx as { model?: { provider?: string } } | undefined)?.model?.provider;
   if (provider) return provider;
   const fromEnv = process.env.PI_PROVIDER;
   return fromEnv?.trim() ? fromEnv.trim() : null;
+}
+
+/** Only the two anonymous free pools may delegate across provider boundaries. */
+function allowedProviders(ctx: unknown): string[] | null {
+  const provider = sessionProvider(ctx);
+  if (!provider) return null;
+  return provider === "opencode" || provider === "kilo-free"
+    ? ["opencode", "kilo-free"]
+    : [provider];
+}
+
+function providerModels<T extends { provider: string; id: string }>(
+  ctx: unknown,
+  models: readonly T[],
+): T[] {
+  const allowed = allowedProviders(ctx);
+  return allowed ? models.filter((model) => allowed.includes(model.provider)) : [...models];
+}
+
+/** Also guards durable handles: never steer/resume an old out-of-family child. */
+function assertProviderAllowed(ctx: unknown, model: string | null | undefined): void {
+  const allowed = allowedProviders(ctx);
+  if (!allowed) return;
+  if (
+    model &&
+    allowed.some(
+      (provider) => model.startsWith(`${provider}/`) && model.length > provider.length + 1,
+    )
+  )
+    return;
+  throw new Error(
+    `Subagent model ${JSON.stringify(model ?? null)} is outside this session's provider family ` +
+      `(${allowed.join(", ")}), or has no pinned provider. ` +
+      "Spawn a fresh Pi subagent using an allowed provider/model.",
+  );
 }
 
 /**
@@ -781,6 +818,7 @@ async function launchSubagent(
     };
     cwd: string;
     modelRegistry: Pick<ExtensionContext["modelRegistry"], "getAvailable">;
+    model?: { provider: string; id: string };
   },
 ): Promise<RunningSubagent> {
   const startTime = Date.now();
@@ -793,7 +831,17 @@ async function launchSubagent(
   );
   const explicitModel = (value: unknown): string | undefined =>
     typeof value === "string" && value.trim() ? value : undefined;
-  let model = explicitModel(params.model) ?? explicitModel(agentDefs?.model);
+  const inheritedModel = ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined;
+  let model =
+    explicitModel(params.model) ??
+    explicitModel(agentDefs?.model) ??
+    (agentDefs?.cli !== "claude" ? inheritedModel : undefined);
+  if (agentDefs?.cli === "claude" && allowedProviders(ctx)) {
+    throw new Error(
+      "Claude roles cannot honor this session's provider family; use a Pi role instead.",
+    );
+  }
+  if (model === undefined) assertProviderAllowed(ctx, model);
   const thinking = (() => {
     const level = explicitModel(params.thinking)?.toLowerCase();
     if (level === undefined) return undefined;
@@ -808,32 +856,30 @@ async function launchSubagent(
   if (
     agentDefs?.cli !== "claude" &&
     model !== undefined &&
-    resolve(effectiveAgentDir) === resolve(getAgentConfigDir())
+    (allowedProviders(ctx) || resolve(effectiveAgentDir) === resolve(getAgentConfigDir()))
   ) {
-    // CLI fuzzy resolution can silently fall back to an unauthenticated provider.
-    // Validate shared-config models before creating a pane/session, then persist
-    // the provider for resumes. A different agent directory owns its own models,
-    // credentials and provider extensions: leave resolution to that child CLI.
+    // Pin the actual parent selection, not the child's saved global default.
+    // Provider policy applies even when a role selects a different agent dir;
+    // otherwise cwd/profile configuration could bypass the family restriction.
     const requested = model.trim();
     const available = await ctx.modelRegistry.getAvailable();
     const provider = sessionProvider(ctx);
-    const providerPool = provider ? available.filter((m) => m.provider === provider) : [];
-    // Scope to the session's provider only when that provider has registered
-    // models; an unknown/empty provider must not empty the whole catalog.
-    const pool = scopeToEnabled(ctx, providerPool.length ? providerPool : available);
+    const family = providerModels(ctx, available);
+    const pool = requested === inheritedModel ? family : scopeToEnabled(ctx, family);
     const qualified = pool.filter((m) => `${m.provider}/${m.id}` === requested);
     const matches = qualified.length ? qualified : pool.filter((m) => m.id === requested);
     if (matches.length === 0) {
       const elsewhere = available.filter(
         (m) =>
-          m.provider !== provider && (`${m.provider}/${m.id}` === requested || m.id === requested),
+          !allowedProviders(ctx)?.includes(m.provider) &&
+          (`${m.provider}/${m.id}` === requested || m.id === requested),
       );
       if (provider && elsewhere.length) {
         throw new Error(
           `Subagent model ${JSON.stringify(model)} belongs to provider ${elsewhere[0].provider}, ` +
-            `but this session's provider is ${provider}; subagents stay on the session's provider. ` +
+            `but this session's provider is ${provider}; allowed providers: ${allowedProviders(ctx)?.join(", ")}. ` +
             `Pick from: ${pool.map((m) => `${m.provider}/${m.id}`).join(", ")}. ` +
-            "Omit model to inherit the session default.",
+            "Omit model to inherit the parent's current model when the profile has none.",
         );
       }
       const catalog = pool.map((m) => `${m.provider}/${m.id}`);
@@ -846,7 +892,7 @@ async function launchSubagent(
       throw new Error(
         `Subagent model ${JSON.stringify(model)} is not an available registered model. ` +
           "Use an exact model ID with configured authentication, preferably provider/model. " +
-          `Available: ${shown}. Omit model to inherit the session default.${thinkingHint}`,
+          `Available: ${shown}. Omit model to inherit the parent's current model when the profile has none.${thinkingHint}`,
       );
     }
     if (matches.length > 1) {
@@ -856,6 +902,7 @@ async function launchSubagent(
       );
     }
     model = `${matches[0].provider}/${matches[0].id}`;
+    assertProviderAllowed(ctx, model);
   }
   const effectiveInteractive = resolveEffectiveInteractive(params, agentDefs);
 
@@ -1303,14 +1350,13 @@ export default function subagentsExtension(pi: ExtensionAPI) {
         const available = await ctx?.modelRegistry?.getAvailable();
         if (available?.length) {
           const provider = sessionProvider(ctx);
-          const providerPool = provider ? available.filter((m) => m.provider === provider) : [];
-          const pool = scopeToEnabled(ctx, providerPool.length ? providerPool : available);
+          const pool = scopeToEnabled(ctx, providerModels(ctx, available));
           if (pool.length) {
             const ids = pool.map((m) => `${m.provider}/${m.id}`);
             modelsLine =
               `Models usable as subagent model overrides${provider ? ` (session provider ${provider})` : ""}: ` +
-              `${ids.join(", ")}. Subagents stay on the session's provider; ` +
-              "omit model to inherit the session default.";
+              `${ids.join(", ")}. Allowed providers: ${allowedProviders(ctx)?.join(", ") ?? "unknown"}; ` +
+              "omit model to inherit the parent's current model when the profile has none.";
           }
         }
       } catch {
@@ -1446,6 +1492,15 @@ export default function subagentsExtension(pi: ExtensionAPI) {
       // lock. Never fall through to dispatch when ownership cannot be proven.
       if (entry) {
         try {
+          assertProviderAllowed(ctx, readSubagentLoadout(entry.sessionFile)?.model);
+        } catch (error) {
+          const message = String(error);
+          return {
+            content: [{ type: "text" as const, text: message }],
+            details: { error: message },
+          };
+        }
+        try {
           await managedRuns.recall(parentArtifactDir, requestedName, entry.sessionFile);
         } catch (error) {
           if (!(error instanceof RunOwnershipError)) throw error;
@@ -1462,6 +1517,16 @@ export default function subagentsExtension(pi: ExtensionAPI) {
         (r) => r.name === requestedName,
       );
       if (runningMatch) {
+        try {
+          // The registry can disappear while a live handle remains in memory.
+          assertProviderAllowed(ctx, readSubagentLoadout(runningMatch.sessionFile)?.model);
+        } catch (error) {
+          const message = String(error);
+          return {
+            content: [{ type: "text" as const, text: message }],
+            details: { error: message },
+          };
+        }
         return handleSubagentSteer({ name: requestedName, message: params.message });
       }
 

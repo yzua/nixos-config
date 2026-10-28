@@ -169,6 +169,7 @@ class PiRegressions(unittest.TestCase):
             )
         )
         self.env = isolated_environment()
+        self.env.pop("PI_PROVIDER", None)
         self.env.update(
             PI_CODING_AGENT_DIR=str(self.agent),
             PI_TEST_ROOT=str(self.root),
@@ -544,6 +545,42 @@ class PiRegressions(unittest.TestCase):
         self.assertIn("send-keys", results["launchError"])
         self.assertEqual(results["retry"]["name"], "retryable")
         self.assertEqual(results["closedPanes"], ["%1", "%2"])
+
+    def test_parent_provider_families_apply_to_inheritance_overrides_steering_and_resume(self):
+        results = self.probes("provider-families")
+        self.assertEqual(results["panesBeforeValid"], "0")
+        self.assertEqual(len(results["rejected"]), 17)
+        for label, error in results["rejected"].items():
+            self.assertNotEqual(error, "UNEXPECTED_LAUNCH", label)
+            self.assertIn("provider", error.lower(), (label, error))
+        for inherited in results["inherited"]:
+            parent = inherited["parent"]
+            expected = f"{parent['provider']}/{parent['id']}"
+            self.assertEqual(inherited["loadout"]["model"], expected)
+            self.assertIn(f"--model '{expected}'", inherited["command"])
+            if parent["provider"] in ("kilo-free", "opencode"):
+                self.assertIn("our-free-model.ts", inherited["command"])
+        self.assertEqual(
+            results["picked"],
+            [
+                "codex-lb/gpt-other",
+                "kilo-free/kilo-auto/free",
+                "opencode/free-fixture",
+            ],
+        )
+        self.assertIn("kilo-free/kilo-auto/free", results["listed"])
+        self.assertIn("opencode/free-fixture", results["listed"])
+        self.assertNotIn("codex-lb/gpt-fixture", results["listed"])
+        self.assertNotIn("zai/glm-fixture", results["listed"])
+        for label in (
+            "steerRefused",
+            "steerWithoutRegistryRefused",
+            "resumeRefused",
+            "legacyRefused",
+        ):
+            self.assertIn("provider", results[label].get("error", "").lower(), (label, results))
+        self.assertEqual(results["resume"]["status"], "started")
+        self.assertIn("--model 'codex-lb/gpt-fixture'", results["resumeCommand"])
 
     def test_model_guard_rejects_before_pane_and_pins_available_models(self):
         model = {"id": "offline-shared", "name": "Offline configured default"}

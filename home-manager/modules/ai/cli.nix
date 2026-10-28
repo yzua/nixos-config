@@ -38,6 +38,7 @@ in
 {
   imports = [
     ./herdr.nix
+    ./our-free-model.nix
     ./pi-coding
     ./pi-home
     ./skills.nix

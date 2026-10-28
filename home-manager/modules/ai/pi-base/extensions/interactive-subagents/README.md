@@ -50,7 +50,7 @@ subagent({ agent: "worker", name: "dark-mode", task: "Implement the dark mode to
 | `agent` | string | required | Which agent to spawn (must be known and permitted) |
 | `task` | string | required | Task prompt |
 | `name` | string | agent name | Display name for the pane and widget. Must be unique — duplicates are auto-suffixed (`scout`, `scout-2`, …) |
-| `model` | string | agent's model | Exact available model override, subject to shared-config provider/scope restrictions |
+| `model` | string | agent's model, else parent's live model | Exact available model override within the parent's provider family; explicit choices respect an intersecting enabled-model scope |
 | `thinking` | string | agent's thinking | Override reasoning independently: off, minimal, low, medium, high, xhigh, max |
 | `cwd` | string | agent's `cwd` | Working directory (see [Role folders](#role-folders)) |
 
@@ -150,7 +150,11 @@ children replay their pinned extension policy. Omitting both tools and delegatio
 grants preserves native unrestricted coding behavior, while domain children receive
 the common default loadout. Saved Pi restrictions survive resume. These are not
 OS sandboxes. Claude roles use a separate launcher without Pi tool restrictions;
-explicit-load domain profiles reject Claude roles.
+a known session provider family or an explicit-load domain policy rejects them.
+
+Model families are provider-local except that `opencode` and `kilo-free` may
+delegate to each other. Role-specific agent directories do not bypass that policy;
+steering/resuming an out-of-family durable handle is refused.
 
 Spawns must name a known agent at every depth. Restricted Pi children with a
 `subagent_agents` grant may spawn only its pinned targets, enforced through

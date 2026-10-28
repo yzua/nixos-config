@@ -25,7 +25,7 @@ export default function (pi: ExtensionAPI) {
     const initial = child.prepare(
       {
         kind: "initial",
-        profile: { tools: "read", model: "codex-lb/fixture", autoExit: true },
+        profile: { tools: "read", model: testCase.model ?? "codex-lb/fixture", autoExit: true },
         cwd: ctx.cwd,
         agentDir: process.env.PI_CODING_AGENT_DIR!,
       },
