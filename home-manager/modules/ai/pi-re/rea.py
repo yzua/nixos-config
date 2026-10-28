@@ -160,10 +160,33 @@ COMMANDS = frozenset(
         "list-frida-devices",
         "list-frida-processes",
         "instrument-with-frida",
+        "decompile-all",
+        "environment-build",
+        "environment-compare",
+        "environment-export",
+        "environment-serve",
+        "inspect-apk-signature",
+        "inspect-apple-ips",
+        "inspect-byte-entropy",
+        "inspect-desktop-application",
+        "inspect-devicetree",
+        "inspect-elf-notes",
+        "inspect-erlang-beam",
+        "inspect-gpu-code-objects",
+        "inspect-il2cpp-metadata",
+        "inspect-kernel-module",
+        "inspect-model-artifact",
+        "inspect-native-exports",
+        "inspect-pe-certificates",
+        "inspect-pe-imports",
+        "inspect-pe-load-config",
+        "inspect-python-pyc",
+        "match-native-functions",
     }
 )
 HELP = frozenset({"--help", "-h", "--version", "-V"})
-# Caller-selected analysis data/timing, validated by upstream; never executable paths.
+# Caller-selected data, deadlines and schema/policy controls, validated upstream.
+# Engine/plugin/transport paths remain managed; runtime MCP settings cover other budgets.
 ANALYSIS_SETTINGS = frozenset(
     {
         "REA_GHIDRA_LANGUAGE_ID",
@@ -171,6 +194,10 @@ ANALYSIS_SETTINGS = frozenset(
         "REA_GHIDRA_SEED_FILE",
         "REA_GHIDRA_STARTUP_TIMEOUT_MS",
         "REA_GHIDRA_DISABLED_ANALYZERS",
+        "REA_GHIDRA_DECOMPILE_TIMEOUT_SECONDS",
+        "REA_JADX_OPERATION_TIMEOUT_MS",
+        "REA_MCP_INPUT_SCHEMA_PROFILE",
+        "REA_REFERENCE_SECRET_PATTERNS_JSON",
     }
 )
 

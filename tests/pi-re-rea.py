@@ -2,6 +2,7 @@
 """Offline regression tests for the pinned static REA route; no engine/model calls."""
 
 import contextlib
+import hashlib
 import importlib.util
 import io
 import json
@@ -17,6 +18,7 @@ from unittest.mock import MagicMock, patch
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 CODE = ROOT / "home-manager/modules/ai/pi-re"
+RELEASE = json.loads((ROOT / "tests/fixtures/pi-re-rea/release-inventory.json").read_text())
 sys.path.insert(0, str(CODE))
 spec = importlib.util.spec_from_file_location("pi_re_rea", CODE / "rea.py")
 rea = importlib.util.module_from_spec(spec)
@@ -109,6 +111,10 @@ class ReaTests(unittest.TestCase):
             "REA_GHIDRA_SEED_FILE": "/owned/seeds.tsv",
             "REA_GHIDRA_STARTUP_TIMEOUT_MS": "420000",
             "REA_GHIDRA_DISABLED_ANALYZERS": "DWARF",
+            "REA_GHIDRA_DECOMPILE_TIMEOUT_SECONDS": "90",
+            "REA_JADX_OPERATION_TIMEOUT_MS": "180000",
+            "REA_MCP_INPUT_SCHEMA_PROFILE": "full",
+            "REA_REFERENCE_SECRET_PATTERNS_JSON": '["private/**", "*.env"]',
         }
         _, env = rea.command(
             self.config,
@@ -198,7 +204,7 @@ class ReaTests(unittest.TestCase):
 
     def test_runtime_lock_preserves_release_pins_without_dev_dependencies(self):
         lock = json.loads((ROOT / "packages/rea/package-lock.json").read_text())
-        self.assertEqual(lock["version"], "6.5.0")
+        self.assertEqual(lock["version"], RELEASE["version"])
         self.assertNotIn("devDependencies", lock["packages"][""])
         self.assertFalse(any(item.get("dev") for item in lock["packages"].values()))
         for name, item in lock["packages"].items():
@@ -207,7 +213,9 @@ class ReaTests(unittest.TestCase):
                 self.assertTrue(item["integrity"].startswith("sha512-"))
 
     def test_release_inventory_and_managed_packet_tools(self):
-        self.assertEqual(len(rea.COMMANDS), 151)
+        self.assertEqual(len(rea.COMMANDS), RELEASE["cli_count"])
+        digest = hashlib.sha256(("\n".join(sorted(rea.COMMANDS)) + "\n").encode()).hexdigest()
+        self.assertEqual(digest, RELEASE["cli_names_sha256"])
         self.assertTrue(
             {
                 "search-bytes",
@@ -300,6 +308,9 @@ class ReaTests(unittest.TestCase):
         for name in ("native-analysis", "android-static"):
             self.assertIn("rea-analysis", (CODE / f"skills/{name}/SKILL.md").read_text())
         self.assertIn("REA", (CODE / "prompts/re-handoff.md").read_text())
+        native = (CODE / "skills/native-analysis/SKILL.md").read_text()
+        self.assertIn("persistent MCP", native)
+        self.assertNotIn("Prefer the provisioned `pi-re rea` CLI", native)
 
 
 if __name__ == "__main__":

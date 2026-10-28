@@ -16,6 +16,10 @@ import threading
 import time
 from pathlib import Path
 
+RELEASE = json.loads(
+    (Path(__file__).parent / "fixtures/pi-re-rea/release-inventory.json").read_text()
+)
+
 
 def evidence(result):
     if "structuredContent" in result:
@@ -47,7 +51,7 @@ class Mcp:
                 "clientInfo": {"name": "owned-rea-fixtures", "version": "1"},
             },
         )
-        assert result["serverInfo"]["version"] == "6.5.0"
+        assert result["serverInfo"]["version"] == RELEASE["version"]
         self.send({"jsonrpc": "2.0", "method": "notifications/initialized"})
 
     def send(self, message):
@@ -185,8 +189,10 @@ def main():
         client = Mcp(launcher, env, directory)
         try:
             tools = client.request("tools/list", {})["tools"]
-            assert len(tools) == 207
+            assert len(tools) == RELEASE["mcp_count"]
             inventory = {tool["name"] for tool in tools}
+            digest = hashlib.sha256(("\n".join(sorted(inventory)) + "\n").encode()).hexdigest()
+            assert digest == RELEASE["mcp_names_sha256"], inventory
             assert {
                 "open_binary",
                 "close_binary",
@@ -202,7 +208,52 @@ def main():
                 "inspect_dart_aot",
                 "inspect_electron_fuses",
             } <= inventory
-            checks.append("mcp-207-tools")
+            checks.append(f"mcp-{RELEASE['mcp_count']}-exact-tool-inventory")
+            settings = evidence(
+                client.call(
+                    "inspect_analysis_settings", {"settings": ["jadx.operation_timeout_ms"]}
+                )
+            )
+            original = settings["settings"][0]["value"]
+            updated = evidence(
+                client.call(
+                    "update_analysis_settings",
+                    {
+                        "expected_revision": settings["revision"],
+                        "changes": [
+                            {
+                                "setting": "jadx.operation_timeout_ms",
+                                "action": "set",
+                                "value": 180000,
+                            }
+                        ],
+                    },
+                )
+            )
+            assert updated["changed"] and not updated["active_work_changed"]
+            assert not updated["rea_restart_required"]
+            current = next(
+                s for s in updated["settings"] if s["setting"] == "jadx.operation_timeout_ms"
+            )
+            assert current["value"] == 180000
+            reset = evidence(
+                client.call(
+                    "update_analysis_settings",
+                    {"changes": [{"setting": "jadx.operation_timeout_ms", "action": "reset"}]},
+                )
+            )
+            restored = next(
+                s for s in reset["settings"] if s["setting"] == "jadx.operation_timeout_ms"
+            )
+            assert restored["value"] == original
+            checks.append("mcp-runtime-settings-set-reset")
+            entropy_input = directory / "owned-entropy.bin"
+            entropy_input.write_bytes(bytes(4096))
+            entropy = evidence(client.call("inspect_byte_entropy", {"path": str(entropy_input)}))
+            assert entropy["operation"] == "inspect_byte_entropy"
+            assert entropy["subject"]["digest"]["sha256"] == hashlib.sha256(bytes(4096)).hexdigest()
+            assert entropy_input.read_bytes() == bytes(4096)
+            checks.append("mcp-static-byte-entropy")
             result = client.call(
                 "inspect_web_network_capture", {"capture_path": str(har), "format": "har"}
             )
@@ -313,7 +364,13 @@ def main():
                 native = args.native.resolve(strict=True)
                 digest = hashlib.sha256(native.read_bytes()).hexdigest()
                 client.call("open_binary", {"path": str(native), "provider_id": "ghidra"})
-                result = client.call("analyze_function", {"procedure": "rea_leaf"})
+                summary = evidence(client.call("analyze_function", {"procedure": "rea_leaf"}))
+                assert summary["normalized_result"]["parent_evidence_id"].startswith("ev_")
+                assert "pseudocode" not in summary["normalized_result"]
+                checks.append("mcp-default-retained-function-summary")
+                result = client.call(
+                    "analyze_function", {"procedure": "rea_leaf", "detail": "complete"}
+                )
                 assert "PI_RE_REA_SENTINEL" in json.dumps(result)
                 graph = evidence(client.call("get_call_graph", {"address": "rea_leaf"}))[
                     "normalized_result"
@@ -322,6 +379,10 @@ def main():
                 client.call("close_binary", {})
                 assert hashlib.sha256(native.read_bytes()).hexdigest() == digest
                 checks.append("mcp-persistent-ghidra-function-close")
+                exports = evidence(client.call("inspect_native_exports", {"path": str(native)}))
+                assert exports["operation"] == "inspect_native_exports"
+                assert exports["subject"]["digest"]["sha256"] == digest
+                checks.append("mcp-static-native-exports")
             if args.browser:
 
                 class Handler(http.server.BaseHTTPRequestHandler):

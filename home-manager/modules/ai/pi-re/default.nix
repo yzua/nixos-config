@@ -104,6 +104,7 @@ let
             rea = reaTools.cli.version;
             ghidra = reaTools.ghidra.version;
             jdk = reaTools.jdk.version;
+            node = reaTools.node.version;
             jadxEngine = "0.7.1";
           };
         }
