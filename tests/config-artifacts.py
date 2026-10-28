@@ -1000,7 +1000,7 @@ in {
                 timeout=10,
             )
             binding = subprocess.run(
-                [*command, "list-keys", "-T", "prefix", "r"],
+                [*command, "list-keys", "-T", "prefix"],
                 env=env,
                 check=True,
                 capture_output=True,
@@ -1012,8 +1012,17 @@ in {
             expected.write_text("set -g @reload-fixture accepted\n")
             # Replay the stored binding through tmux's parser, not a shell parser.
             # The two grammars treat escaped dollars inside quotes differently.
-            _, separator, reload_command = binding.stdout.partition(" r ")
-            self.assertTrue(separator, binding.stdout)
+            # tmux 3.7 sends single-binding results to the status line, not stdout.
+            bindings = [line.split(maxsplit=4) for line in binding.stdout.splitlines()]
+            reload_command = next(
+                (
+                    parts[4]
+                    for parts in bindings
+                    if len(parts) == 5 and parts[:4] == ["bind-key", "-T", "prefix", "r"]
+                ),
+                "",
+            )
+            self.assertTrue(reload_command, binding.stdout)
             reload = self.root / "reload.conf"
             reload.write_text(reload_command.replace(r"\;", ";"))
             subprocess.run(

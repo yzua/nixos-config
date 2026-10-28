@@ -27,6 +27,14 @@ def test_managed_extension_is_already_available():
     assert browser.refresh_extension() == {"version": "1.0.23", "updated": False}
 
 
+def test_managed_ytdlp_runs_through_channel_wrapper():
+    from importlib.metadata import version
+
+    from agent_reach.channels.youtube import _run_ytdlp
+
+    assert _run_ytdlp(["--version"], timeout=10).strip() == version("yt-dlp")
+
+
 def test_session_import_is_explicit(monkeypatch):
     from contextlib import nullcontext
 

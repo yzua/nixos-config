@@ -45,6 +45,9 @@ python3Packages.buildPythonApplication rec {
     }"
   ];
 
+  # Use Nixpkgs' maintained yt-dlp rather than upstream's exact release pin.
+  pythonRelaxDeps = [ "yt-dlp" ];
+
   build-system = [ python3Packages.hatchling ];
   dependencies = with python3Packages; [
     requests
