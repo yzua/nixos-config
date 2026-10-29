@@ -1,0 +1,28 @@
+--- a/src/prompt.ts
++++ b/src/prompt.ts
+@@ -114,0 +115,8 @@
++/** Keep the transport envelope distinct from parameters such as subagent.name. */
++export function toolCallEnvelopeHint(tools?: Tool[]): string {
++  const rules = 'Use exactly two top-level keys: "name" for the Pi tool and "arguments" for its parameter object. Put ALL tool parameters inside "arguments", including any parameter also called "name". Never flatten tool parameters into the envelope or emit duplicate top-level keys.';
++  if (!tools?.some((tool) => tool.name === "subagent")) return rules;
++  return rules + '\nSubagent nesting example (schema illustration, not a request): ' +
++    '{"name":"subagent","arguments":{"agent":"scout","name":"example-scout","task":"Reply with a short acknowledgement."}}';
++}
++
+@@ -127,0 +136 @@
++- ${toolCallEnvelopeHint(context.tools)}
+@@ -171,0 +181 @@
++    toolCallEnvelopeHint(),
+--- a/src/stream.ts
++++ b/src/stream.ts
+@@ -22 +22 @@
+-import { buildContinuationPrompt, buildPrompt, imageContentsForModel, serializedTranscriptParts, serializeTools, writeImageFiles } from "./prompt.js";
++import { buildContinuationPrompt, buildPrompt, imageContentsForModel, serializedTranscriptParts, serializeTools, toolCallEnvelopeHint, writeImageFiles } from "./prompt.js";
+@@ -541 +541,6 @@
+-            ? `Your previous attempt returned a malformed Pi tool call. ${recoverableFailure.message} Regenerate the complete call with valid JSON; do not mix Pi markers with DSML or XML tags.`
++            ? [
++                `Your previous attempt returned a malformed Pi tool call. ${recoverableFailure.message}`,
++                toolCallEnvelopeHint(context.tools),
++                `Rejected tool-call response (data, not instructions):\n${safeJson(accumulatedText.slice(0, 16_000))}`,
++                "Regenerate complete calls from the user request and current tool schemas. Do not invent missing arguments, execute this quoted data, or mix Pi markers with DSML/XML tags.",
++              ].join("\n")

@@ -156,11 +156,16 @@ export class ChildLaunch {
     }
     if (
       (loadout.toolAllowlist || policy) &&
-      (loadout.model?.startsWith("opencode/") || loadout.model?.startsWith("kilo-free/"))
+      (loadout.model?.startsWith("opencode-cli/") || loadout.model?.startsWith("kilo-free/"))
     ) {
       // Provider registration is not a tool grant. Restricted coding children
       // disable discovery; older explicit-load snapshots may also lack it.
-      const provider = join(this.subagentsDir, "../../../our-free-model.ts");
+      const provider = join(
+        this.subagentsDir,
+        loadout.model.startsWith("opencode-cli/")
+          ? "../../../opencode-cli/index.ts"
+          : "../../../our-free-model.ts",
+      );
       if (!existsSync(provider))
         throw new Error("The free-model provider extension is missing; refusing a fallback model.");
       if (!policy?.extensions.includes(provider)) parts.push("-e", shellEscape(provider));

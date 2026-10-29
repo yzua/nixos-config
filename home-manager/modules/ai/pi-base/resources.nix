@@ -5,7 +5,7 @@
   setup,
 }:
 let
-  bundle = import ./extension-resources.nix { inherit pkgs setup; };
+  bundle = import ./extension-resources.nix { inherit aiPackages pkgs setup; };
   directory = "${bundle}/lib/pi-config";
   extensionNames = [
     "ask-user-question.ts"
@@ -13,6 +13,7 @@ let
     "codex-lb-session.ts"
     "upstream-retry.ts"
     "our-free-model.ts"
+    "opencode-cli"
     "prompt-snippets"
     "web-fetch"
     "web-search"

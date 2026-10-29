@@ -81,7 +81,61 @@ access; do not confuse them with the four-tool research workers. Shared configur
 is intentionally not a security boundary. See [RE](../pi-re/README.md) and
 [Home/TV](../pi-home/README.md) for domain-specific behavior.
 
-## Local free-model proxy
+## Free models: official OpenCode CLI and local Kilo proxy
+
+`opencode-cli-bridge.nix` pins [pi-opencode-cli-bridge 0.2.14](https://github.com/Gybra/pi-opencode-cli-bridge)
+at `0366a962dbcd729220cd4771b30d2d48c63cd686`. The **opencode-cli** provider
+runs the installed official OpenCode 2.2.0 CLI; it does not impersonate the client
+through the anonymous HTTP gateway. Select `opencode-cli` in `/model`, for
+example `opencode-cli/opencode/deepseek-v4.1-flash-free`. Root defaults and
+credentials stay unchanged. Restart existing Pi sessions after activation to
+drop the old proxy-backed `opencode` registration.
+
+The managed CLI uses a separate HOME/XDG tree under
+`${XDG_STATE_HOME:-$HOME/.local/state}/pi-opencode-cli`, a fixed executable/PATH,
+and a cleared environment. It imports no personal OpenCode configuration,
+accounts, MCP servers, API keys, or environment proxy settings. The generated
+bridge-agent directory is preserved so its native-tool permissions apply.
+`flock` serializes CLI invocation and session deletion against this isolated
+state: concurrent standalone startup otherwise produced SQLite lock errors during
+a real tool-result round trip. Parallel OpenCode subagents may queue; Kilo calls
+are unaffected. Do not run a separate OpenCode process against this state root.
+
+The bridge serializes Pi's prompt/tool schemas into text. A small downstream
+prompt/recovery patch distinguishes the outer tool `name` from parameters such
+as `subagent.arguments.name`: live GLM flattened those fields and generated
+duplicate top-level keys. Malformed recovery includes a bounded, JSON-quoted copy
+of the rejected response and explicit nesting guidance, with one retry only.
+The parser is unchanged: ambiguous/repeated malformed calls still cannot execute.
+Tool markers are validated and returned to Pi for execution; OpenCode's own tools require approval
+and non-interactive runs reject them. This is a guard, not an OS sandbox or a
+native model tool API. Only the pinned OpenCode version has been checked. A live
+DeepSeek test passed Pi read/write/bash plus tool-result continuation, and a local
+model fixture verified that native write/shell actions were rejected with the
+blocker plugin present, missing, or failing. The bridge buffers CLI text before
+emitting it to Pi, so token-level streaming latency differs from direct APIs.
+
+Models, context/output limits, image capability and thinking variants are
+discovered through the official CLI. `/opencode-pi status` shows the bridge and
+`/opencode-pi update` refreshes metadata. An explicit `OPENCODE_PI_MODELS` list
+uses conservative fallback capabilities until refreshed. CLI-discovered limits
+are declarations, not large-context stress-test results. A downstream mapping
+patch exposes native `max` as Pi **Max** (not an Xhigh alias), retains a distinct
+native `xhigh`, and sends explicit `#none`/`#off` for models declaring that variant.
+A selectable model with no Off variant does not advertise Off; Pi clamps an
+unsupported CLI choice to a valid level. For GLM/DeepSeek Flash Free the declared
+menu is Low/High/Max. Models declaring no variants remain default-only: Pi's Off
+setting hides reasoning, but cannot promise to disable model-side reasoning.
+A successful subagent launch is not proof its task succeeded: inspect returned
+evidence, especially when it reports zero tools. Model-level free-usage limits
+also still apply; a later GLM high-thinking child test hit an upstream limit.
+
+Run `python3 -B tests/pi-opencode-cli.py` after activation for offline environment
+isolation, process serialization, Pi tool-result handling, and restricted child
+launch/resume checks. Set `PI_OPENCODE_CLI_BRIDGE_DIR` to test a freshly built
+bridge package before activation.
+
+### Kilo proxy
 
 `../our-free-model.nix` pins `Ebony-Vinyl/dsh-our-free-model` at
 `e27b0e8d75abaf71ecc53c6c6fef176c78570790` and runs its standalone service as
@@ -94,12 +148,10 @@ This does not isolate its outbound network: upstream also
 initializes other account-channel catalogs, but no existing accounts are imported.
 Managed distribution disables self-updates; update the source pin deliberately.
 
-`extensions/our-free-model.ts` registers **opencode** (eight free chat models) and
-**kilo-free** (Auto Free, Reflection Beam, Nemotron 3.5 Super VL) for every profile.
-It replaces OpenCode's built-in paid catalog; Jev is excluded because it is a
-classifier, not a chat model. The local key comes from `our-free-model-key` at
-request time and never enters Nix, Git, or the provider definitions. Existing
-logins and default models are unchanged. Reload Pi after activation.
+`extensions/our-free-model.ts` registers **kilo-free** (Auto Free, Reflection Beam,
+Nemotron 3.5 Super VL) for every profile. The local key comes from
+`our-free-model-key` at request time and never enters Nix, Git, or the provider
+definitions. Existing logins and default models are unchanged.
 
 The first-run service settings disable tool-output compression, synthetic local
 answers, and default fallback chains, so the proxy does not silently alter Pi's
@@ -112,10 +164,11 @@ our-free-model`. The service restarts on login; no remote server or public port 
 configured.
 
 Free pools can log prompts or use them for training; do not send sensitive data.
-Catalog presence is not proof of access: the initial OpenCode tests returned 429,
-while the three Kilo models returned real responses. Run
+Catalog presence is not proof of access: direct OpenCode proxy calls returned
+429 while the official CLI worked on the same connection, hence the separate CLI
+provider above. The three Kilo models returned real responses. Run
 `python3 -B tests/pi-our-free-model.py` for offline native-provider registration,
-paid-catalog replacement, endpoint, preserved-config checks, and restricted child
+endpoint, preserved-config checks, and restricted child
 launch/resume through a local streaming fixture.
 
 ## Initial defaults and coding integrations
@@ -148,7 +201,7 @@ models must match an authenticated exact ID within the parent's provider family:
 
 - `codex-lb` parents can use only `codex-lb` models.
 - `zai` (GLM) parents can use only `zai` models.
-- `opencode` and `kilo-free` parents can use either free provider.
+- `opencode-cli` and `kilo-free` parents can use either free provider.
 - Other providers stay within their own provider.
 
 Use `provider/model` when ambiguous. A nonempty model scope further narrows
@@ -162,8 +215,9 @@ reasoning overrides through `thinking`, not `model`.
 Saved child models remain pinned on resume. Switching the parent to another
 family blocks steering/resuming out-of-family children; spawn a fresh child
 instead. Historical children without a qualified pinned model also require a
-fresh launch. Restricted free-pool children explicitly load `our-free-model.ts`
-on both launch and resume without adding tools or enabling extension discovery.
+fresh launch. Restricted free-pool children explicitly load `opencode-cli/index.ts`
+or `our-free-model.ts` as appropriate on launch and resume, without adding tools
+or enabling extension discovery.
 This is dispatch policy, not OS isolation or a credential-access boundary.
 
 `/plan`, `/review`, `/verify`, and `/handoff` are reusable coding prompts.

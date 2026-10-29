@@ -16,7 +16,7 @@ node --test tests/pi-subagents-recall.test.mjs
 bun test tests/pi-network-diagnostics.test.ts
 for suite in \
   audio-startup lighting-startup room-camera hand-motion config-artifacts netbird-mullvad steam-mouse-grab herdr-backup voice-action skills skill-audit pi-config pi-profiles pi-home-tv pi-test-support pi-subagents pi-extensions pi-web-search pi-herdr \
-  pi-codex-cache pi-upstream-retry pi-our-free-model pi-resume-dispatch pi-herdr-reporting \
+  pi-codex-cache pi-upstream-retry pi-our-free-model pi-opencode-cli pi-resume-dispatch pi-herdr-reporting \
   pi-re-config pi-re-rea pi-re-android pi-re-runtime pi-re-traffic pi-re-subagent pi-re-research pi-re-browser pi-re-lab; do
   printf '\n== %s ==\n' "$suite"
   python3 -B "tests/$suite.py"

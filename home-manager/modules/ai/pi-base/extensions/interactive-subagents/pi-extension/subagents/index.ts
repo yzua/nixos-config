@@ -119,8 +119,8 @@ function sessionProvider(ctx: unknown): string | null {
 function allowedProviders(ctx: unknown): string[] | null {
   const provider = sessionProvider(ctx);
   if (!provider) return null;
-  return provider === "opencode" || provider === "kilo-free"
-    ? ["opencode", "kilo-free"]
+  return provider === "opencode-cli" || provider === "kilo-free"
+    ? ["opencode-cli", "kilo-free"]
     : [provider];
 }
 

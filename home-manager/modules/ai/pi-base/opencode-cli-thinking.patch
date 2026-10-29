@@ -1,0 +1,19 @@
+--- a/src/models.ts
++++ b/src/models.ts
+@@ -24,0 +25 @@
++  "max",
+@@ -143,0 +145 @@
++      else if (names.size > 0) map.off = null;
+@@ -148 +149,0 @@
+-  if (!names.has("xhigh") && names.has("max")) map.xhigh = "max";
+@@ -158 +159 @@
+-  if (!requestedReasoning || requestedReasoning === "off") return args;
++  if (!requestedReasoning) return args;
+--- a/src/stream.ts
++++ b/src/stream.ts
+@@ -184,2 +184,3 @@
+-      const requestedReasoning = options?.reasoning as ModelThinkingLevel | undefined;
+-      const variant = requestedReasoning && requestedReasoning !== "off"
++      // Pi omits options.reasoning for its Off setting.
++      const requestedReasoning = (options?.reasoning ?? "off") as ModelThinkingLevel;
++      const variant = requestedReasoning

@@ -558,18 +558,20 @@ class PiRegressions(unittest.TestCase):
             expected = f"{parent['provider']}/{parent['id']}"
             self.assertEqual(inherited["loadout"]["model"], expected)
             self.assertIn(f"--model '{expected}'", inherited["command"])
-            if parent["provider"] in ("kilo-free", "opencode"):
+            if parent["provider"] == "kilo-free":
                 self.assertIn("our-free-model.ts", inherited["command"])
+            if parent["provider"] == "opencode-cli":
+                self.assertIn("opencode-cli/index.ts", inherited["command"])
         self.assertEqual(
             results["picked"],
             [
                 "codex-lb/gpt-other",
                 "kilo-free/kilo-auto/free",
-                "opencode/free-fixture",
+                "opencode-cli/opencode/free-fixture",
             ],
         )
         self.assertIn("kilo-free/kilo-auto/free", results["listed"])
-        self.assertIn("opencode/free-fixture", results["listed"])
+        self.assertIn("opencode-cli/opencode/free-fixture", results["listed"])
         self.assertNotIn("codex-lb/gpt-fixture", results["listed"])
         self.assertNotIn("zai/glm-fixture", results["listed"])
         for label in (

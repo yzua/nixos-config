@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Load both local proxy providers through native Pi without external requests."""
+"""Load the local Kilo proxy provider through native Pi without external requests."""
 
 import http.server
 import json
@@ -95,7 +95,7 @@ class LocalProxyTests(unittest.TestCase):
                 ROOT
                 / "home-manager/modules/ai/pi-base/extensions/interactive-subagents/pi-extension/subagents"
             )
-            for model in ("kilo-free/kilo-auto/free", "opencode/deepseek-v4.1-flash-free"):
+            for model in ("kilo-free/kilo-auto/free",):
                 case.write_text(
                     json.dumps(
                         {"subagentsDir": str(subagents), "planFile": str(plan_file), "model": model}
@@ -168,7 +168,7 @@ class LocalProxyTests(unittest.TestCase):
                     self.assertEqual(
                         {t["function"]["name"] for t in body["tools"]}, {"read", "ask_question"}
                     )
-            self.assertEqual(len(server.requests), 4)
+            self.assertEqual(len(server.requests), 2)
 
     def test_first_run_settings_are_private_and_later_edits_are_preserved(self):
         module = (ROOT / "home-manager/modules/ai/our-free-model.nix").read_text()
@@ -214,7 +214,7 @@ class LocalProxyTests(unittest.TestCase):
                 "import {writeFileSync} from 'node:fs';\n"
                 "export default function(pi) { pi.on('session_start', async (_,ctx) => {\n"
                 "writeFileSync(process.env.PROXY_FIXTURE_OUTPUT, JSON.stringify(\n"
-                "ctx.modelRegistry.getAll().filter(m => ['opencode','kilo-free'].includes(m.provider))));\n"
+                "ctx.modelRegistry.getAll().filter(m => m.provider === 'kilo-free')));\n"
                 "}); }\n"
             )
             state = root / "state"
@@ -252,7 +252,7 @@ class LocalProxyTests(unittest.TestCase):
             self.assertNotIn("Failed to load extension", result.stderr)
             lines = [line.split() for line in result.stdout.splitlines()]
             rows = [row for row in lines if row and row[0] in ("opencode", "kilo-free")]
-            self.assertEqual(sum(row[0] == "opencode" for row in rows), 8)
+            self.assertEqual(sum(row[0] == "opencode" for row in rows), 0)
             self.assertEqual(sum(row[0] == "kilo-free" for row in rows), 3)
             self.assertNotIn("jev-1.13-free", result.stdout)
             self.assertNotIn("claude-opus", result.stdout)
@@ -269,7 +269,7 @@ class LocalProxyTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             registered = json.loads(result_file.read_text())
-            self.assertEqual(len(registered), 11)
+            self.assertEqual(len(registered), 3)
             self.assertTrue(all(m["baseUrl"] == "http://127.0.0.1:18901/v1" for m in registered))
             self.assertTrue(all(m["api"] == "openai-completions" for m in registered))
             self.assertTrue(all(m["maxTokens"] == 32768 for m in registered))

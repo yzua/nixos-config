@@ -86,7 +86,7 @@ export default function (pi: ExtensionAPI) {
               { provider: "codex-lb", id: "gpt-fixture" },
               { provider: "codex-lb", id: "gpt-other" },
               { provider: "zai", id: "glm-fixture" },
-              { provider: "opencode", id: "free-fixture" },
+              { provider: "opencode-cli", id: "opencode/free-fixture" },
               { provider: "kilo-free", id: "kilo-auto/free" },
             ];
             const parent = {
@@ -127,7 +127,7 @@ export default function (pi: ExtensionAPI) {
             for (const active of models.filter((m) => m.id !== "gpt-other")) {
               parent.model = active;
               for (const target of models.filter((m) => m.provider !== active.provider)) {
-                const free = ["opencode", "kilo-free"];
+                const free = ["opencode-cli", "kilo-free"];
                 if (free.includes(active.provider) && free.includes(target.provider)) continue;
                 await refuse(
                   `${active.provider}-to-${target.provider}-${target.id.replaceAll("/", "-")}`,

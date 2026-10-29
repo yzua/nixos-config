@@ -152,7 +152,7 @@ the common default loadout. Saved Pi restrictions survive resume. These are not
 OS sandboxes. Claude roles use a separate launcher without Pi tool restrictions;
 a known session provider family or an explicit-load domain policy rejects them.
 
-Model families are provider-local except that `opencode` and `kilo-free` may
+Model families are provider-local except that `opencode-cli` and `kilo-free` may
 delegate to each other. Role-specific agent directories do not bypass that policy;
 steering/resuming an out-of-family durable handle is refused.
 
