@@ -56,9 +56,11 @@ mapping changes rather than assuming pure observation.
 
 No custom `pi-re flow` or native query/export script is promised; write bounded
 task code or use installed direct APIs when appropriate. Wrapper allowlists do
-not restrict ordinary Bash/files to those commands. Optional MCP, absent scanners,
-GUI bridges, alternate UI stacks and remote/cloud device packs remain unfinished;
-check actual availability instead of treating a guide as an implementation.
+not restrict ordinary Bash/files to those commands. Additional optional MCP/GUI
+bridges, absent scanners, alternate UI stacks and remote/cloud device packs remain
+unfinished. Managed root REA MCP is provisioned; consult
+[rea-analysis](../../rea-analysis/SKILL.md) and check actual availability instead of
+treating a guide as an implementation.
 Root-only Flash delegation is enabled as specified in the
 [contract](../../../contract.md#interfaces); child jobs inherit no broader scope.
 

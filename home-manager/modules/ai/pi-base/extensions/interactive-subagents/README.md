@@ -67,7 +67,13 @@ subagent_message({ name: "scout", message: "Also check the auth middleware" });
 
 Every spawn records name → session file in `artifacts/<sessionId>/subagent-registry.json`, so names stay addressable across pi restarts. A nested sub-agent that spawns children gets its own registry keyed by its own session id. Resume is refused with a clear error (listing known names) if the name isn't registered, the session file is gone, or the session predates sandboxed resume.
 
-**Resume replays the original sandbox.** At spawn time the fully-resolved loadout — tool allowlist, backing extensions, model, thinking level, system prompt, spawn whitelist, cwd — is snapshotted to `<session>.loadout.json`. Resume rebuilds the exact same restricted process from that snapshot rather than relaunching unrestricted.
+**Resume replays saved restrictions.** `<session>.loadout.json` saves the tool
+allowlist, model, thinking level, system-prompt identity/mode (when used), spawn
+whitelist, cwd and configuration directory. Explicit-load domain children also
+save their origin extension/instruction/skill paths. Coding children resolve
+backing tool extensions again on resume; the sidecar does not freeze their
+implementations. Resume preserves the saved restrictions rather than relaunching
+unrestricted.
 
 ### ask_question
 
@@ -187,7 +193,11 @@ Set a per-agent default with `cwd:` in frontmatter.
 
 The widget tracks each sub-agent from a runtime activity snapshot written by the child: `starting`, `active` (turn/provider/tool work), `waiting` (open for input or another stage), `stalled` (no valid snapshot for too long), or `running` (fallback). Sub-agent sessions also show their own tools widget — toggle it with `Ctrl+Alt+O`. Completion messages expand with `Ctrl+O`.
 
-Status display is configured via `config.json` in the extension directory (copy `config.json.example`; it's gitignored):
+For a mutable, directly loaded checkout, copy `config.json.example` to
+`config.json` beside it (the latter is Git-ignored). This repository's managed
+installation is immutable and falls back to the tracked `config.json.example`.
+To change the managed display, edit that source file, run `just check` and
+`just home-preview`, review and apply with `just home-switch`, then `/reload` in Pi:
 
 ```json
 {
@@ -197,8 +207,11 @@ Status display is configured via `config.json` in the extension directory (copy 
 
 ## Requirements
 
-- [pi](https://github.com/badlogic/pi-mono)
-- [tmux](https://github.com/tmux/tmux)
+- [Pi](https://github.com/badlogic/pi-mono)
+- A running Herdr session with its CLI available, or a running
+  [tmux](https://github.com/tmux/tmux) session with tmux available
+
+For the tmux alternative:
 
 ```bash
 tmux new -A -s pi 'pi'

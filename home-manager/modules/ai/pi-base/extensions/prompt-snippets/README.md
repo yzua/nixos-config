@@ -45,5 +45,8 @@ Keep your response concise. Skip preamble and unnecessary explanation.
 | `placement` | no | `prepend` or `append` (default: `append`) |
 | `order` | no | Number; sorts snippets within their group, in the menu and in the applied text (default: `9999`, ties broken by name) |
 
-Files are re-scanned every time the menu opens and every time a message is
-sent, so edits take effect immediately — no `/reload` needed.
+With a mutable, directly loaded extension, files are re-read when the menu
+opens or enabled snippets are applied, so body edits need no `/reload`.
+This repository's managed installation uses an immutable bundle: edit the
+repository sources, run `just check` and `just home-preview`, review and apply
+with `just home-switch`, then `/reload` in Pi to load the new bundle.

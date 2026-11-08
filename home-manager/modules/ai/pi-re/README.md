@@ -197,9 +197,11 @@ its npx/setup repair recipes with managed Nix maintenance. Open/close only owned
 native sessions and export private Evidence before shutdown. Another root/child
 must not write the same Ghidra project.
 
-The root and children discover the reviewed `rea-analysis` adapter skill. Native and
-Android skills and all four prompts route to it; the agent calls the CLI through
-Bash. Native queries explicitly select Ghidra. REA runs with isolated private
+The root and children discover the reviewed `rea-analysis` adapter skill. Native
+and Android workflows and the four `/re-*` prompts use this adapter. Roots use
+persistent MCP for repeated native queries; the CLI remains available through Bash
+for single-shot queries, fallback and children. Native CLI queries explicitly
+select Ghidra. REA runs with isolated private
 HOME/XDG directories under the RE state, pinned engine paths and a short temporary
 parent. Each native CLI call imports into a disposable Ghidra project and closes
 it; repeated calls can reimport. Evidence JSON/snapshots are saved only at

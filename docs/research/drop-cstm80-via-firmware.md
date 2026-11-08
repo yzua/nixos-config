@@ -11,13 +11,12 @@ through the keyboard's bootloader drive.** Compiling custom firmware or using
 Windows is not inherently required. This is a much stronger finding than merely
 finding a VIA JSON definition. However, the running keyboard's PCB revision and
 bootloader were initially unverified; the later inspection below confirms the
-CSTM80 bootloader. **Restoration of the exact installed firmware/settings remains
-unverified**, although a genuine vendor-distributed stock XAP image has now been
-extracted and validated offline. The next stage is separately authorized flashing after reviewing the remaining
-recovery limitations, **not automatic installation**. That authorization and
-application flash subsequently occurred; VIA enumeration and normal typing
-were confirmed. Browser configuration communication was subsequently confirmed;
-final lighting appearance/persistence remains unverified. [VIA downloads][downloads] [QMK tinyuf2][flashing]
+CSTM80 bootloader. **Restoration of the exact prior firmware/settings remains
+intentionally unqualified**, although a genuine vendor-distributed stock XAP image
+was extracted and validated offline. Separately authorized application flashing,
+VIA enumeration, normal typing and browser configuration communication were
+subsequently confirmed. On 2026-11-08 the user also confirmed white lighting and
+correct mapping persistence after a normal reconnect; see the follow-up below. [VIA downloads][downloads] [QMK tinyuf2][flashing]
 
 For static white alone, flashing remains optional: Drop documents **Fn+Z** mono
 mode, **Fn+G** saturation down, and **Fn+W/S** brightness. White requires reducing
@@ -26,9 +25,9 @@ configuration, not necessary just to obtain white. [Drop guide][guide]
 
 ## Supported: identity, firmware and source
 
-### Running device versus intended replacement
+### Initially observed device versus intended replacement
 
-The parent investigation read descriptors only and observed:
+The initial parent investigation read descriptors only and observed:
 
 - manufacturer `Drop Inc.`, product `CSTM80`, USB **359b:0004**;
 - `bcdDevice = 0100`;
@@ -41,7 +40,7 @@ firmware version**: QMK's board metadata sets `device_version: 1.0.0` and its US
 descriptor emits the configured `DEVICE_VER`. [Board metadata][board]
 [USB descriptor][usbdescriptor]
 
-The existing **ff51:0058 positively matches QMK XAP's declared interface**;
+The observed **ff51:0058 positively matches QMK XAP's declared interface**;
 QMK's own client defines `XAP_USAGE_PAGE = 0xFF51` and `XAP_USAGE = 0x0058`.
 That identifies the intended XAP interface, but does not establish the installed
 build's exact version, supported commands, compatibility with a particular Drop
@@ -50,8 +49,8 @@ or upstream XAP client, or export/migration capability. [XAP client][xap]
 VIA uses a different interface. QMK Raw HID defaults to **ff60:0061**, and the
 current VIA web app explicitly filters for that collection. The CSTM80 VIA
 keymap enables `VIA_ENABLE = yes`; QMK consequently enables Raw HID and dynamic
-keymaps. Thus matching VID/PID or loading JSON alone cannot convert this running
-XAP firmware into VIA. After replacement, the intended firmware should expose
+keymaps. Thus matching VID/PID or loading JSON alone could not convert the
+then-running XAP firmware into VIA. After replacement, the intended firmware should expose
 VIA Raw HID and answer its protocol requests. [Raw HID][rawhid]
 [VIA app filter][viafilter] [Build feature selection][features]
 
@@ -276,9 +275,23 @@ lighting appearance and reconnect persistence were not independently verified.
 Firmware remains on the keyboard; NixOS never automatically reflashes it at boot.
 Private recovery images remain outside Git.
 
-## Preparation / authorization checklist
+## Follow-up verification — 2026-11-08
 
-Proceed with **preparation for VIA**, not an unconditional claim of safe flashing:
+The user performed a normal unplug/replug and confirmed that the intended white
+lighting and correct key mappings persisted. This is user-observed reconnect
+verification, not firmware readback or proof of a stock restore. The user chose
+to keep exact stock/settings rollback intentionally unqualified rather than
+reflash the working keyboard; no rollback trial or repeat flash is authorized.
+
+The official VIA app, firmware index and pinned firmware source remain available.
+Drop's cited help pages currently present a Cloudflare challenge here; their
+first-party article APIs remain readable: [configuration article][dropconfigapi]
+and [recovery article][dropstockapi]. These access checks do not reverify the
+installer payload, extracted stock image or this keyboard's recovery behavior.
+
+## Historical pre-flash preparation / authorization checklist
+
+The pre-flash checklist was **preparation for VIA**, not an unconditional claim of safe flashing:
 
 1. Preserve the pinned official UF2 and its hash/target inspection; record the
    current mappings and lighting separately.
@@ -293,9 +306,10 @@ Proceed with **preparation for VIA**, not an unconditional claim of safe flashin
    explicit authorization should installation and post-flash VIA/key/lighting
    verification occur. Do not touch the bootloader itself.
 
-**Bottom line:** official VIA firmware makes this a plausible, Linux-native
-upgrade path. The remaining gate is physical target/recovery verification—not
-absence of a VIA build, nor a need for Windows.
+**Bottom line:** the Linux-native VIA application-flash path was exercised as
+recorded above, and the user confirmed lighting/mapping persistence after a normal
+reconnect. Exact stock/settings rollback is intentionally unqualified, not pending
+verification or a blocker for ordinary use. No repeat flash is implied.
 
 [guide]: https://www3.corsair.com/Files/DROP/downloads/CSTM80%20WEB%20QSG%20-%20LANGUAGES%20SPLIT/CSTM80%20Web%20QSG%20R2-ENGLISH.pdf
 [downloads]: https://www.caniusevia.com/docs/download_firmware/
@@ -322,6 +336,8 @@ absence of a VIA build, nor a need for Windows.
 [bootmagic]: https://docs.qmk.fm/features/bootmagic
 [dropconfig]: https://helpdesk.drop.com/hc/en-us/articles/44444057868305-How-to-Configure-your-Drop-Keyboard
 [dropstock]: https://helpdesk.drop.com/hc/en-us/articles/37937816517393-Mechanical-Keyboards-Quick-Solutions-for-Common-Problems
+[dropconfigapi]: https://helpdesk.drop.com/api/v2/help_center/en-us/articles/44444057868305.json
+[dropstockapi]: https://helpdesk.drop.com/api/v2/help_center/en-us/articles/37937816517393.json
 [uf2]: https://github.com/microsoft/uf2#files-exposed-by-bootloaders
 [tinyreadback]: https://github.com/adafruit/tinyuf2/blob/5639f2d0b1d99d98c67f39f130662bd1263c216e/src/ghostfat.c#L462-L476
 [dropreadback]: https://github.com/zvecr/tinyuf2/blob/3634634babfa468471f8d8fc6c65c388c4b85ff0/src/ghostfat.c#L454-L472

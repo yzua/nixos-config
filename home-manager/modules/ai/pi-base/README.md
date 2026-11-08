@@ -85,8 +85,8 @@ is intentionally not a security boundary. See [RE](../pi-re/README.md) and
 
 `opencode-cli-bridge.nix` pins [pi-opencode-cli-bridge 0.2.14](https://github.com/Gybra/pi-opencode-cli-bridge)
 at `0366a962dbcd729220cd4771b30d2d48c63cd686`. The **opencode-cli** provider
-runs the installed official OpenCode 2.2.0 CLI; it does not impersonate the client
-through the anonymous HTTP gateway. Select `opencode-cli` in `/model`, for
+runs the flake-pinned official OpenCode CLI (`aiPackages.opencode2`); it does not
+impersonate the client through the anonymous HTTP gateway. Select `opencode-cli` in `/model`, for
 example `opencode-cli/opencode/deepseek-v4.1-flash-free`. Root defaults and
 credentials stay unchanged. Restart existing Pi sessions after activation to
 drop the old proxy-backed `opencode` registration.
@@ -109,11 +109,28 @@ of the rejected response and explicit nesting guidance, with one retry only.
 The parser is unchanged: ambiguous/repeated malformed calls still cannot execute.
 Tool markers are validated and returned to Pi for execution; OpenCode's own tools require approval
 and non-interactive runs reject them. This is a guard, not an OS sandbox or a
-native model tool API. Only the pinned OpenCode version has been checked. A live
-DeepSeek test passed Pi read/write/bash plus tool-result continuation, and a local
+native model tool API. Earlier OpenCode 2.2.0 checks included a live DeepSeek test
+of Pi read/write/bash plus tool-result continuation, and a local
 model fixture verified that native write/shell actions were rejected with the
 blocker plugin present, missing, or failing. The bridge buffers CLI text before
 emitting it to Pi, so token-level streaming latency differs from direct APIs.
+
+**Qualification checkpoint, 2026-11-08:** the installed official CLI and flake pin
+both resolve to OpenCode 2.2.5. With the managed wrapper and unchanged generated
+agent permissions, a deterministic loopback model forced native `write` and
+`shell` attempts. Both were rejected with the legacy blocker plugin intact,
+missing and failing; no sentinel side effects occurred. Restricted child
+launch/resume commands also passed an offline preflight, not live child inference.
+Upstream still declares a maximum supported CLI version of 2.2.0; these scoped
+local checks do not expand that support claim or establish an OS sandbox.
+
+Fresh catalogs declared DeepSeek Flash Free and GLM Flash Free active with zero
+input/output cost in every tier, but one synthetic attempt per model returned a
+free-usage-limit error before any Pi tool ran (GLM reported HTTP 429 /
+`provider.free-limit`). Successful live Pi tool-result continuation and live child
+inference/resume on 2.2.5 therefore remain **quota-blocked**, not qualified by
+catalog presence or a process exit status. No automatic retries, paid-provider fallback,
+credential changes or default-model changes were made.
 
 Models, context/output limits, image capability and thinking variants are
 discovered through the official CLI. `/opencode-pi status` shows the bridge and

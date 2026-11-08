@@ -37,8 +37,16 @@ adb -s "$SERIAL" logcat -d | grep "Trust anchor"
 ```
 
 Keep logs private and apply a finite diagnostic deadline. Unrelated attached
-devices are not fallback targets. If leftover state is found, recover with `pi-re lab stop --json` (never manual kills
-or `adb kill-server`), then start only what is actually needed.
+devices are not fallback targets. If leftovers are found, first run
+`pi-re lab stop --json` even if the guest is stopped: this retires owned host
+capture resources. Resolve host-resource cleanup warnings before restarting;
+a surviving exact-host capture would block a default all-host start.
+If the guest is already stopped, `lab stop` cannot clear its persistent proxy
+setting. After host cleanup, within authorized lab scope, reconcile with
+`pi-re lab start --json`, then `pi-re lab stop --json` while the guest is running.
+Require cleanup without proxy-restoration warnings before using plain
+`android start`. Preserve and report unresolved ownership failures; never use
+manual kills or `adb kill-server`.
 
 ### Coordinated lifecycle
 

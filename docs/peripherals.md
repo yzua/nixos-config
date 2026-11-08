@@ -187,7 +187,9 @@ not direct simultaneous invocations of their Python scripts.
   [G903 HERO](https://github.com/libratbag/libratbag/blob/v0.18/data/devices/logitech-g903-hero.device).
 - [VIA CSTM80 definition](https://github.com/the-via/keyboards/blob/master/v3/drop/cstm80/cstm80.json),
   [VIA's firmware requirement](https://www.caniusevia.com/docs/configuring_qmk),
-  [Drop configurator platforms](https://helpdesk.drop.com/hc/en-us/articles/44444057868305-How-to-Configure-your-Drop-Keyboard),
+  [Drop configurator platforms](https://helpdesk.drop.com/hc/en-us/articles/44444057868305-How-to-Configure-your-Drop-Keyboard)
+  ([first-party article API](https://helpdesk.drop.com/api/v2/help_center/en-us/articles/44444057868305.json)
+  if the help page presents a challenge),
   [CSTM80 official shortcut guide](https://www3.corsair.com/Files/DROP/downloads/CSTM80%20WEB%20QSG%20-%20LANGUAGES%20SPLIT/CSTM80%20Web%20QSG%20R2-ENGLISH.pdf).
 - [OpenRGB motherboard detection](https://github.com/CalcProgrammer1/OpenRGB/blob/release_candidate_1.0rc3/Controllers/GigabyteRGBFusion2USBController/GigabyteRGBFusion2USBControllerDetect.cpp),
   [layout matching/initialization](https://github.com/CalcProgrammer1/OpenRGB/blob/release_candidate_1.0rc3/Controllers/GigabyteRGBFusion2USBController/RGBController_GigabyteRGBFusion2USB.cpp),

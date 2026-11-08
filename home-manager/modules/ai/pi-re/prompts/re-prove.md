@@ -12,12 +12,15 @@ scope through `re-intake` before live work.
 State a falsifiable boundary claim, observed facts versus inference, target/build/
 account identity, authorized action class, finite budgets and stop conditions.
 Choose the smallest owned offline/mock experiment with positive/negative controls.
-For static code claims, load [rea-analysis](../skills/rea-analysis/SKILL.md) and
-use `pi-re rea` for selected function/method/reference evidence. Native queries
-select `--provider ghidra`; corroborate pseudocode against assembly/smali.
+For static code claims, load [rea-analysis](../skills/rea-analysis/SKILL.md) for
+selected function/method/reference evidence. Use root MCP for repeated native
+queries; use `pi-re rea` for single-shot queries, fallback and children. Native CLI
+queries select `--provider ghidra`; corroborate pseudocode against assembly/smali.
 A static edge is not an observed runtime call.
 Live replay/instrumentation/active tests require their own authorization and
-qualified enabled capabilities; missing tooling yields blocked, not installation.
+available, compatible capabilities. Qualification records coverage, not permission;
+use bounded experiments for compatible untested paths as specified by the contract.
+Missing tooling yields blocked, not installation.
 
 Run routine authorized steps autonomously. Preserve private originals and release
 only approved evidence. Return candidate/confirmed/rejected/blocked with expected

@@ -3,6 +3,12 @@
 Investigated 2026-10-19. This is an evidence note, not a confirmed hardware diagnosis.
 No firmware update or cooling initialization was performed.
 
+Source access rechecked 2026-11-08: the cited Corsair support/forum and Reddit
+HTML pages returned HTTP 403 here, not confirmed removal. Corsair's first-party
+[RGB-test article API][testing-api] and [fan LED-failure article API][failure-api]
+remain readable; the pinned liquidctl/OpenRGB source links are also reachable.
+Forum/Reddit anecdotes and the local hardware measurements remain historical.
+
 ## Local evidence
 
 - USB `1b1c:0c18` identifies the H100i Platinum. A standard status request reports
@@ -128,3 +134,5 @@ has not been submitted; serial/receipt details belong only in the private portal
 [issue1539]: https://gitlab.com/CalcProgrammer1/OpenRGB/-/issues/1539
 [testing]: https://help.corsair.com/hc/en-us/articles/13681032341133-Keyboards-Testing-RGB-LEDs-For-Your-Device
 [failure]: https://help.corsair.com/hc/en-us/articles/25400260749709-Fans-LED-Failure
+[testing-api]: https://help.corsair.com/api/v2/help_center/en-us/articles/13681032341133.json
+[failure-api]: https://help.corsair.com/api/v2/help_center/en-us/articles/25400260749709.json

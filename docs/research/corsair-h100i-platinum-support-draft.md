@@ -11,6 +11,12 @@ was received. No account, email, serial or receipt information was entered. A
 manual retry in the user's normal browser is the next handoff, not a submitted
 support request.
 
+Source access rechecked 2026-11-08: the support portal and cited forum URL still
+returned HTTP 403 here. The first-party [contact-guidance API](https://help.corsair.com/api/v2/help_center/en-us/articles/31304733718797.json)
+remains readable and describes the chat entry point. This neither establishes
+portal removal nor creates a ticket; the draft and historical test results below
+were not resubmitted or rerun.
+
 ## Subject
 
 H100i RGB Platinum: pump/block is tinted at RGB 255/255/255 while both fans are white

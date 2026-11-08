@@ -10,8 +10,8 @@ its required guide before proposing execution; record which resources were read.
 
 Return authorized scope/action classes, artifact/target/account identities,
 provider/evidence release policy, finite budgets/stop conditions, tool versions
-and enabled/qualified versus blocked capabilities. Choose the smallest next
-query and expected evidence. For native functions/xrefs, Android class/method
+and available, compatible capabilities with qualification limits or branch blockers.
+Choose the smallest next query and expected evidence. For native functions/xrefs, Android class/method
 navigation or JavaScript/Electron graphs, route through
 [rea-analysis](../skills/rea-analysis/SKILL.md): roots discover native MCP tools
 through codemode and the official `reverse-engineer-anything` skill; children
@@ -23,8 +23,9 @@ setup-selected owned-emulator serial and verified root. Android status has no
 caller serial flag and reports root uninspected; start/root verify UID0 separately.
 `pi-re init` initializes only the profile; no Android `setup/init` command is assumed.
 Implemented device/Frida wrappers are documented in their guides; Frida status is
-a live guest operation. Catalog installed-unqualified is not workflow readiness;
-developer manual qualification may invoke approved wrappers to gather evidence.
+a live guest operation. Installed-unqualified records coverage limits, not a
+permission gate. Compatible untested paths may use bounded authorized experiments;
+missing or incompatible capabilities block that branch.
 
 Host/yolo is not a sandbox/VM. Keep ordinary coding resources unchanged. REA MCP is
 root-only; root-only delegation and child restrictions follow the authoritative

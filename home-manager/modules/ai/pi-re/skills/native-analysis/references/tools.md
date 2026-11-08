@@ -2,13 +2,13 @@
 
 ## REA: provisioned query interface
 
-The default backend is the pinned `pi-re rea` CLI with its private temporary
-Ghidra projects. Read [REA commands](../../rea-analysis/references/commands.md)
+For repeated root queries, use the managed persistent REA MCP session through
+codemode. Use pinned `pi-re rea` and its disposable Ghidra projects for single-shot
+queries, fallback and children. Read [REA commands](../../rea-analysis/references/commands.md)
 for function/string/xref queries, exact engine requirements and startup budgets.
-Use explicit `--provider ghidra`. The backend supplies the Java bridge; write
-custom exporters only for queries it cannot answer. Native and Android query
-engines are installed through Nix; root REA MCP is enabled through codemode.
-Use its persistent native session for repeated queries; children remain CLI-only.
+CLI native queries use explicit `--provider ghidra`. The backend supplies the Java
+bridge; write custom exporters only for queries it cannot answer. Native and
+Android query engines are installed through Nix; children remain CLI-only.
 
 ## Rizin: optional metadata before analysis
 
