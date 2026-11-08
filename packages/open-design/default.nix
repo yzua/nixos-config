@@ -64,7 +64,7 @@ stdenv.mkDerivation (finalAttrs: {
     postPatch = patchPackageManager;
     pnpmWorkspaces = workspaces;
     fetcherVersion = 4;
-    hash = "sha256-Ia08NsE+Ect/UGbxFjxjcraLFAZkWGvak9uYOB8O0uc=";
+    hash = "sha256-FI8EZPrko2C0V9Bak+CyAmrflZrmt3lF0usA5GK/cck=";
   };
   pnpmWorkspaces = workspaces;
 

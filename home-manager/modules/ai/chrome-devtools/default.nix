@@ -13,7 +13,7 @@ let
       inherit (finalAttrs) pname version src;
       inherit (pkgs) pnpm;
       fetcherVersion = 4;
-      hash = "sha256-RvmV2bz7c7BgNEFxsK5TK3QCL654AZbsAj+rWm5zxqY=";
+      hash = "sha256-33rQfUkqXese21PTu58W6jmKbA957RQuTg6uxYHVopU=";
     };
 
     nativeBuildInputs = [
