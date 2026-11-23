@@ -836,6 +836,16 @@ async function launchSubagent(
     explicitModel(params.model) ??
     explicitModel(agentDefs?.model) ??
     (agentDefs?.cli !== "claude" ? inheritedModel : undefined);
+  // Migrate stale Codex-LB role/tool pins when a parent has moved to the
+  // direct cyber provider. Keep cyber children on the parent's approved model;
+  // never send them through the ordinary provider or the wrong upstream account.
+  if (
+    sessionProvider(ctx) === "codex-cyber-daybreak" &&
+    model?.startsWith("codex-lb/") &&
+    inheritedModel
+  ) {
+    model = inheritedModel;
+  }
   if (agentDefs?.cli === "claude" && allowedProviders(ctx)) {
     throw new Error(
       "Claude roles cannot honor this session's provider family; use a Pi role instead.",

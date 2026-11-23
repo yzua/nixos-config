@@ -217,6 +217,8 @@ parent with `/model` does not change the saved global default. Overrides and rol
 models must match an authenticated exact ID within the parent's provider family:
 
 - `codex-lb` parents can use only `codex-lb` models.
+- `codex-daybreak` parents can use only `codex-daybreak` models; its credentials
+  remain separate from `codex-lb`.
 - `zai` (GLM) parents can use only `zai` models.
 - `opencode-cli` and `kilo-free` parents can use either free provider.
 - Other providers stay within their own provider.
@@ -250,15 +252,58 @@ uses Pi's own palette. Theme choices stay in writable `~/.pi/agent/settings.json
 `/reload` applies settings changes to a running Pi session.
 
 `codex-lb-session.ts` adds the hyphenated `session-id` affinity header to the
-`codex-lb` provider's generic Responses requests. It uses each request's session
-identity (including nested requests), preserves explicit header overrides, and
-leaves the original `session_id`, cache key, model metadata, endpoint and auth
-unchanged. It delegates to Pi's built-in Responses adapter, rather than replacing
-streaming or history handling. Other providers/APIs are unaffected. A controlled
+`codex-lb` and `codex-daybreak` providers' generic Responses requests. It uses each
+request's session identity (including nested requests), preserves explicit affinity
+header overrides, and leaves the original `session_id`, cache key, model metadata,
+endpoint and auth unchanged. Other providers/APIs are unaffected. It delegates
+serialization, history conversion, event parsing and usage to Pi's built-in
+Responses adapter. A controlled
 12-request investigation on 2026-10-27 found that the production request path
 lost `session_id`: underscore-only arms had no cache reads, while `session-id`
 arms reached roughly 93% on follow-ups. The exact stripping hop was not isolated;
 this is an end-to-end compatibility workaround, not a guaranteed cache-hit rate.
+
+`codex-daybreak` additionally replaces only that adapter's HTTP fetch with a direct
+Responses WebSocket connection. Every request forces exactly one
+`X-Codex-LB-Required-Capability: trusted_cyber` header and
+`access_programs.cyber = "daybreak_blue"`, even after payload/header overrides.
+Keep the capability header in this provider's writable `models.json` entry too,
+so an older HTTP-only extension fails closed. Keep ordinary `codex-lb` free of it.
+The connector never falls back to HTTP or follows redirects, sends each create
+once, closes on cancellation/hook errors, and bounds handshake/idle waits using
+Pi's timeout options. Interrupted submissions return a non-retryable error rather
+than silently replaying uncertain delivery. The in-process SSE Response used by
+Pi's parser is synthetic (marked `x-pi-transport: websocket`), not an HTTP
+request or a record of actual upgrade response headers.
+
+This connector requires the managed Bun-based Pi executable. It rejects configured
+HTTP(S)/ALL proxies, including provider-scoped ones, rather than silently bypassing
+them; proxy support is not implemented. The routing/program fields request
+already-approved access, not a grant. Account flags or a successful ordinary
+prompt do not establish model-specific Daybreak authorization; preserve upstream
+refusals and use only a model authorized for the selected account/program.
+
+`codex-cyber-daybreak` is a separate **direct OpenAI** provider for a privately
+imported ChatGPT/Codex login. It reuses Pi's native Codex OAuth login/refresh and
+Responses adapter against `https://chatgpt.com/backend-api`, not Codex-LB or an
+API-project key. Its catalog contains only `gpt-6-sol`; writable `models.json`
+can override that model's limits, while credentials stay in private `auth.json`.
+The native baseline must retain Sol's API so Pi's provider composer dispatches
+through the wrapped native methods rather than an unwrapped global adapter.
+Both streaming entry points preserve caller payload hooks and then explicitly
+request `access_programs.cyber = "daybreak_blue"` with `store = false`.
+
+The direct provider uses native full-transcript WebSockets instead of cached
+`previous_response_id` deltas because Codex's alias tool-ID normalization differs
+from its built-in provider identity. Native direct-OpenAI HTTP fallback remains
+owned by Pi; it does not route through Codex-LB. Adding the provider does not
+change the global default. Cyber parents keep their subagents in the direct
+provider family; stale `codex-lb/*` role/tool pins are migrated to the parent's
+current direct model rather than being launched through the ordinary route. An
+available login or successful catalog read does not prove Daybreak entitlement:
+inspect the upstream account/workspace and program metadata, and preserve policy
+refusals.
+
 Restricted coding subagents use `--no-extensions`, so `ChildLaunch` explicitly
 loads this transport-only extension from its own shared bundle on both launch
 and resume; it does not add tools or enable general extension discovery.
