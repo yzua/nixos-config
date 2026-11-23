@@ -70,6 +70,6 @@ uninstaller, which assumes an imperative installation.
 ## Upstream references
 
 - [Enter The Wired](https://github.com/ciscosweater/enter-the-wired)
-- [SLSsteam release](https://github.com/AceSLS/SLSsteam/releases/tag/20261014151919)
+- [SLSsteam release](https://github.com/AceSLS/SLSsteam/releases/tag/20261112130346) (64-bit Steam client)
 - [SLSsteam NixOS installation](https://github.com/AceSLS/SLSsteam/wiki/Installation#nixos-added--written-by-developermikey)
 - [SLSsteam configuration](https://github.com/AceSLS/SLSsteam/wiki/Configuration)

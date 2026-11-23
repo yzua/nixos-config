@@ -8,8 +8,9 @@ in
 {
   programs.steam.enable = true;
   # Use upstream's NixOS integration, not Headcrab's client downgrade/patcher.
+  # Steam's client is 64-bit now; SLSsteam ships a single 64-bit audit library.
   programs.steam.package = pkgs.steam.override {
-    extraEnv.LD_AUDIT = "${slssteam}/library-inject.so:${slssteam}/SLSsteam.so";
+    extraEnv.LD_AUDIT = "${slssteam}/SLSsteam.so";
   };
   programs.steam.extraPackages = [ pkgs.mangohud ];
   # Register alternatives without changing Steam's default or per-game choice.
