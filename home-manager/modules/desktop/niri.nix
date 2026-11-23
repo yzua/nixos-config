@@ -23,6 +23,14 @@ let
       exec ${noctalia}
     '';
   };
+  typingBoosterToggle = pkgs.writeShellApplication {
+    name = "toggle-typing-booster";
+    runtimeInputs = [
+      pkgs.ibus
+      pkgs.util-linux
+    ];
+    text = builtins.readFile ./typing-booster-toggle.sh;
+  };
   voiceAction = lib.getExe (import ../ai/voice/action.nix { inherit aiPackages pkgs; });
   primaryMonitor = lib.findFirst (monitor: monitor.primary) null setup.monitors;
 in
@@ -164,6 +172,7 @@ in
       Mod+Return { spawn "${ghostty}"; }
       Mod+Shift+Return { spawn "${ghostty}" "--gtk-single-instance=false" "--env=GHOSTTY_NO_TMUX=1"; }
       Mod+Space { spawn "${noctalia}" "msg" "panel-toggle" "launcher"; }
+      Mod+Shift+B repeat=false { spawn "${lib.getExe typingBoosterToggle}"; }
       Mod+V { spawn "${noctalia}" "msg" "panel-toggle" "clipboard"; }
       Mod+S { spawn "${noctalia}" "msg" "panel-toggle" "control-center"; }
       ${lib.optionalString setup.desktop.voice ''

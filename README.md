@@ -90,6 +90,21 @@ the reversible 16:9 Steam Big Picture entry.
 local person alerts, and a hand-landmark/gesture data playground, without
 recording or remote access.
 
+Typing assistance uses IBus Typing Booster. In Niri, **Super+Shift+B** switches
+between writing assistance and the previously selected IBus engine; keyboard
+layouts and their existing switching shortcut stay unchanged. In GNOME, select
+**Typing Booster** in the input-source menu (or cycle with **Super+Space**).
+It capitalizes after sentence-ending punctuation. Spelling/completion suggestions
+appear only on request: **Tab** opens the list, **Tab** again selects a suggestion,
+and **Space** accepts it. This avoids automatic candidate windows while typing;
+requesting the list can still expose application/compositor popup problems.
+It does not automatically replace words or insert punctuation. Learning is disabled,
+and recognized terminals and VS Code-family editors are excluded. Exclusions depend
+on application input-purpose/program identification, so switch it off manually
+if an app is not recognized. Support varies by app; this uses the existing
+GTK/Qt IBus integration, not a compositor-wide Niri input method. After the first
+system activation, log out and back in so IBus discovers the new engine.
+
 For system settings:
 
 ```sh

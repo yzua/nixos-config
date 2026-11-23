@@ -1,4 +1,4 @@
-# Set GNOME input sources, preserve tray support, and expose Tweaks in both sessions.
+# Set input sources and typing assistance, preserve trays, and expose Tweaks.
 
 {
   lib,
@@ -57,12 +57,53 @@
     terminal = false;
   };
 
-  # GNOME uses the same layouts declared for Niri in the flake setup.
-  dconf.settings."org/gnome/desktop/input-sources".sources = map (
-    layout:
-    lib.hm.gvariant.mkTuple [
-      "xkb"
-      layout
-    ]
-  ) setup.keyboard.layouts;
+  dconf.settings = {
+    # Keep the plain layouts first; Typing Booster is an optional writing mode.
+    "org/gnome/desktop/input-sources".sources =
+      map (
+        layout:
+        lib.hm.gvariant.mkTuple [
+          "xkb"
+          layout
+        ]
+      ) setup.keyboard.layouts
+      ++ [
+        (lib.hm.gvariant.mkTuple [
+          "ibus"
+          "typing-booster"
+        ])
+      ];
+
+    # Let Niri keep ownership of its configured layout switching.
+    "desktop/ibus/general".use-system-keyboard-layout = true;
+
+    "org/freedesktop/ibus/engine/typing-booster" = {
+      dictionary = builtins.head (lib.splitString "." setup.locale);
+      inputmethod = "NoIME";
+      autocapitalize = true;
+      wordpredictions = true;
+      # Avoid per-keystroke candidate windows; request suggestions with Tab.
+      tabenable = true;
+      autoselectcandidate = 0;
+      inlinecompletion = 0;
+      emojipredictions = false;
+      # Do not learn typed text, including passwords in unrecognized terminals.
+      recordmode = 3;
+      disableinterminals = true;
+      autosettings = [
+        # Preserve upstream's LibreOffice compatibility workaround.
+        [
+          "prefercommit"
+          "false"
+          "^[^:]*:(soffice|libreoffice.*):"
+        ]
+        # Match the program field, not documents mentioning an editor's name.
+        [
+          "inputmode"
+          "false"
+          "(?i)^[^:]*:(?:code|code-insiders|code-oss|codium|ghostty|com\\.mitchellh\\.ghostty):"
+        ]
+      ];
+    };
+  };
 }
