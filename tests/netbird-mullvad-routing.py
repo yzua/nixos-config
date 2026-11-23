@@ -41,9 +41,10 @@ def echo_peer():
             while packet := self.request.recv(4096):
                 self.request.sendall(packet)
 
-    server = socketserver.ThreadingTCPServer((PUBLIC_HTTPS, 443), Echo)
-    server.daemon_threads = True
-    threading.Thread(target=server.serve_forever, daemon=True).start()
+    for address, port in ((PUBLIC_HTTPS, 443), (GATEWAY, 18445)):
+        server = socketserver.ThreadingTCPServer((address, port), Echo)
+        server.daemon_threads = True
+        threading.Thread(target=server.serve_forever, daemon=True).start()
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         sock.bind((GATEWAY, 53))
         print("echo-ready", flush=True)
@@ -217,16 +218,16 @@ def check(private, ip, nft):
         else:
             raise AssertionError("DNS escaped the fail-closed guard")
 
-    def https_roundtrip(allowed, sock=None):
+    def https_roundtrip(allowed, sock=None, address=PUBLIC_HTTPS, port=443):
         if sock is None:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as fresh:
-                return https_roundtrip(allowed, fresh)
+                return https_roundtrip(allowed, fresh, address, port)
         sock.settimeout(1)
         try:
             try:
                 sock.getpeername()
             except OSError:
-                sock.connect((PUBLIC_HTTPS, 443))
+                sock.connect((address, port))
             sock.sendall(b"fixture")
             assert sock.recv(4096) == b"fixture"
         except (TimeoutError, PermissionError, ConnectionRefusedError):
@@ -273,6 +274,7 @@ def check(private, ip, nft):
             manage("apply")
             dns_roundtrip(True, retained)
             https_roundtrip(True, retained_https)
+            https_roundtrip(True, address=GATEWAY, port=18445)
             unreplied.sendto(b"no-reply", (GATEWAY, 53))
             # Recreate Mullvad's rules as if it reconnected after the service
             # applied its exceptions. A fixed priority 100 fails at this seam.
@@ -313,6 +315,7 @@ def check(private, ip, nft):
             run(ip, "route", "del", GATEWAY, "dev", "mesh-fixture", "table", "7120")
             assert route(GATEWAY, mark=FW_MARK) == "wan-fixture"
             dns_roundtrip(False)
+            https_roundtrip(False, address=GATEWAY, port=18445)
             run(
                 ip,
                 "route",
@@ -344,6 +347,7 @@ def check(private, ip, nft):
             https_secret.unlink()
             routed_secret.unlink()
             manage("revoke", include_routed=False)
+            https_roundtrip(False, address=GATEWAY, port=18445)
             dns_roundtrip(False)
             dns_roundtrip(False, retained)
             dns_roundtrip(False, unreplied)

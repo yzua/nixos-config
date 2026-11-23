@@ -53,6 +53,9 @@ def rules(addresses, https_addresses, interface, active, active_https, active_ro
         flows.extend(((active, "udp", "53"), (active, "tcp", "{ 53, 443 }")))
     for address in sorted({active_https, active_routed} - {None}):
         flows.append((address, "tcp", "443"))
+    # Private OpenStatus administration only; public routed HTTPS stays on 443.
+    for address in sorted({active, active_https} - {None}):
+        flows.append((address, "tcp", "18445"))
     lines = [
         f"table inet {TABLE}",
         f"delete table inet {TABLE}",
@@ -89,7 +92,10 @@ def rules(addresses, https_addresses, interface, active, active_https, active_ro
     for address in sorted(addresses | https_addresses):
         # Port-specific guards retain old scopes while allowing a selected
         # HTTPS endpoint to have been a gateway in a previous generation.
-        scopes = [("tcp", "443", address in {active, active_https, active_routed})]
+        scopes = [
+            ("tcp", "443", address in {active, active_https, active_routed}),
+            ("tcp", "18445", address in {active, active_https}),
+        ]
         if address in addresses:
             scopes.extend([("udp", "53", address == active), ("tcp", "53", address == active)])
         for protocol, port, allowed in scopes:

@@ -78,10 +78,10 @@ class PrivateFirewall(unittest.TestCase):
         restore, rest = rest.split("  chain guard {", 1)
         guard, _revoked = rest.split("  chain revoked {", 1)
         self.assertNotIn("oifname", marking, "initial output interface can still be Mullvad")
-        self.assertEqual(marking.count("meta mark set 0x6d6f6c65"), 2)
+        self.assertEqual(marking.count("meta mark set 0x6d6f6c65"), 3)
         self.assertIn("hook postrouting priority -125", restore)
         self.assertIn('oifname "mesh-fixture"', restore)
-        self.assertEqual(restore.count("meta mark 0x6d6f6c65 counter ct mark set 0x00000f41"), 2)
+        self.assertEqual(restore.count("meta mark 0x6d6f6c65 counter ct mark set 0x00000f41"), 3)
         self.assertNotIn("mark set", guard)
         self.assertNotIn("accept", guard.split("policy accept;", 1)[1])
         self.assertNotIn("skuid", text)
@@ -91,6 +91,34 @@ class PrivateFirewall(unittest.TestCase):
         self.assertEqual(self.state.stat().st_mode & 0o777, 0o700)
         self.assertEqual(result.stdout, "")
         self.assertEqual(result.stderr, "")
+
+    def test_private_admin_port_preserves_scope_rotation_and_revocation(self):
+        https = self.root / "https-endpoint"
+        https.write_text("100.64.0.10")
+        routed = self.root / "routed-endpoint"
+        routed.write_text("93.184.216.34")
+        self.assertEqual(self.run_action(https=https, routed=routed).returncode, 0)
+        text = self.transactions()[-1]["rules"]
+        for address in ("192.0.2.10", "100.64.0.10"):
+            self.assertIn(f"ip daddr {address} tcp dport 18445 counter", text)
+            self.assertIn(
+                f'oifname != "mesh-fixture" ip daddr {address} tcp dport 18445 ct mark',
+                text,
+            )
+        self.assertNotIn("ip daddr 93.184.216.34 tcp dport 18445 counter", text)
+        self.assertNotIn("18443", text)
+        https.write_text("100.64.0.11")
+        self.assertEqual(self.run_action(https=https, routed=routed).returncode, 0)
+        text = self.transactions()[-1]["rules"]
+        self.assertIn("    ip daddr 100.64.0.10 tcp dport 18445 ct mark 0x00000f41 drop", text)
+        self.assertNotIn("ip daddr 100.64.0.10 tcp dport 18445 counter", text)
+        self.secret.unlink()
+        https.unlink()
+        routed.unlink()
+        self.assertEqual(self.run_action("revoke", https=https, routed=routed).returncode, 0)
+        text = self.transactions()[-1]["rules"]
+        self.assertNotIn("ct mark set", text)
+        self.assertIn("    ip daddr 100.64.0.11 tcp dport 18445 ct mark 0x00000f41 drop", text)
 
     def test_revoke_uses_retained_state_not_the_current_secret(self):
         self.assertEqual(self.run_action().returncode, 0)
